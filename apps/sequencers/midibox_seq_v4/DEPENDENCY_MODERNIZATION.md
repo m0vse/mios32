@@ -34,7 +34,7 @@ USB-MIDI, Ethernet, and SD-card tests on each board family.
 | Network stack | uIP 1.0 / lwIP 2.2.1 after modernization | lwIP 2.2.1 (February 2025) | Replaced for SEQ V4 and cross-target compiled; hardware network testing remains. |
 | STM32F4 support | StdPeriph V1.1.0-era tree and legacy USB libraries | STM32CubeF4 V1.28.3; legacy SPL V1.9.0 | Port to Cube HAL/LL and Cube USB as an STM32F4-only project. |
 | STM32F1 support | StdPeriph V3.3.0 and legacy USB library | STM32CubeF1 V1.8.7; legacy SPL V3.6.x | Port separately from F4; retain F103/F105 target coverage. |
-| LPC17xx support | CMSIS 1.30-era device layer and custom legacy USB stack | LPCOpen 2.10 / LPC1700 DFP 2.7.2 | Port as an LPC17xx-only project; current NXP sources require account/license retrieval. |
+| LPC17xx support | CMSIS 1.30-era device layer and custom legacy USB stack | LPCOpen 2.10 / LPC1700 DFP 2.7.2; CMSIS-Core 6.3.0; TinyUSB 0.21.0 | Use the last official LPC1769 device support as a reference, then modernize maintained components behind the MIOS32 API. |
 | MIOS Studio / JUCE | External `~/JUCE/modules`; no pinned revision | JUCE 9.0.0 (July 2026) | Add reproducible desktop checks, then upgrade JUCE as an independent migration. |
 
 ## Completed changes
@@ -119,13 +119,24 @@ Do not share the F4 conversion commit.  The F103 and F105 USB/peripheral paths
 and memory constraints differ, and both need independent firmware images and
 hardware tests.
 
-### 6. Port LPC17xx to LPCOpen
+### 6. Modernize LPC17xx support
 
-Replace the CMSIS 1.30-era device layer, direct peripheral setup, Ethernet MAC,
-and USB stack behind the existing MIOS32 API.  LPCOpen 2.10 is the latest NXP
-package for LPC1769, but it is also old and account-gated; archive its exact
-package and checksum when it is imported.  Keep this work independent of both
-STM32 family migrations.
+Do not treat the current MCUXpresso SDK as an LPC1769 upgrade source.
+`mcuxsdk-core` contains shared drivers and build infrastructure rather than a
+complete device SDK, and the current `mcux-devices-lpc` repository supports the
+LPC51U68, LPC54000, LPC5500, and LPC800 families, not LPC17xx.  Adding LPC1769
+would therefore create an unofficial device port rather than consume supported
+NXP code.
+
+Use LPCOpen 2.10 and LPC1700 DFP 2.7.2 as the last official LPC1769 device and
+peripheral references.  Refresh the common core layer to CMSIS-Core 6.3.0 and
+replace the application USB implementation with TinyUSB 0.21.0 behind the
+existing MIOS32 API, first for MIDI/CDC and then for mass storage.  Audit direct
+peripheral drivers individually against the NXP references instead of importing
+an unsupported SDK wholesale.  Keep the device-layer, USB, Ethernet, and other
+peripheral changes in separate commits with LPC1769 hardware validation after
+each step.  Reserve MCUXpresso SDK integration for a future migration to an MCU
+family that its device repositories actually support.
 
 ### 7. Add MIOS Studio checks and update JUCE
 
