@@ -27,7 +27,7 @@
 #include "seq_ui.h"
 
 #include "seq_terminal.h"
-#include "uip_terminal.h"
+#include "lwip_terminal.h"
 
 #include "seq_core.h"
 #include "seq_midi_router.h"

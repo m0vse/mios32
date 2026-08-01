@@ -15,8 +15,9 @@ validation and must not be hidden inside an RTOS update.
   requests through `SEQ_TASK_MIDI()` and `SEQ_CORE_Handler()`.
 - The UI/storage work runs in two lower-priority 1 ms tasks.  Recursive mutexes
   serialize SD card, MIDI input/output, LCD, and J16 bus access.
-- The standard uIP integration adds another FreeRTOS task and a global recursive
-  mutex.  It services DHCP and the UDP-based OSC endpoints.
+- The lwIP raw API runs in one dedicated FreeRTOS task behind a recursive mutex.
+  It services Ethernet polling, ARP, IPv4, ICMP, DHCP, and UDP-based OSC without
+  a second lwIP TCP/IP thread.
 - The traditional programming model owns the repository-wide FreeRTOS
   configuration and redirects the C/C++ allocator to FreeRTOS `heap_4`.
 
@@ -30,7 +31,7 @@ USB-MIDI, Ethernet, and SD-card tests on each board family.
 | --- | --- | --- | --- |
 | FreeRTOS kernel | V9.0.0 / V11.3.0 after modernization | V11.3.0 (March 2026) | Updated and cross-target compiled. |
 | FatFs | R0.07e / R0.16 patch 2 after modernization | R0.16 patch 2 (July 2026) | Updated and cross-target compiled; hardware/media fault testing remains. |
-| uIP | uIP 1.0 historical sources | No maintained drop-in uIP release | Replace with a maintained stack rather than relabeling the historical code. |
+| Network stack | uIP 1.0 / lwIP 2.2.1 after modernization | lwIP 2.2.1 (February 2025) | Replaced for SEQ V4 and cross-target compiled; hardware network testing remains. |
 | STM32F4 support | StdPeriph V1.1.0-era tree and legacy USB libraries | STM32CubeF4 V1.28.3; legacy SPL V1.9.0 | Port to Cube HAL/LL and Cube USB as an STM32F4-only project. |
 | STM32F1 support | StdPeriph V3.3.0 and legacy USB library | STM32CubeF1 V1.8.7; legacy SPL V3.6.x | Port separately from F4; retain F103/F105 target coverage. |
 | LPC17xx support | CMSIS 1.30-era device layer and custom legacy USB stack | LPCOpen 2.10 / LPC1700 DFP 2.7.2 | Port as an LPC17xx-only project; current NXP sources require account/license retrieval. |
@@ -54,6 +55,11 @@ USB-MIDI, Ethernet, and SD-card tests on each board family.
 6. The common make graph now orders output-directory creation, linking, symbol
    generation, and build reporting correctly under parallel make. GCC writes
    dependency files directly; failed recipes no longer leave partial targets.
+7. SEQ V4 now uses lwIP 2.2.1 instead of uIP 1.0. The minimal raw-API port keeps
+   one network task and enables only ARP, IPv4, ICMP, DHCP, and UDP. OSC retains
+   its four logical connections, including shared local ports and broadcast.
+   STM32F1/F4 ENC28J60 and LPC17xx EMAC adapters now use stack-neutral frame
+   buffers instead of uIP globals.
 
 ## Verified build matrix
 
@@ -61,13 +67,17 @@ Built with GNU Arm Embedded Toolchain 14.2.Rel1 and GNU Make 4.4.1:
 
 | Board environment | Processor | Text | Data | BSS | Result |
 | --- | --- | ---: | ---: | ---: | ---: |
-| `source_me_MBHP_CORE_STM32F4` | STM32F407VG | 430368 | 960 | 73440 | Pass |
-| `source_me_MBHP_CORE_STM32` | STM32F103RE | 414804 | 952 | 59768 | Pass |
-| `source_me_MBHP_CORE_LPC17` | LPC1769 | 408260 | 904 | 62824 | Pass |
+| `source_me_MBHP_CORE_STM32F4` | STM32F407VG | 440664 | 960 | 73488 | Pass |
+| `source_me_MBHP_CORE_STM32` | STM32F103RE | 425100 | 952 | 59816 | Pass |
+| `source_me_MBHP_CORE_LPC17` | LPC1769 | 418276 | 904 | 62384 | Pass |
 
-Clean direct parallel builds (`make -j4`) are verified for all three board
-environments. The common rules remain compatible with the GNU Make 3.81/MSYS
-baseline documented by MIDIbox as well as the tested GNU Make 4.4.1 environment.
+Clean direct builds (`make -j4`) are verified for all three board environments.
+On Windows/MSYS the common rules serialize native GCC execution by default,
+because parallel compiler workers were observed terminating silently and leaving
+empty `.su` files. Set `MIOS32_ALLOW_PARALLEL_BUILD=1` only after validating a
+different Windows toolchain. Other hosts retain normal make parallelism. The
+rules remain compatible with the GNU Make 3.81/MSYS baseline documented by
+MIDIbox and the tested GNU Make 4.4.1 environment.
 
 ## Recommended independent migrations
 
@@ -85,13 +95,14 @@ fragmented, full, read-only, and corrupt cards, plus unexpected removal during
 reads and writes. Exercise terminal formatting on each MCU family. Do not enable
 exFAT unless its additional memory and licensing behavior is explicitly wanted.
 
-### 3. Replace uIP 1.0
+### 3. Validate lwIP 2.2.1 on hardware
 
-SEQ V4 primarily needs DHCP and UDP OSC, so a minimal lwIP 2.2.x port is a
-smaller migration than reproducing every uIP feature.  Preserve the public OSC
-module boundary, replace the uIP global mutex, and test packet bursts without
-disturbing MIDI timing.  FreeRTOS+TCP is another viable option but couples the
-network migration more tightly to the RTOS.
+Exercise DHCP acquisition and renewal, static addressing, link loss/recovery,
+ICMP echo, all four OSC connections, duplicate local OSC ports, broadcast,
+source filtering, SysEx fragmentation, and packet bursts while measuring MIDI
+clock jitter. The LPC17xx configuration deliberately uses a 768-byte lwIP heap,
+an allocation-free receive path, and the existing 1024-byte EMAC frame limit;
+monitor memory-allocation failures and both RAM-bank margins under stress.
 
 ### 4. Port STM32F4 to STM32Cube
 
@@ -131,8 +142,8 @@ and licensing review. This is a roadmap item, not an ordering decision.
   when `configASSERT` is enabled.  Assertions and task/mutex creation failure
   handling should be enabled in a separate reliability commit.
 - The legacy STM32 USB code emits type and initialization warnings with GCC 14.
-- The uIP protothread macros emit modern-compiler warnings and the stack has no
-  maintained upstream security line.
+- lwIP compile/link coverage cannot validate PHY/MAC operation, DHCP renewal,
+  OSC interoperability, or timing under packet bursts; all need board testing.
 - The repository-wide application license permits personal non-commercial use
   only.  Confirm redistribution terms before publishing combined binaries or
   refreshed proprietary vendor code.

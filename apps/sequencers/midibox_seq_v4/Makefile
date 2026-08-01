@@ -185,10 +185,10 @@ include $(MIOS32_PATH)/modules/random/random.mk
 include $(MIOS32_PATH)/modules/freertos_utils/freertos_utils.mk
 
 # UIP driver
-include $(MIOS32_PATH)/modules/uip/uip.mk
+include $(MIOS32_PATH)/modules/lwip/lwip.mk
 
 # UIP Standard Task (with OSC Client/Server)
-include $(MIOS32_PATH)/modules/uip_task_standard/uip_task_standard.mk
+include $(MIOS32_PATH)/modules/lwip_task_standard/lwip_task_standard.mk
 
 # common make rules
 # Please keep this include statement at the end of this Makefile. Add new modules above.

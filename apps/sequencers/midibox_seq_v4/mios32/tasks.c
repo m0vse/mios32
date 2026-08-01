@@ -18,7 +18,7 @@
 
 #include <mios32.h>
 
-#include "uip_task.h"
+#include "lwip_task.h"
 
 #include "tasks.h"
 
@@ -57,7 +57,7 @@ SemaphoreHandle_t xJ16Semaphore;
 #define PRIORITY_TASK_PERIOD1MS		 ( tskIDLE_PRIORITY + 2 )
 #define PRIORITY_TASK_PERIOD1MS_LOW_PRIO ( tskIDLE_PRIORITY + 2 )
 
-// priority of uIP task defined in uip_task.c (-> using 3)
+// priority of lwIP task defined in lwip_task.c (-> using 3)
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -92,7 +92,7 @@ s32 TASKS_Init(u32 mode)
   xTaskCreate(TASK_Period1mS_LowPrio, "Period1mS_LP", (PERIOD1MS_LOWPRIO_TASK_STACK_SIZE)/4, NULL, PRIORITY_TASK_PERIOD1MS_LOW_PRIO, NULL);
 
 #if !defined(MIOS32_DONT_USE_OSC)
-    // finally init the uIP task
+  // finally init the lwIP task
   UIP_TASK_Init(0);
 #endif
 

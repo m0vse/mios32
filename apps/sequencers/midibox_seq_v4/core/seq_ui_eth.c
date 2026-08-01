@@ -31,8 +31,7 @@
 #include <osc_client.h>
 
 #if !defined(MIOS32_FAMILY_EMULATION)
-#include "uip.h"
-#include "uip_task.h"
+#include "lwip_task.h"
 #include "osc_server.h"
 #else
 #define OSC_SERVER_NUM_CONNECTIONS 4
@@ -572,45 +571,24 @@ static s32 SEQ_UI_ETH_UpdateNCfg(void)
 
   switch( ncfg_item ) {
   case NCFG_IP:
-    if( dhcpOn ) {
-      uip_ipaddr_t ipaddr;
-      uip_gethostaddr(&ipaddr);
-      ncfg_value =
-	(uip_ipaddr1(ipaddr) << 24) |
-	(uip_ipaddr2(ipaddr) << 16) |
-	(uip_ipaddr3(ipaddr) <<  8) |
-	(uip_ipaddr4(ipaddr) <<  0);
-    } else {
+    if( dhcpOn )
+      ncfg_value = UIP_TASK_IP_EffectiveAddressGet();
+    else
       ncfg_value = UIP_TASK_IP_AddressGet();
-    }
     break;
 
   case NCFG_NETMASK:
-    if( dhcpOn ) {
-      uip_ipaddr_t netmask;
-      uip_getnetmask(&netmask);
-      ncfg_value =
-	(uip_ipaddr1(netmask) << 24) |
-	(uip_ipaddr2(netmask) << 16) |
-	(uip_ipaddr3(netmask) <<  8) |
-	(uip_ipaddr4(netmask) <<  0);
-    } else {
+    if( dhcpOn )
+      ncfg_value = UIP_TASK_EffectiveNetmaskGet();
+    else
       ncfg_value = UIP_TASK_NetmaskGet();
-    }
     break;
 
   case NCFG_GATEWAY:
-    if( dhcpOn ) {
-      uip_ipaddr_t draddr;
-      uip_getdraddr(&draddr);
-      ncfg_value =
-	(uip_ipaddr1(draddr) << 24) |
-	(uip_ipaddr2(draddr) << 16) |
-	(uip_ipaddr3(draddr) <<  8) |
-	(uip_ipaddr4(draddr) <<  0);
-    } else {
+    if( dhcpOn )
+      ncfg_value = UIP_TASK_EffectiveGatewayGet();
+    else
       ncfg_value = UIP_TASK_GatewayGet();
-    }
     break;
   }
 #endif

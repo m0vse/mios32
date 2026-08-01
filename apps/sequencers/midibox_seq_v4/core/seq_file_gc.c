@@ -51,8 +51,7 @@
 #include "seq_lcd_logo.h"
 
 #if !defined(MIOS32_FAMILY_EMULATION)
-#include "uip.h"
-#include "uip_task.h"
+#include "lwip_task.h"
 #include "osc_server.h"
 #endif
 

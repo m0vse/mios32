@@ -54,13 +54,13 @@ extern void APP_SendDebugMessage(char *format, ...);
 
 #ifdef MBSEQV4P
 # define MIOS32_TASK_HOOKS_STACK_SIZE      2100
-# define UIP_TASK_STACK_SIZE               2100
+# define LWIP_TASK_STACK_SIZE              2100
 # define MIOS32_TASK_MIDI_HOOKS_STACK_SIZE 2100
 # define MIDI_TASK_STACK_SIZE              2100
 # define PERIOD1MS_TASK_STACK_SIZE         2100
 #else
 # define MIOS32_TASK_HOOKS_STACK_SIZE      1000
-# define UIP_TASK_STACK_SIZE               1000
+# define LWIP_TASK_STACK_SIZE              1000
 # define MIOS32_TASK_MIDI_HOOKS_STACK_SIZE 1400
 # define MIDI_TASK_STACK_SIZE              1400
 # define PERIOD1MS_TASK_STACK_SIZE         1400
@@ -233,16 +233,16 @@ extern void TASKS_MUTEX_MIDIOUT_Give(void);
 #define LPC17XX_EMAC_FRAG_SIZE   1024
 
 
-// map MIDI mutex to UIP task
+// map MIDI mutex to lwIP task
 // located in tasks.c to access MIDI IN/OUT mutex from external
 extern void TASKS_MUTEX_MIDIOUT_Take(void);
 extern void TASKS_MUTEX_MIDIOUT_Give(void);
 extern void TASKS_MUTEX_MIDIIN_Take(void);
 extern void TASKS_MUTEX_MIDIIN_Give(void);
-#define UIP_TASK_MUTEX_MIDIOUT_TAKE { TASKS_MUTEX_MIDIOUT_Take(); }
-#define UIP_TASK_MUTEX_MIDIOUT_GIVE { TASKS_MUTEX_MIDIOUT_Give(); }
-#define UIP_TASK_MUTEX_MIDIIN_TAKE  { TASKS_MUTEX_MIDIIN_Take(); }
-#define UIP_TASK_MUTEX_MIDIIN_GIVE  { TASKS_MUTEX_MIDIIN_Give(); }
+#define LWIP_TASK_MUTEX_MIDIOUT_TAKE { TASKS_MUTEX_MIDIOUT_Take(); }
+#define LWIP_TASK_MUTEX_MIDIOUT_GIVE { TASKS_MUTEX_MIDIOUT_Give(); }
+#define LWIP_TASK_MUTEX_MIDIIN_TAKE  { TASKS_MUTEX_MIDIIN_Take(); }
+#define LWIP_TASK_MUTEX_MIDIIN_GIVE  { TASKS_MUTEX_MIDIIN_Give(); }
 
 // Mutex for J16 access
 extern void TASKS_J16SemaphoreTake(void);
