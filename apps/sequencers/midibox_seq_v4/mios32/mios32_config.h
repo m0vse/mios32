@@ -77,6 +77,9 @@ extern void APP_SendDebugMessage(char *format, ...);
 // reserved memory for FreeRTOS pvPortMalloc function
 #ifdef MBSEQV4P
 # define MIOS32_HEAP_SIZE 20*1024
+#elif defined(MIOS32_FAMILY_LPC17xx) && defined(MIOS32_USB_USE_TINYUSB)
+// Reserve LPC AHB SRAM for the USB DMA descriptors and endpoint buffers.
+# define MIOS32_HEAP_SIZE (13*1024 - 256)
 #else
 # define MIOS32_HEAP_SIZE 13*1024
 #endif
@@ -84,6 +87,11 @@ extern void APP_SendDebugMessage(char *format, ...);
 // for LPC17: simplify allocation of large arrays
 #if defined(MIOS32_FAMILY_LPC17xx)
 # define AHB_SECTION __attribute__ ((section (".bss_ahb")))
+# if defined(MIOS32_USB_USE_TINYUSB)
+// The UART driver is interrupt-driven; its FIFOs do not require DMA-visible RAM.
+#  define MIOS32_DONT_LOCATE_UART_RXBUFFER_IN_AHB_MEMORY 1
+#  define MIOS32_DONT_LOCATE_UART_TXBUFFER_IN_AHB_MEMORY 1
+# endif
 #else
 # define AHB_SECTION
 #endif

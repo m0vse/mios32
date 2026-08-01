@@ -49,7 +49,11 @@
 
 // endpoint assignments (don't change!)
 #define MIOS32_USB_MIDI_DATA_OUT_EP 0x02
-#define MIOS32_USB_MIDI_DATA_IN_EP  0x81
+#if defined(MIOS32_FAMILY_LPC17xx) && defined(MIOS32_USB_USE_TINYUSB)
+# define MIOS32_USB_MIDI_DATA_IN_EP 0x82
+#else
+# define MIOS32_USB_MIDI_DATA_IN_EP 0x81
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////

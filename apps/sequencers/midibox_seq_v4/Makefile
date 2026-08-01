@@ -143,6 +143,12 @@ OPTIMIZE  =	-Os
 
 CFLAGS =	$(DEBUG) $(OPTIMIZE)
 
+# Trial the maintained USB device stack on LPC17xx without changing the
+# bootloader or applications which still use the legacy mass-storage driver.
+ifeq ($(FAMILY),LPC17xx)
+MIOS32_USB_USE_TINYUSB = 1
+endif
+
 
 ################################################################################
 # Include source modules via additional makefiles

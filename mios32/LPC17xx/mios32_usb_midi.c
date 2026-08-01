@@ -22,8 +22,12 @@
 // this module can be optionally disabled in a local mios32_config.h file (included from mios32.h)
 #if !defined(MIOS32_DONT_USE_USB_MIDI)
 
+#if defined(MIOS32_USB_USE_TINYUSB)
+#include <tusb.h>
+#else
 #include <usbapi.h>
 #include <usbhw_lpc.h>
+#endif
 
 
 // for debugging Rx buffer usage
@@ -59,6 +63,7 @@ static u8 transfer_possible = 0;
 
 static volatile u8 tx_buffer_busy;
 
+#if !defined(MIOS32_USB_USE_TINYUSB)
 /** convert from endpoint address to endpoint index */
 #define EP2IDX(bEP)     ((((bEP)&0xF)<<1)|(((bEP)&0x80)>>7))
 /** convert from endpoint index to endpoint address */
@@ -80,6 +85,7 @@ static void USBHwCmd(U8 bCmd)
         LPC_USB->USBCmdCode = 0x00000500 | (bCmd << 16);
         Wait4DevInt(CCEMTY);
 }
+#endif
 
 /////////////////////////////////////////////////////////////////////////////
 //! Initializes USB MIDI layer
@@ -139,7 +145,11 @@ s32 MIOS32_USB_MIDI_CheckAvailable(u8 cable)
   if( cable >= MIOS32_USB_MIDI_NUM_PORTS )
     return 0;
 
+#if defined(MIOS32_USB_USE_TINYUSB)
+  return transfer_possible && tud_midi_mounted() ? 1 : 0;
+#else
   return transfer_possible ? 1 : 0;
+#endif
 }
 
 
@@ -269,6 +279,11 @@ s32 MIOS32_USB_MIDI_PackageReceive(mios32_midi_package_t *package)
 /////////////////////////////////////////////////////////////////////////////
 s32 MIOS32_USB_MIDI_Periodic_mS(void)
 {
+#if defined(MIOS32_USB_USE_TINYUSB)
+  // TinyUSB defers bus and endpoint work from the IRQ to this task context.
+  tud_task_ext(0, false);
+#endif
+
   if( transfer_possible ) {
     // check for received packages
     MIOS32_USB_MIDI_RxBufferHandler(MIOS32_USB_MIDI_DATA_OUT_EP);
@@ -287,6 +302,21 @@ s32 MIOS32_USB_MIDI_Periodic_mS(void)
 /////////////////////////////////////////////////////////////////////////////
 static void MIOS32_USB_MIDI_TxBufferHandler(u8 bEP)
 {
+#if defined(MIOS32_USB_USE_TINYUSB)
+  (void)bEP;
+
+  while( tx_buffer_size && transfer_possible ) {
+    const u8 *packet = (const u8 *)&tx_buffer[tx_buffer_tail];
+    if( !tud_midi_packet_write(packet) )
+      break;
+
+    MIOS32_IRQ_Disable();
+    if( ++tx_buffer_tail >= MIOS32_USB_MIDI_TX_BUFFER_SIZE )
+      tx_buffer_tail = 0;
+    --tx_buffer_size;
+    MIOS32_IRQ_Enable();
+  }
+#else
   // send buffered packages if
   //   - last transfer finished
   //   - new packages are in the buffer
@@ -326,6 +356,7 @@ static void MIOS32_USB_MIDI_TxBufferHandler(u8 bEP)
   }
 
   MIOS32_IRQ_Enable();
+#endif
 }
 
 
@@ -334,6 +365,29 @@ static void MIOS32_USB_MIDI_TxBufferHandler(u8 bEP)
 /////////////////////////////////////////////////////////////////////////////
 static void MIOS32_USB_MIDI_RxBufferHandler(u8 bEP)
 {
+#if defined(MIOS32_USB_USE_TINYUSB)
+  (void)bEP;
+  u8 packet_bytes[4];
+
+  while( tud_midi_packet_read(packet_bytes) ) {
+    mios32_midi_package_t package;
+    package.ALL = (u32)packet_bytes[0] |
+                  ((u32)packet_bytes[1] << 8) |
+                  ((u32)packet_bytes[2] << 16) |
+                  ((u32)packet_bytes[3] << 24);
+
+    if( MIOS32_MIDI_SendPackageToRxCallback(USB0 + package.cable, package) == 0 ) {
+      MIOS32_IRQ_Disable();
+      if( rx_buffer_size < (MIOS32_USB_MIDI_RX_BUFFER_SIZE - 1) ) {
+        rx_buffer[rx_buffer_head] = package.ALL;
+        if( ++rx_buffer_head >= MIOS32_USB_MIDI_RX_BUFFER_SIZE )
+          rx_buffer_head = 0;
+        ++rx_buffer_size;
+      }
+      MIOS32_IRQ_Enable();
+    }
+  }
+#else
   // atomic operation to avoid conflict with other interrupts
   MIOS32_IRQ_Disable();
 
@@ -384,6 +438,7 @@ static void MIOS32_USB_MIDI_RxBufferHandler(u8 bEP)
   LPC_USB->USBCtrl = 0;
 
   MIOS32_IRQ_Enable();
+#endif
 }
 
 
@@ -393,6 +448,9 @@ static void MIOS32_USB_MIDI_RxBufferHandler(u8 bEP)
 /////////////////////////////////////////////////////////////////////////////
 void MIOS32_USB_MIDI_EP1_IN_Callback(u8 bEP, u8 bEPStatus)
 {
+#if defined(MIOS32_USB_USE_TINYUSB)
+  (void)bEPStatus;
+#endif
   // package has been sent
   tx_buffer_busy = 0;
 

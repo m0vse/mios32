@@ -3,9 +3,8 @@
 //!
 //! USB driver for MIOS32
 //! 
-//! Uses LPCUSB driver from Bertrik Sikken (bertrik@sikken.nl)
-//! which is installed under $MIOS32_PATH/drivers/LPC17xx/usbstack
-//! -> http://sourceforge.net/projects/lpcusb
+//! Uses TinyUSB when MIOS32_USB_USE_TINYUSB is enabled, otherwise the legacy
+//! LPCUSB driver from $MIOS32_PATH/drivers/LPC17xx/usbstack.
 //! 
 //! Applications shouldn't call these functions directly, instead please use \ref MIOS32_COM or \ref MIOS32_MIDI layer functions
 //! 
@@ -29,7 +28,11 @@
 #if !defined(MIOS32_DONT_USE_USB)
 
 #include <string.h>
+#if defined(MIOS32_USB_USE_TINYUSB)
+#include <tusb.h>
+#else
 #include <usbapi.h>
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -52,6 +55,7 @@
 // (unfortunately no unique names are used...)
 /////////////////////////////////////////////////////////////////////////////
 
+#if !defined(MIOS32_USB_USE_TINYUSB)
 #define SET_LINE_CODING                 0x20
 #define GET_LINE_CODING                 0x21
 #define SET_CONTROL_LINE_STATE  0x22
@@ -66,6 +70,7 @@ typedef struct {
 
 static TLineCoding LineCoding = {115200, 0, 0, 8};
 static U8 abClassReqData[8];
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -894,9 +899,11 @@ static const u8 MIOS32_USB_ConfigDescriptor_SingleUSB[] = {
 // Local prototypes
 /////////////////////////////////////////////////////////////////////////////
 
+#if !defined(MIOS32_USB_USE_TINYUSB)
 static void HandleUsbReset(U8 bDevStatus);
 static BOOL HandleClassRequest(TSetupPacket *pSetup, int *piLen, U8 **ppbData);
 static BOOL HandleCustomRequest(TSetupPacket *pSetup, int *piLen, U8 **ppbData);
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -918,6 +925,49 @@ s32 MIOS32_USB_Init(u32 mode)
   if( mode >= 3 )
     return -1; // unsupported mode
 
+#if defined(MIOS32_USB_USE_TINYUSB)
+  // Runtime replacement of TinyUSB's class hooks is not supported. Mass
+  // storage remains on the legacy stack until it is migrated separately.
+  if( mode == 2 )
+    return -3;
+
+  if( tusb_inited() ) {
+    if( mode != 1 )
+      return 0;
+
+    tud_disconnect();
+    MIOS32_DELAY_Wait_uS(10000);
+    if( !tusb_deinit(0) )
+      return -4;
+  }
+
+  NVIC_DisableIRQ(USB_IRQn);
+
+  // Configure P2.9 as USB_CONNECT and P0.29/P0.30 as USB_D+/USB_D-.
+  LPC_PINCON->PINSEL4 = (LPC_PINCON->PINSEL4 & ~0x000c0000) | 0x00040000;
+  LPC_PINCON->PINSEL1 = (LPC_PINCON->PINSEL1 & ~0x3c000000) | 0x14000000;
+
+  LPC_SC->PCONP |= (1UL << 31);
+  LPC_USB->USBClkCtrl = 0x1a;
+  while( (LPC_USB->USBClkSt & 0x1a) != 0x1a );
+
+  const tusb_rhport_init_t rhport_init = {
+    .role = TUSB_ROLE_DEVICE,
+    .speed = TUSB_SPEED_FULL,
+  };
+  if( !tusb_init(0, &rhport_init) )
+    return -2;
+
+#ifndef MIOS32_DONT_USE_USB_MIDI
+  MIOS32_USB_MIDI_ChangeConnectionState(0);
+#endif
+#ifdef MIOS32_USE_USB_COM
+  MIOS32_USB_COM_ChangeConnectionState(0);
+#endif
+
+  MIOS32_IRQ_Install(USB_IRQn, MIOS32_IRQ_USB_PRIORITY);
+  return 0;
+#else
   // force re-connection?
   if( mode == 1 ) {
     // disconnect from bus
@@ -971,6 +1021,7 @@ s32 MIOS32_USB_Init(u32 mode)
   USBHwConnect(TRUE);
 
   return 0; // no error
+#endif
 }
 
 
@@ -980,7 +1031,11 @@ s32 MIOS32_USB_Init(u32 mode)
 /////////////////////////////////////////////////////////////////////////////
 void USB_IRQHandler(void)
 {
+#if defined(MIOS32_USB_USE_TINYUSB)
+  tud_int_handler(0);
+#else
   USBHwISR();
+#endif
 }
 
 
@@ -1012,6 +1067,125 @@ s32 MIOS32_USB_ForceSingleUSB(void)
 }
 
 
+#if defined(MIOS32_USB_USE_TINYUSB)
+/////////////////////////////////////////////////////////////////////////////
+// TinyUSB callbacks
+/////////////////////////////////////////////////////////////////////////////
+
+u32 tusb_time_millis_api(void)
+{
+  return (u32)MIOS32_TIMESTAMP_Get();
+}
+
+// TinyUSB's LPC17/40 controller driver has no upstream deinit hook. Supply
+// the controller-specific shutdown needed by MIOS32_USB_Init(1).
+bool dcd_deinit(u8 rhport)
+{
+  (void)rhport;
+  NVIC_DisableIRQ(USB_IRQn);
+  LPC_USB->USBDevIntEn = 0;
+  LPC_USB->USBEpIntEn = 0;
+  LPC_USB->USBDMAIntEn = 0;
+  LPC_USB->USBEpDMADis = 0xffffffff;
+  LPC_USB->USBDevIntClr = 0xffffffff;
+  LPC_USB->USBEpIntClr = 0xffffffff;
+  return true;
+}
+
+const u8 *tud_descriptor_device_cb(void)
+{
+#if !defined(MIOS32_DONT_USE_USB_MIDI) && MIOS32_USB_MIDI_NUM_PORTS > 1
+  return MIOS32_USB_ForceSingleUSB() ? MIOS32_USB_ConfigDescriptor_SingleUSB : MIOS32_USB_ConfigDescriptor;
+#else
+  return MIOS32_USB_ConfigDescriptor;
+#endif
+}
+
+const u8 *tud_descriptor_configuration_cb(u8 index)
+{
+  (void)index;
+#if !defined(MIOS32_DONT_USE_USB_MIDI) && MIOS32_USB_MIDI_NUM_PORTS > 1
+  const u8 *descriptor = MIOS32_USB_ForceSingleUSB() ? MIOS32_USB_ConfigDescriptor_SingleUSB : MIOS32_USB_ConfigDescriptor;
+#else
+  const u8 *descriptor = MIOS32_USB_ConfigDescriptor;
+#endif
+  return descriptor + MIOS32_USB_SIZ_DEVICE_DESC;
+}
+
+const u16 *tud_descriptor_string_cb(u8 index, u16 langid)
+{
+  (void)langid;
+  const char vendor_str[] = MIOS32_USB_VENDOR_STR;
+  const char product_str[] = MIOS32_USB_PRODUCT_STR;
+  static u16 descriptor[50];
+  const char *source = 0;
+  char serial_number[40];
+  u8 count = 0;
+
+  if( index == 0 ) {
+    descriptor[1] = 0x0409;
+    count = 1;
+  } else if( index == 1 ) {
+    source = vendor_str;
+  } else if( index == 2 ) {
+    source = product_str;
+#ifdef MIOS32_SYS_ADDR_USB_DEV_NAME
+    const char *user_name = (const char *)MIOS32_SYS_ADDR_USB_DEV_NAME;
+    u8 valid = 1;
+    u8 len = 0;
+    while( len < MIOS32_SYS_USB_DEV_NAME_LEN && user_name[len] ) {
+      if( user_name[len] < 0x20 || user_name[len] >= 0x80 ) {
+        valid = 0;
+        break;
+      }
+      ++len;
+    }
+    if( valid && len )
+      source = user_name;
+#endif
+  } else if( index == 3 ) {
+    if( MIOS32_SYS_SerialNumberGet(serial_number) < 0 )
+      return 0;
+    source = serial_number;
+  } else {
+    return 0;
+  }
+
+  if( source ) {
+    while( source[count] && count < 49 ) {
+      descriptor[1 + count] = (u8)source[count];
+      ++count;
+    }
+  }
+
+  descriptor[0] = (DSCR_STRING << 8) | (2 * count + 2);
+  return descriptor;
+}
+
+void tud_mount_cb(void)
+{
+#ifndef MIOS32_DONT_USE_USB_MIDI
+  MIOS32_USB_MIDI_ChangeConnectionState(1);
+#endif
+}
+
+void tud_umount_cb(void)
+{
+#ifndef MIOS32_DONT_USE_USB_MIDI
+  MIOS32_USB_MIDI_ChangeConnectionState(0);
+#endif
+}
+
+void tud_suspend_cb(bool remote_wakeup_en)
+{
+  (void)remote_wakeup_en;
+}
+
+void tud_resume_cb(void)
+{
+}
+
+#else
 static void HandleUsbReset(U8 bDevStatus)
 {
   if (bDevStatus & DEV_STATUS_RESET) {
@@ -1144,6 +1318,7 @@ static BOOL HandleCustomRequest(TSetupPacket *pSetup, int *piLen, U8 **ppbData)
 
   return FALSE;
 }
+#endif
 
 //! \}
 
