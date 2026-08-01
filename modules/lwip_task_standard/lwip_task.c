@@ -154,11 +154,16 @@ s32 LWIP_TASK_InitFromPresets(u8 enabled, u32 ip, u32 netmask, u32 gateway)
 static void LWIP_TASK_Handler(void *pvParameters)
 {
   TickType_t last_execution;
+  TickType_t last_network_check;
   u8 link_was_up;
 
   (void)pvParameters;
   MUTEX_LWIP_TAKE;
   network_device_init();
+  // Advance network-device initialization immediately.  Subsequent states
+  // are polled at fixed intervals below; do not depend on observing an exact
+  // value of the independently updated MIOS32 timestamp.
+  network_device_check();
   lwip_init();
   netif_add_noaddr(&ethernet_netif, NULL, LWIP_TASK_NetifInit, ethernet_input);
   netif_set_default(&ethernet_netif);
@@ -174,15 +179,20 @@ static void LWIP_TASK_Handler(void *pvParameters)
   MUTEX_LWIP_GIVE;
 
   last_execution = xTaskGetTickCount();
+  last_network_check = last_execution;
   while( 1 ) {
     int frame_len;
     u8 link_is_up;
+    TickType_t now;
 
     xTaskDelayUntil(&last_execution, pdMS_TO_TICKS(1U));
     MUTEX_LWIP_TAKE;
 
-    if( !(MIOS32_TIMESTAMP_Get() % 100U) )
+    now = xTaskGetTickCount();
+    if( (TickType_t)(now - last_network_check) >= pdMS_TO_TICKS(100U) ) {
+      last_network_check = now;
       network_device_check();
+    }
     link_is_up = network_device_available() != 0;
     if( link_is_up != link_was_up ) {
       link_was_up = link_is_up;
