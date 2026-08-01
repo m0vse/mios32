@@ -236,17 +236,17 @@ void vApplicationIdleHook(void)
 #if !defined(MIOS32_DONT_USE_MIDI)
 static void TASK_MIDI_Hooks(void *pvParameters)
 {
-  portTickType xLastExecutionTime;
+  TickType_t xLastExecutionTime;
 
   // Initialise the xLastExecutionTime variable on task entry
   xLastExecutionTime = xTaskGetTickCount();
 
   while( 1 ) {
-    vTaskDelayUntil(&xLastExecutionTime, 1 / portTICK_RATE_MS);
+    xTaskDelayUntil(&xLastExecutionTime, pdMS_TO_TICKS(1U));
 
     // skip delay gap if we had to wait for more than 5 ticks to avoid 
     // unnecessary repeats until xLastExecutionTime reached xTaskGetTickCount() again
-    portTickType xCurrentTickCount = xTaskGetTickCount();
+    TickType_t xCurrentTickCount = xTaskGetTickCount();
     if( xLastExecutionTime < (xCurrentTickCount-5) )
       xLastExecutionTime = xCurrentTickCount;
 
@@ -269,17 +269,17 @@ static void TASK_MIDI_Hooks(void *pvParameters)
 /////////////////////////////////////////////////////////////////////////////
 static void TASK_Hooks(void *pvParameters)
 {
-  portTickType xLastExecutionTime;
+  TickType_t xLastExecutionTime;
 
   // Initialise the xLastExecutionTime variable on task entry
   xLastExecutionTime = xTaskGetTickCount();
 
   while( 1 ) {
-    vTaskDelayUntil(&xLastExecutionTime, 1 / portTICK_RATE_MS);
+    xTaskDelayUntil(&xLastExecutionTime, pdMS_TO_TICKS(1U));
 
     // skip delay gap if we had to wait for more than 5 ticks to avoid 
     // unnecessary repeats until xLastExecutionTime reached xTaskGetTickCount() again
-    portTickType xCurrentTickCount = xTaskGetTickCount();
+    TickType_t xCurrentTickCount = xTaskGetTickCount();
     if( xLastExecutionTime < (xCurrentTickCount-5) )
       xLastExecutionTime = xCurrentTickCount;
 
@@ -531,7 +531,7 @@ void HardFault_Handler(void)
 
 // used if configCHECK_FOR_STACK_OVERFLOW enabled (set to 1 or 2) in FreeRTOSConfig.h
 #if configCHECK_FOR_STACK_OVERFLOW
-void vApplicationStackOverflowHook(xTaskHandle xTask, signed portCHAR *pcTaskName)
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 {
   MIOS32_MIDI_SendDebugMessage("======================\n");
   MIOS32_MIDI_SendDebugMessage("!!! STACK OVERFLOW !!!\n");

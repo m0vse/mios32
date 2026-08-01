@@ -329,7 +329,7 @@ s32 SEQ_MIDEXP_GenerateFile(char *path)
     // background: buttons have higher priority than LCD output, especially with MUTEX_MIDI_OUT the priority
     // will be even higher, so that the LCD update task is starving.
     // waiting for some mS ensures that the other tasks are serviced.
-    vTaskDelay(100 / portTICK_RATE_MS);
+    vTaskDelay(pdMS_TO_TICKS(100U));
 #endif
 
     // reset sequencer

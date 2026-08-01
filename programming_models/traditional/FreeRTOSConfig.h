@@ -32,12 +32,12 @@
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 1
 #define configUSE_TICKLESS_IDLE                 0
-#define configCPU_CLOCK_HZ                      ((unsigned portLONG) (MIOS32_SYS_CPU_FREQUENCY) )
-#define configTICK_RATE_HZ                      ((portTickType) 1000 )
+#define configCPU_CLOCK_HZ                      ((uint32_t) (MIOS32_SYS_CPU_FREQUENCY) )
+#define configTICK_RATE_HZ                      ((uint32_t) 1000U )
 #define configMAX_PRIORITIES                    5
-#define configMINIMAL_STACK_SIZE                ((unsigned portSHORT) ((MIOS32_MINIMAL_STACK_SIZE)/4) )
+#define configMINIMAL_STACK_SIZE                ((uint16_t) ((MIOS32_MINIMAL_STACK_SIZE)/4) )
 #define configMAX_TASK_NAME_LEN                 16
-#define configUSE_16_BIT_TICKS                  0
+#define configTICK_TYPE_WIDTH_IN_BITS           TICK_TYPE_WIDTH_32_BITS
 #define configIDLE_SHOULD_YIELD                 1
 #ifndef configUSE_TASK_NOTIFICATIONS // can be changed in mios32_config.h -- will add some additional processing overhead
 #define configUSE_TASK_NOTIFICATIONS            0
@@ -50,7 +50,7 @@
 #define configUSE_QUEUE_SETS                    0
 #define configUSE_TIME_SLICING                  1
 #define configUSE_NEWLIB_REENTRANT              0
-#define configENABLE_BACKWARD_COMPATIBILITY     1 // MIOS32 Legacy...
+#define configENABLE_BACKWARD_COMPATIBILITY     0
 #define configNUM_THREAD_LOCAL_STORAGE_POINTERS 0
 
 /* Memory allocation related definitions. */
@@ -88,9 +88,7 @@
 #define configTIMER_TASK_STACK_DEPTH            configMINIMAL_STACK_SIZE
 
 /* Interrupt nesting behaviour configuration. */
-#define configKERNEL_INTERRUPT_PRIORITY         255
-#define configMAX_SYSCALL_INTERRUPT_PRIORITY    191 /* equivalent to 0xa0, or priority 5. */
-#define configMAX_API_CALL_INTERRUPT_PRIORITY   [dependent on processor and application]
+#define configMAX_SYSCALL_INTERRUPT_PRIORITY    191U /* equivalent to 0xb0, or priority 11. */
 
 /* Define to trap errors during development. */
 //#define configASSERT( ( x ) ) if( ( x ) == 0 ) vAssertCalled( __FILE__, __LINE__ )

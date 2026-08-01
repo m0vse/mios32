@@ -31,17 +31,17 @@
 // The mutex is handled with MUTEX_SDCARD_TAKE and MUTEX_SDCARD_GIVE
 // macros inside the application, which contain a different implementation 
 // for emulation
-xSemaphoreHandle xSDCardSemaphore;
+SemaphoreHandle_t xSDCardSemaphore;
 
 // Mutex for MIDI IN/OUT handler
-xSemaphoreHandle xMIDIINSemaphore;
-xSemaphoreHandle xMIDIOUTSemaphore;
+SemaphoreHandle_t xMIDIINSemaphore;
+SemaphoreHandle_t xMIDIOUTSemaphore;
 
 // Mutex for LCD access
-xSemaphoreHandle xLCDSemaphore;
+SemaphoreHandle_t xLCDSemaphore;
 
 // Mutex for J16 access (SDCard/Ethernet)
-xSemaphoreHandle xJ16Semaphore;
+SemaphoreHandle_t xJ16Semaphore;
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -106,17 +106,17 @@ s32 TASKS_Init(u32 mode)
 /////////////////////////////////////////////////////////////////////////////
 static void TASK_MIDI(void *pvParameters)
 {
-  portTickType xLastExecutionTime;
+  TickType_t xLastExecutionTime;
 
   // Initialise the xLastExecutionTime variable on task entry
   xLastExecutionTime = xTaskGetTickCount();
 
   while( 1 ) {
-    vTaskDelayUntil(&xLastExecutionTime, 1 / portTICK_RATE_MS);
+    xTaskDelayUntil(&xLastExecutionTime, pdMS_TO_TICKS(1U));
 
     // skip delay gap if we had to wait for more than 5 ticks to avoid 
     // unnecessary repeats until xLastExecutionTime reached xTaskGetTickCount() again
-    portTickType xCurrentTickCount = xTaskGetTickCount();
+    TickType_t xCurrentTickCount = xTaskGetTickCount();
     if( xLastExecutionTime < (xCurrentTickCount-5) )
       xLastExecutionTime = xCurrentTickCount;
 
@@ -131,17 +131,17 @@ static void TASK_MIDI(void *pvParameters)
 /////////////////////////////////////////////////////////////////////////////
 static void TASK_Period1mS(void *pvParameters)
 {
-  portTickType xLastExecutionTime;
+  TickType_t xLastExecutionTime;
 
   // Initialise the xLastExecutionTime variable on task entry
   xLastExecutionTime = xTaskGetTickCount();
 
   while( 1 ) {
-    vTaskDelayUntil(&xLastExecutionTime, 1 / portTICK_RATE_MS);
+    xTaskDelayUntil(&xLastExecutionTime, pdMS_TO_TICKS(1U));
 
     // skip delay gap if we had to wait for more than 5 ticks to avoid 
     // unnecessary repeats until xLastExecutionTime reached xTaskGetTickCount() again
-    portTickType xCurrentTickCount = xTaskGetTickCount();
+    TickType_t xCurrentTickCount = xTaskGetTickCount();
     if( xLastExecutionTime < (xCurrentTickCount-5) )
       xLastExecutionTime = xCurrentTickCount;
 
@@ -159,10 +159,10 @@ static void TASK_Period1mS_LowPrio(void *pvParameters)
   u16 ms_ctr = 0;
 
   while( 1 ) {
-    // using vTaskDelay instead of vTaskDelayUntil, since a periodical execution
+    // using vTaskDelay instead of xTaskDelayUntil, since a periodical execution
     // isn't required, and this task could be invoked too often if it was blocked
     // for a long time
-    vTaskDelay(1 / portTICK_RATE_MS);
+    vTaskDelay(pdMS_TO_TICKS(1U));
 
     // continue in application hook
     SEQ_TASK_Period1mS_LowPrio();

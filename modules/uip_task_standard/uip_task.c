@@ -62,7 +62,7 @@
 
 // for mutual exclusive access to uIP functions
 // The mutex is handled with MUTEX_UIP_TAKE and MUTEX_UIP_GIVE macros
-xSemaphoreHandle xUIPSemaphore;
+SemaphoreHandle_t xUIPSemaphore;
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -174,21 +174,21 @@ static void UIP_TASK_Handler(void *pvParameters)
 #if 0
   // wait until HW config has been loaded
   do {
-    vTaskDelay(1 / portTICK_RATE_MS);
+    vTaskDelay(pdMS_TO_TICKS(1U));
   } while( !SEQ_FILE_HW_ConfigLocked() );
 #endif
 
   // Initialise the xLastExecutionTime variable on task entry
-  portTickType xLastExecutionTime = xTaskGetTickCount();
+  TickType_t xLastExecutionTime = xTaskGetTickCount();
 
   // endless loop
   while( 1 ) {
 #if 0
     do {
-      vTaskDelayUntil(&xLastExecutionTime, 1 / portTICK_RATE_MS);
+      xTaskDelayUntil(&xLastExecutionTime, pdMS_TO_TICKS(1U));
     } while( TASK_MSD_EnableGet() ); // don't service ethernet if MSD mode enabled for faster transfer speed
 #else
-    vTaskDelayUntil(&xLastExecutionTime, 1 / portTICK_RATE_MS);
+    xTaskDelayUntil(&xLastExecutionTime, pdMS_TO_TICKS(1U));
 #endif
 
     // take over exclusive access to UIP functions

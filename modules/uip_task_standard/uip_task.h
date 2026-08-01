@@ -89,7 +89,7 @@ extern "C" {
 
 // this semaphore is defined by uip_task itself
 
-#define MUTEX_UIP_TAKE { while( xSemaphoreTakeRecursive(xUIPSemaphore, (portTickType)1) != pdTRUE ); }
+#define MUTEX_UIP_TAKE { while( xSemaphoreTakeRecursive(xUIPSemaphore, pdMS_TO_TICKS(1U)) != pdTRUE ); }
 #define MUTEX_UIP_GIVE { xSemaphoreGiveRecursive(xUIPSemaphore); }
 
 
@@ -134,7 +134,7 @@ extern s32 UIP_TASK_EffectiveGatewayGet(void);
 // Export global variables
 /////////////////////////////////////////////////////////////////////////////
 
-extern xSemaphoreHandle xUIPSemaphore;
+extern SemaphoreHandle_t xUIPSemaphore;
 
 #ifdef __cplusplus
 }
