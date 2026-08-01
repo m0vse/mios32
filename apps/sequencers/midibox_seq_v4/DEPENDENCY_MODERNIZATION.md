@@ -51,6 +51,9 @@ USB-MIDI, Ethernet, and SD-card tests on each board family.
    MIOS32 disk I/O, formatting, file-object snapshots, directory listings, the
    STM32F4 USB-host adapter, and the SEQ V4 desktop shims were migrated to the
    current API. exFAT and 64-bit LBA remain disabled.
+6. The common make graph now orders output-directory creation, linking, symbol
+   generation, and build reporting correctly under parallel make. GCC writes
+   dependency files directly; failed recipes no longer leave partial targets.
 
 ## Verified build matrix
 
@@ -60,10 +63,11 @@ Built with GNU Arm Embedded Toolchain 14.2.Rel1 and GNU Make 4.4.1:
 | --- | --- | ---: | ---: | ---: | ---: |
 | `source_me_MBHP_CORE_STM32F4` | STM32F407VG | 430368 | 960 | 73440 | Pass |
 | `source_me_MBHP_CORE_STM32` | STM32F103RE | 414804 | 952 | 59768 | Pass |
-| `source_me_MBHP_CORE_LPC17` | LPC1769 | 408268 | 904 | 62824 | Pass |
+| `source_me_MBHP_CORE_LPC17` | LPC1769 | 408260 | 904 | 62824 | Pass |
 
-The make graph has ordering races under a direct parallel build.  Run `make
-dirs` before `make -j`, or use a serial build, until the build graph is repaired.
+Clean direct parallel builds (`make -j4`) are verified for all three board
+environments. The common rules remain compatible with the GNU Make 3.81/MSYS
+baseline documented by MIDIbox as well as the tested GNU Make 4.4.1 environment.
 
 ## Recommended independent migrations
 

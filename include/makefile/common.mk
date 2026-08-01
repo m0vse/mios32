@@ -109,8 +109,11 @@ DIRS = $(dir $(THUMB_OBJS) $(THUMB_CPP_OBJS) $(THUMB_AS_OBJS) $(ARM_OBJS) $(ARM_
 DIST += $(MIOS32_PATH)/include/makefile/common.mk $(MIOS32_PATH)/include/c
 DIST += $(LD_FILE)
 
+.PHONY: all debug Debug release Release dirs projectinfo clean cleanhex cleanall
+.DELETE_ON_ERROR:
+
 # default rule
-all: dirs cleanhex $(PROJECT).hex $(PROJECT_OUT)/$(PROJECT).bin $(PROJECT_OUT)/$(PROJECT).lss $(PROJECT_OUT)/$(PROJECT).sym projectinfo
+all: $(PROJECT).hex $(PROJECT_OUT)/$(PROJECT).bin $(PROJECT_OUT)/$(PROJECT).lss $(PROJECT_OUT)/$(PROJECT).sym projectinfo
 
 # define debug/release target for easier use in codeblocks
 debug: all
@@ -145,7 +148,7 @@ $(PROJECT_OUT)/$(PROJECT).elf: $(ALL_OBJS)
 
 
 # rule to output project informations
-projectinfo:
+projectinfo: $(PROJECT_OUT)/$(PROJECT).elf $(PROJECT_OUT)/$(PROJECT).sym
 	@echo "-------------------------------------------------------------------------------"
 	@echo "Application successfully built for:"
 	@echo "Processor: $(PROCESSOR)"
@@ -154,30 +157,22 @@ projectinfo:
 	@echo "LCD:       $(LCD)"
 	@echo "-------------------------------------------------------------------------------"
 	$(SIZE) $(PROJECT_OUT)/$(PROJECT).elf
-	@grep -E '__ram_start|__ram_end' project_build/project.sym
+	@grep -E '__ram_start|__ram_end' $(PROJECT_OUT)/$(PROJECT).sym
 
 # default rule for compiling .c programs
 # inspired from the "super makefile" published at http://gpwiki.org/index.php/Make
-# Rule for creating object file and .d file, the sed magic is to add
-# the object path at the start of the file because the files gcc
-# outputs assume it will be in the same dir as the source file.
-$(PROJECT_OUT)/%.o: %.c
+# GCC writes the dependency file directly with the correct object target.
+$(PROJECT_OUT)/%.o: %.c | dirs
 	@echo Creating object file for $(notdir $<)
-	@$(CC) -Wp,-MMD,$(PROJECT_OUT)/$*.dd $(CFLAGS) -mthumb -c $< -o $@
-	@sed -e '1s/^\(.*\)$$/$(subst /,\/,$(dir $@))\1/' $(PROJECT_OUT)/$*.dd > $(PROJECT_OUT)/$*.d
-	@rm -f $(PROJECT_OUT)/$*.dd
+	@$(CC) -MMD -MP -MF $(@:.o=.d) -MT $@ $(CFLAGS) -mthumb -c $< -o $@
 
-$(PROJECT_OUT)/%.o: %.cpp
+$(PROJECT_OUT)/%.o: %.cpp | dirs
 	@echo Creating object file for $(notdir $<)
-	@$(CC) -Wp,-MMD,$(PROJECT_OUT)/$*.dd $(CPPFLAGS) -mthumb -c $< -o $@
-	@sed -e '1s/^\(.*\)$$/$(subst /,\/,$(dir $@))\1/' $(PROJECT_OUT)/$*.dd > $(PROJECT_OUT)/$*.d
-	@rm -f $(PROJECT_OUT)/$*.dd
+	@$(CC) -MMD -MP -MF $(@:.o=.d) -MT $@ $(CPPFLAGS) -mthumb -c $< -o $@
 
-$(PROJECT_OUT)/%.o: %.s
+$(PROJECT_OUT)/%.o: %.s | dirs
 	@echo Creating object file for $(notdir $<)
-	@$(CC) -Wp,-MMD,$(PROJECT_OUT)/$*.dd $(ASFLAGS) -mthumb -c $< -o $@
-	@sed -e '1s/^\(.*\)$$/$(subst /,\/,$(dir $@))\1/' $(PROJECT_OUT)/$*.dd > $(PROJECT_OUT)/$*.d
-	@rm -f $(PROJECT_OUT)/$*.dd
+	@$(CC) -MMD -MP -MF $(@:.o=.d) -MT $@ $(ASFLAGS) -mthumb -c $< -o $@
 
 # Includes the .d files so it knows the exact dependencies for every
 # source.
