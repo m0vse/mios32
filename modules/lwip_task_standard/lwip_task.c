@@ -30,8 +30,10 @@
 #define PRIORITY_TASK_LWIP (tskIDLE_PRIORITY + 3)
 #if defined(MIOS32_FAMILY_LPC17xx)
 # define LWIP_TASK_FRAME_SIZE LPC17XX_EMAC_FRAG_SIZE
+# define LWIP_TASK_LINK_UP_DELAY_MS 500U
 #else
 # define LWIP_TASK_FRAME_SIZE MIOS32_ENC28J60_MAX_FRAME_SIZE
+# define LWIP_TASK_LINK_UP_DELAY_MS 0U
 #endif
 
 SemaphoreHandle_t xLWIPSemaphore;
@@ -155,7 +157,9 @@ static void LWIP_TASK_Handler(void *pvParameters)
 {
   TickType_t last_execution;
   TickType_t last_network_check;
+  TickType_t link_up_detected_at = 0;
   u8 link_was_up;
+  u8 link_up_pending = 0;
 
   (void)pvParameters;
   MUTEX_LWIP_TAKE;
@@ -171,10 +175,16 @@ static void LWIP_TASK_Handler(void *pvParameters)
   netif_set_link_callback(&ethernet_netif, LWIP_TASK_StatusChanged);
   netif_set_up(&ethernet_netif);
   link_was_up = network_device_available() != 0;
-  if( link_was_up )
-    netif_set_link_up(&ethernet_netif);
-  else
+  if( link_was_up ) {
+    if( LWIP_TASK_LINK_UP_DELAY_MS ) {
+      link_up_detected_at = xTaskGetTickCount();
+      link_up_pending = 1;
+    } else {
+      netif_set_link_up(&ethernet_netif);
+    }
+  } else {
     netif_set_link_down(&ethernet_netif);
+  }
   LWIP_TASK_DHCP_EnableSet(dhcp_enabled);
   MUTEX_LWIP_GIVE;
 
@@ -196,12 +206,21 @@ static void LWIP_TASK_Handler(void *pvParameters)
     link_is_up = network_device_available() != 0;
     if( link_is_up != link_was_up ) {
       link_was_up = link_is_up;
-      if( link_is_up )
-        netif_set_link_up(&ethernet_netif);
-      else {
+      if( link_is_up ) {
+        link_up_detected_at = now;
+        link_up_pending = 1;
+      } else {
+        link_up_pending = 0;
         netif_set_link_down(&ethernet_netif);
         LWIP_TASK_StopServices();
       }
+    }
+
+    if( link_up_pending &&
+        (TickType_t)(now - link_up_detected_at) >=
+          pdMS_TO_TICKS(LWIP_TASK_LINK_UP_DELAY_MS) ) {
+      link_up_pending = 0;
+      netif_set_link_up(&ethernet_netif);
     }
 
     if( link_is_up ) {
