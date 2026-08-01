@@ -25,6 +25,7 @@ static void write_PHY (UNS_32 PhyReg, UNS_32 Value);
 static UNS_16 read_PHY (UNS_8 PhyReg) ;
 
 static unsigned phy_id;
+static unsigned autoneg_started;
 
 
 /*************************************************
@@ -99,6 +100,8 @@ BOOL_32 EMAC_Init(uint8_t* mac_addr)
   UNS_32 regv = 0;
   UNS_32 id1,id2;
   volatile unsigned int tout;
+
+  autoneg_started = 0;
 
    /* Power Up the EMAC controller. */
    LPC_SC->PCONP |= 0x40000000;
@@ -187,7 +190,19 @@ BOOL_32 EMAC_Init2(uint8_t* mac_addr)
   write_PHY (PHY_REG_BMCR, PHY_FULLD_100M);
 #else
   /* Use autonegotiation about the link speed. */
-  write_PHY (PHY_REG_BMCR, PHY_AUTO_NEG);
+  if( !autoneg_started ) {
+    /* Explicitly transition AN enable from clear to set, and request one
+       restart.  PHY_AUTO_NEG's restart bit self-clears.  Reissuing this on
+       every poll prevents the 2-3 second negotiation from completing. */
+    write_PHY (PHY_REG_BMCR, 0);
+    write_PHY (PHY_REG_BMCR, PHY_AUTO_NEG);
+    autoneg_started = 1;
+    return FALSE;
+  }
+
+  /* Read twice so latched-low status from an earlier link interruption does
+     not hide the current state. */
+  (void)read_PHY(PHY_REG_BMSR);
   regv = read_PHY (PHY_REG_BMSR);
   if( !(regv & 0x0020) )
     return FALSE;
@@ -310,8 +325,10 @@ BOOL_32 EMAC_CheckLink(void)
   // TK: reduced timeout value to avoid hang-up if no ethernet cable connected
 #if	defined (KEIL_BOARD_MCB17XX) || defined (CODERED_BOARD_RDB1768) || defined(MIOS32_BOARD_LPCXPRESSO) || defined (MIOS32_BOARD_MBHP_CORE_LPC17)
   regv = read_PHY (phy_linkstatus_reg);
-  if ( !(regv & phy_linkstatus_mask) )
+  if ( !(regv & phy_linkstatus_mask) ) {
+    autoneg_started = 0;
     return FALSE;
+  }
 #else
 # error "No board"
 #endif
