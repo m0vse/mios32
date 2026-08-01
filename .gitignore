@@ -54,4 +54,6 @@ dkms.conf
 
 **/.idea
 CMakeLists.txt
+!tools/mios_studio/CMakeLists.txt
 cmake-build-debug
+tools/mios_studio/Builds/VisualStudio2022*/
