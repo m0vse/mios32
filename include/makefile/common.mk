@@ -25,6 +25,16 @@
 MIOS32_SHELL ?= sh
 export MIOS32_SHELL
 
+# The documented Windows setup runs native GCC processes from MSYS.  Parallel
+# native compiler invocations can terminate silently in that environment and
+# leave only an empty .su file.  Keep Windows builds deterministic by default;
+# newer environments can explicitly opt back in after validating their tools.
+ifeq ($(OS),Windows_NT)
+ifneq ($(MIOS32_ALLOW_PARALLEL_BUILD),1)
+.NOTPARALLEL:
+endif
+endif
+
 # select GCC tools
 # can be optionally overruled via environment variable
 # e.g. for Cortex M3 support provided by CodeSourcery, use MIOS32_GCC_PREFIX=arm-none-eabi
@@ -102,14 +112,11 @@ ALL_OBJS = $(addprefix $(PROJECT_OUT)/, $(THUMB_OBJS) $(THUMB_CPP_OBJS) $(THUMB_
 # list of all dependency files
 ALL_DFILES = $(ALL_OBJS:.o=.d)
 
-# which directories contain source files?
-DIRS = $(dir $(THUMB_OBJS) $(THUMB_CPP_OBJS) $(THUMB_AS_OBJS) $(ARM_OBJS) $(ARM_CPP_OBJS) $(ARM_AS_OBJS))
-
 # add files for distribution
 DIST += $(MIOS32_PATH)/include/makefile/common.mk $(MIOS32_PATH)/include/c
 DIST += $(LD_FILE)
 
-.PHONY: all debug Debug release Release dirs projectinfo clean cleanhex cleanall
+.PHONY: all debug Debug release Release projectinfo clean cleanhex cleanall
 .DELETE_ON_ERROR:
 
 # default rule
@@ -120,13 +127,6 @@ debug: all
 Debug: all
 release: all
 Release: all
-
-# create the output directories
-dirs:
-	@-if [ ! -e $(PROJECT_OUT) ]; then mkdir $(PROJECT_OUT); fi;
-	@-$(foreach DIR,$(DIRS), if [ ! -e $(PROJECT_OUT)/$(DIR) ]; \
-	 then mkdir -p $(PROJECT_OUT)/$(DIR); fi; )
-
 
 # rule to create a .hex and .bin file
 %.bin : $(PROJECT_OUT)/$(PROJECT).elf
@@ -162,16 +162,19 @@ projectinfo: $(PROJECT_OUT)/$(PROJECT).elf $(PROJECT_OUT)/$(PROJECT).sym
 # default rule for compiling .c programs
 # inspired from the "super makefile" published at http://gpwiki.org/index.php/Make
 # GCC writes the dependency file directly with the correct object target.
-$(PROJECT_OUT)/%.o: %.c | dirs
+$(PROJECT_OUT)/%.o: %.c
 	@echo Creating object file for $(notdir $<)
+	@mkdir -p $(dir $@)
 	@$(CC) -MMD -MP -MF $(@:.o=.d) -MT $@ $(CFLAGS) -mthumb -c $< -o $@
 
-$(PROJECT_OUT)/%.o: %.cpp | dirs
+$(PROJECT_OUT)/%.o: %.cpp
 	@echo Creating object file for $(notdir $<)
+	@mkdir -p $(dir $@)
 	@$(CC) -MMD -MP -MF $(@:.o=.d) -MT $@ $(CPPFLAGS) -mthumb -c $< -o $@
 
-$(PROJECT_OUT)/%.o: %.s | dirs
+$(PROJECT_OUT)/%.o: %.s
 	@echo Creating object file for $(notdir $<)
+	@mkdir -p $(dir $@)
 	@$(CC) -MMD -MP -MF $(@:.o=.d) -MT $@ $(ASFLAGS) -mthumb -c $< -o $@
 
 # Includes the .d files so it knows the exact dependencies for every
