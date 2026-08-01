@@ -20,8 +20,8 @@
 #define CFG_TUD_MIDI_RX_EPSIZE   64
 #define CFG_TUD_MIDI_TX_EPSIZE   64
 
-/* LPC17xx USB DMA cannot access the CPU-local SRAM at 0x10000000. */
-#define CFG_TUSB_MEM_SECTION     __attribute__((section(".bss_ahb")))
+/* Keep USB DMA state in the first LPC17xx AHB SRAM bank. */
+#define CFG_TUSB_MEM_SECTION     __attribute__((section(".bss_usb")))
 #define CFG_TUSB_MEM_ALIGN       __attribute__((aligned(4)))
 
 #endif /* _MIOS32_LPC17XX_TUSB_CONFIG_H */

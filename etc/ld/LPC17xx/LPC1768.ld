@@ -235,6 +235,10 @@ SECTIONS
                 . = ALIGN(4);
                 /* This is used by the startup in order to initialize the .bss section */
                 _sbss_ahb = .;
+                . = ALIGN(0x80);
+                __usb_dma_start = .;
+                *(.bss_usb .bss_usb.*)
+                __usb_dma_end = .;
                 *(.shbss_ahb)
                 *(.bss_ahb .bss_ahb.* .gnu.linkonce.b.*)
                 . = ALIGN (8);
@@ -245,6 +249,9 @@ SECTIONS
                 _end_ahb = .;
                 __ram_end_ahb = .;
         } >RAMAHB AT>FLASH
+
+    ASSERT(__usb_dma_end <= 0x20080000,
+           "LPC17xx USB DMA data exceeds the first 16 KiB AHB SRAM bank")
 
     PROVIDE ( end_ahb = _ebss_ahb );
     PROVIDE ( _end_ahb = _ebss_ahb );
@@ -296,6 +303,5 @@ SECTIONS
     .debug_typenames 0 : { *(.debug_typenames) }
     .debug_varnames  0 : { *(.debug_varnames) }
 }
-
 
 
