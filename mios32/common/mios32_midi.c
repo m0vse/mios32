@@ -24,6 +24,10 @@
 #include <string.h>
 #include <stdarg.h>
 
+#if MIOS32_MIDI_BSL_ENHANCEMENTS
+#include <bsl_sysex.h>
+#endif
+
 // this module can be optionally disabled in a local mios32_config.h file (included from mios32.h)
 #if !defined(MIOS32_DONT_USE_MIDI)
 
