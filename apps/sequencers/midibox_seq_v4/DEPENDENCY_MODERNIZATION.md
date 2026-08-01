@@ -34,7 +34,7 @@ USB-MIDI, Ethernet, and SD-card tests on each board family.
 | Network stack | uIP 1.0 / lwIP 2.2.1 after modernization | lwIP 2.2.1 (February 2025) | Replaced for SEQ V4 and cross-target compiled; hardware network testing remains. |
 | STM32F4 support | StdPeriph V1.1.0-era tree and legacy USB libraries | STM32CubeF4 V1.28.3; legacy SPL V1.9.0 | Port to Cube HAL/LL and Cube USB as an STM32F4-only project. |
 | STM32F1 support | StdPeriph V3.3.0 and legacy USB library | STM32CubeF1 V1.8.7; legacy SPL V3.6.x | Port separately from F4; retain F103/F105 target coverage. |
-| LPC17xx support | CMSIS 1.30-era device layer and custom legacy USB stack | LPCOpen 2.10 / LPC1700 DFP 2.7.2; CMSIS-Core 6.3.0; TinyUSB 0.21.0 | Use the last official LPC1769 device support as a reference, then modernize maintained components behind the MIOS32 API. |
+| LPC17xx support | LPC1700 DFP 2.7.2 device layer and CMSIS-Core 6.3.0 after modernization; custom legacy USB stack | LPC1700 DFP 2.7.2; CMSIS-Core 6.3.0; TinyUSB 0.21.0 | Device/core layer updated and LPC target compiled; replace USB separately behind the MIOS32 API. |
 | MIOS Studio / JUCE | External `~/JUCE/modules`; no pinned revision | JUCE 9.0.0 (July 2026) | Add reproducible desktop checks, then upgrade JUCE as an independent migration. |
 
 ## Completed changes
@@ -60,6 +60,9 @@ USB-MIDI, Ethernet, and SD-card tests on each board family.
    its four logical connections, including shared local ports and broadcast.
    STM32F1/F4 ENC28J60 and LPC17xx EMAC adapters now use stack-neutral frame
    buffers instead of uIP globals.
+8. The LPC17xx CMSIS 1.30 core and V1.09 device header were replaced with
+   CMSIS-Core 6.3.0 and the V1.10 device definitions from LPC1700 DFP 2.7.2.
+   USB and direct peripheral drivers are deliberately unchanged.
 
 ## Verified build matrix
 
@@ -69,7 +72,7 @@ Built with GNU Arm Embedded Toolchain 14.2.Rel1 and GNU Make 4.4.1:
 | --- | --- | ---: | ---: | ---: | ---: |
 | `source_me_MBHP_CORE_STM32F4` | STM32F407VG | 440664 | 960 | 73488 | Pass |
 | `source_me_MBHP_CORE_STM32` | STM32F103RE | 425100 | 952 | 59816 | Pass |
-| `source_me_MBHP_CORE_LPC17` | LPC1769 | 418276 | 904 | 62384 | Pass |
+| `source_me_MBHP_CORE_LPC17` | LPC1769 | 418420 | 904 | 62392 | Pass |
 
 Clean direct builds (`make -j4`) are verified for all three board environments.
 On Windows/MSYS the common rules serialize native GCC execution by default,
@@ -129,14 +132,14 @@ would therefore create an unofficial device port rather than consume supported
 NXP code.
 
 Use LPCOpen 2.10 and LPC1700 DFP 2.7.2 as the last official LPC1769 device and
-peripheral references.  Refresh the common core layer to CMSIS-Core 6.3.0 and
-replace the application USB implementation with TinyUSB 0.21.0 behind the
-existing MIOS32 API, first for MIDI/CDC and then for mass storage.  Audit direct
-peripheral drivers individually against the NXP references instead of importing
-an unsupported SDK wholesale.  Keep the device-layer, USB, Ethernet, and other
-peripheral changes in separate commits with LPC1769 hardware validation after
-each step.  Reserve MCUXpresso SDK integration for a future migration to an MCU
-family that its device repositories actually support.
+peripheral references.  The DFP device definitions and CMSIS-Core 6.3.0 are now
+in place. Replace the application USB implementation with TinyUSB 0.21.0 behind
+the existing MIOS32 API, first for MIDI/CDC and then for mass storage. Audit
+direct peripheral drivers individually against the NXP references instead of
+importing an unsupported SDK wholesale. Keep USB, Ethernet, and other peripheral
+changes in separate commits with LPC1769 hardware validation after each step.
+Reserve MCUXpresso SDK integration for a future migration to an MCU family that
+its device repositories actually support.
 
 ### 7. Add MIOS Studio checks and update JUCE
 

@@ -98,13 +98,11 @@ s32 MIOS32_IRQ_Install(u8 IRQn, u8 priority)
   if( priority >= 16 )
     return -1; // invalid priority
 
-  u32 tmppriority = (0x700 - ((SCB->AIRCR) & (uint32_t)0x700)) >> 8;
-  u32 tmppre = (4 - tmppriority);
-  tmppriority = priority << tmppre;
-  tmppriority = tmppriority << 4;
-  NVIC->IP[IRQn] = tmppriority;
+  u32 encoded_priority = NVIC_EncodePriority(NVIC_GetPriorityGrouping(),
+                                             priority, 0U);
+  NVIC_SetPriority((IRQn_Type)IRQn, encoded_priority);
 
-  NVIC_EnableIRQ(IRQn);
+  NVIC_EnableIRQ((IRQn_Type)IRQn);
 
   return 0; // no error
 }
@@ -117,7 +115,7 @@ s32 MIOS32_IRQ_Install(u8 IRQn, u8 priority)
 /////////////////////////////////////////////////////////////////////////////
 s32 MIOS32_IRQ_DeInstall(u8 IRQn)
 {
-  NVIC_DisableIRQ(IRQn);
+  NVIC_DisableIRQ((IRQn_Type)IRQn);
 
   return 0; // no error
 }

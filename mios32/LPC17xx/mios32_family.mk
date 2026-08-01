@@ -12,7 +12,6 @@ C_INCLUDE += -I $(MIOS32_PATH)/mios32/$(FAMILY) \
 
 # add modules to thumb sources
 THUMB_SOURCE += \
-	$(DRIVER_LIB)/CMSIS/src/core_cm3.c \
 	$(DRIVER_LIB)/usbstack/src/usbhw_lpc.c \
 	$(DRIVER_LIB)/usbstack/src/usbcontrol.c \
 	$(DRIVER_LIB)/usbstack/src/usbstdreq.c \
