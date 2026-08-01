@@ -58,7 +58,7 @@ void MidiMonitor::scanMidiDevices(const String& searchPort)
 
     // restore settings
     String selectedPort;
-    StringArray midiPorts;
+    Array<MidiDeviceInfo> midiPorts;
     if( inPort ) {
         if( miosStudio->runningInBatchMode() ) {
             std::cout << "Scanning for MIDI Inputs..." << std::endl;
@@ -66,7 +66,7 @@ void MidiMonitor::scanMidiDevices(const String& searchPort)
             monitorLogBox->addEntry(Colours::red, T("Scanning for MIDI Inputs..."));
         }
         selectedPort = miosStudio->getMidiInput();
-        midiPorts = MidiInput::getDevices();
+        midiPorts = MidiInput::getAvailableDevices();
     } else {
         if( miosStudio->runningInBatchMode() ) {
             std::cout << "Scanning for MIDI Outputs..." << std::endl;
@@ -74,19 +74,20 @@ void MidiMonitor::scanMidiDevices(const String& searchPort)
             monitorLogBox->addEntry(Colours::red, T("Scanning for MIDI Outputs..."));
         }
         selectedPort = miosStudio->getMidiOutput();
-        midiPorts = MidiOutput::getDevices();
+        midiPorts = MidiOutput::getAvailableDevices();
     }
 
     int current = -1;
     for(int i=0; i<midiPorts.size(); ++i) {
-        midiPortSelector->addItem(midiPorts[i], i+1);
+        const MidiDeviceInfo& midiPort = midiPorts.getReference(i);
+        midiPortSelector->addItem(midiPort.name, i+1);
         bool enabled = false;
 
         if( current < 0 ) {
             if( searchPort.length() ) {
-                enabled = midiPorts[i].containsIgnoreCase(searchPort);
+                enabled = midiPort.name.containsIgnoreCase(searchPort);
             } else {
-                enabled = midiPorts[i] == selectedPort;
+                enabled = midiPort.name == selectedPort;
             }
         }
 
@@ -94,7 +95,7 @@ void MidiMonitor::scanMidiDevices(const String& searchPort)
             current = i + 1;
 
         {
-            String msg("[" + String(i+1) + "] " + midiPorts[i] + (enabled ? " (*)" : ""));
+            String msg("[" + String(i+1) + "] " + midiPort.name + (enabled ? " (*)" : ""));
             if( miosStudio->runningInBatchMode() ) {
                 std::cout << msg << std::endl;
             } else {
@@ -103,9 +104,9 @@ void MidiMonitor::scanMidiDevices(const String& searchPort)
         }
 
         if( inPort )
-            miosStudio->audioDeviceManager.setMidiInputEnabled(midiPorts[i], enabled);
+            miosStudio->audioDeviceManager.setMidiInputDeviceEnabled(midiPort.identifier, enabled);
         else if( enabled )
-            miosStudio->audioDeviceManager.setDefaultMidiOutput(midiPorts[i]);
+            miosStudio->audioDeviceManager.setDefaultMidiOutputDevice(midiPort.identifier);
     }
     midiPortSelector->setSelectedId(current, true);
     midiPortSelector->setEnabled(true);

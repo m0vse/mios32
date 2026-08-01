@@ -34,6 +34,7 @@ MiosStudio::MiosStudio()
     , miosTerminal(0)
     , midiKeyboard(0)
     , initialMidiScanCounter(1) // start step-wise MIDI port scan
+    , midiInputCallbackRegistered(false)
     , batchWaitCounter(0)
     , initialGuiX(-1) // centered
     , initialGuiY(-1) // centered
@@ -298,6 +299,11 @@ MiosStudio::MiosStudio()
 
 MiosStudio::~MiosStudio()
 {
+    if( midiInputCallbackRegistered ) {
+        audioDeviceManager.removeMidiInputDeviceCallback(String(), this);
+        midiInputCallbackRegistered = false;
+    }
+
     if( uploadHandler )
         deleteAndZero(uploadHandler);
     if( sysexToolWindow )
@@ -478,11 +484,11 @@ void MiosStudio::sendMidiMessage(MidiMessage &message)
 //==============================================================================
 void MiosStudio::closeMidiPorts(void)
 {
-    const StringArray allMidiIns(MidiInput::getDevices());
+    const Array<MidiDeviceInfo> allMidiIns(MidiInput::getAvailableDevices());
     for (int i = allMidiIns.size(); --i >= 0;)
-        audioDeviceManager.setMidiInputEnabled(allMidiIns[i], false);
+        audioDeviceManager.setMidiInputDeviceEnabled(allMidiIns.getReference(i).identifier, false);
 
-    audioDeviceManager.setDefaultMidiOutput(String());
+    audioDeviceManager.setDefaultMidiOutputDevice(String());
 }
 
 
@@ -534,7 +540,8 @@ void MiosStudio::timerCallback()
             }
 
             // try to query selected core
-            audioDeviceManager.addMidiInputCallback(String(), this);
+            audioDeviceManager.addMidiInputDeviceCallback(String(), this);
+            midiInputCallbackRegistered = true;
 
             if( getMidiOutput() != String() )
                 uploadWindow->queryCore();
@@ -682,10 +689,11 @@ void MiosStudio::timerCallback()
 //==============================================================================
 void MiosStudio::setMidiInput(const String &port)
 {
-    const StringArray allMidiIns(MidiInput::getDevices());
+    const Array<MidiDeviceInfo> allMidiIns(MidiInput::getAvailableDevices());
     for (int i = allMidiIns.size(); --i >= 0;) {
-        bool enabled = allMidiIns[i] == port;
-        audioDeviceManager.setMidiInputEnabled(allMidiIns[i], enabled);
+        const MidiDeviceInfo& midiInput = allMidiIns.getReference(i);
+        bool enabled = midiInput.name == port;
+        audioDeviceManager.setMidiInputDeviceEnabled(midiInput.identifier, enabled);
     }
 
     // propagate port change
@@ -709,7 +717,14 @@ String MiosStudio::getMidiInput(void)
 
 void MiosStudio::setMidiOutput(const String &port)
 {
-    audioDeviceManager.setDefaultMidiOutput(port);
+    String identifier;
+    for( const MidiDeviceInfo& midiOutput : MidiOutput::getAvailableDevices() ) {
+        if( midiOutput.name == port ) {
+            identifier = midiOutput.identifier;
+            break;
+        }
+    }
+    audioDeviceManager.setDefaultMidiOutputDevice(identifier);
 
     // propagate port change
     if( uploadWindow && initialMidiScanCounter == 0 && port != String() )
@@ -1112,4 +1127,3 @@ void MiosStudio::updateLayout(void)
     ////////////////////////////////////////////////////////////////////////////////////////////////
     resized();
 }
-

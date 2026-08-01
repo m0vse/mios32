@@ -151,7 +151,7 @@ void LogBox::addEntry(const Colour &colour, const String &textLine)
 
     updateContent();
 
-    int rowWidth = 30 + logEntryFont.getStringWidth(textLine);
+    int rowWidth = 30 + GlyphArrangement::getStringWidthInt(logEntryFont, textLine);
     if( rowWidth > maxRowWidth )
         setMinimumContentWidth(maxRowWidth = rowWidth);
 

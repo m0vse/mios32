@@ -1,5 +1,5 @@
-Currently prepared for Juce 7.0.7 which can be downloaded from
-https://github.com/WeAreROLI/JUCE/releases
+Currently prepared for JUCE 9.0.0 which can be downloaded from
+https://github.com/juce-framework/JUCE/releases/tag/9.0.0
 
 MacOS users: unpack it and move it to ~/JUCE (your home directory)
 Linux users: unpack it and move it to ~/JUCE (your home directory)
@@ -18,6 +18,8 @@ Builds/VisualStudio2022. JUCE_PATH may also be passed as a CMake cache value.
 
 Notes:
 - MacOS: we build for 10.9 to ensure that users with older MacOS versions can use the tool.
+- JUCE 9 is available under commercial and AGPLv3 licensing. Verify that the
+  selected JUCE licence is compatible with the intended MIOS Studio distribution.
 
 Dependencies
 ------------

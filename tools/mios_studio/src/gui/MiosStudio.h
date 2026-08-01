@@ -170,6 +170,7 @@ protected:
     Array<uint8> sysexReceiveBuffer;
 
     int initialMidiScanCounter;
+    bool midiInputCallbackRegistered;
 
     // the command manager object used to dispatch command events
     ApplicationCommandManager* commandManager;
