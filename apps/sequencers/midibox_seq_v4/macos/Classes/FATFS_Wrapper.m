@@ -15,29 +15,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// avoid that definitions in fatfs/src/integer.h will be included - BOOL clashes with ObjC definitions
-#define _INTEGER
-/* These types must be 16-bit, 32-bit or larger integer */
-typedef int				INT;
-typedef unsigned int	UINT;
-
-/* These types must be 8-bit integer */
-typedef signed char		CHAR;
-typedef unsigned char	UCHAR;
-typedef unsigned char	BYTE;
-
-/* These types must be 16-bit integer */
-typedef short			SHORT;
-typedef unsigned short	USHORT;
-typedef unsigned short	WORD;
-typedef unsigned short	WCHAR;
-
-/* These types must be 32-bit integer */
-typedef long			LONG;
-typedef unsigned long	ULONG;
-typedef unsigned long	DWORD;
-
-
 // located in FATFS_Wrapper_Dir.c
 extern int f_opendir_hlp(const char *path);
 extern int f_readdir_hlp(char *fname, unsigned char *fattrib, unsigned *fsize, unsigned short *fdate, unsigned short *ftime);
@@ -66,13 +43,11 @@ static NSObject *_self;
 /* Mount/Unmount a Locical Drive                                         */
 /*-----------------------------------------------------------------------*/
 FRESULT f_mount (
-	BYTE vol,		/* Logical drive number to be mounted/unmounted */
-	FATFS *fs		/* Pointer to new file system object (NULL for unmount)*/
+	FATFS *fs,		/* Pointer to new file system object (NULL for unmount) */
+	const TCHAR *path,	/* Logical drive number to be mounted/unmounted */
+	BYTE opt		/* 0:Do not mount now, 1:Mount immediately */
 )
 {
-    if (vol >= _DRIVES)				/* Check if the drive number is valid */
-        return FR_INVALID_DRIVE;
-
     return FR_OK;
 }
 
@@ -84,7 +59,7 @@ FRESULT f_mount (
 /*-----------------------------------------------------------------------*/
 FRESULT f_open (
 	FIL *fp,			/* Pointer to the blank file object */
-	const XCHAR *path,	/* Pointer to the file name */
+	const TCHAR *path,	/* Pointer to the file name */
 	BYTE mode			/* Access mode and file open mode flags */
 )
 {
@@ -118,7 +93,7 @@ FRESULT f_open (
 
     // determine file length and set pointer
 	fseek(f, 0 , SEEK_END);
-	fp->fsize = ftell(f);
+	fp->obj.objsize = ftell(f);
 	rewind(f);
 	fp->fptr = 0;
 
@@ -144,7 +119,7 @@ FRESULT f_read (
 	*br = fread(buff, 1, btr, (FILE *)fp->dir_ptr);
 	fp->fptr += *br;
 
-	return *br ? FR_OK : FR_DISK_ERR;
+	return FR_OK;
 }
 
 
@@ -161,6 +136,8 @@ FRESULT f_write (
 {
 	*bw = fwrite(buff, 1, btw, (FILE *)fp->dir_ptr);
 	fp->fptr += *bw;
+	if( fp->fptr > fp->obj.objsize )
+		fp->obj.objsize = fp->fptr;
 
 	return *bw ? FR_OK : FR_DISK_ERR;
 }
@@ -204,7 +181,7 @@ FRESULT f_close (
 /*-----------------------------------------------------------------------*/
 FRESULT f_lseek (
 	FIL *fp,		/* Pointer to the file object */
-	DWORD ofs		/* File pointer from top of file */
+	FSIZE_t ofs		/* File pointer from top of file */
 )
 {
 	fseek((FILE *)fp->dir_ptr, ofs, SEEK_SET);
@@ -218,7 +195,7 @@ FRESULT f_lseek (
 /*-----------------------------------------------------------------------*/
 FRESULT f_opendir (
 	DIR *dj,			/* Pointer to directory object to create */
-	const XCHAR *path	/* Pointer to the directory path */
+	const TCHAR *path	/* Pointer to the directory path */
 )
 {
     if( SDCARD_Wrapper_getDir() == nil )
@@ -257,7 +234,7 @@ FRESULT f_readdir (
 /* Get Number of Free Clusters                                           */
 /*-----------------------------------------------------------------------*/
 FRESULT f_getfree (
-	const XCHAR *path,	/* Pointer to the logical drive number (root dir) */
+	const TCHAR *path,	/* Pointer to the logical drive number (root dir) */
 	DWORD *nclst,		/* Pointer to the variable to return number of free clusters */
 	FATFS **fatfs		/* Pointer to pointer to corresponding file system object to return */
 )
@@ -271,7 +248,7 @@ FRESULT f_getfree (
 /* Create a Directory                                                    */
 /*-----------------------------------------------------------------------*/
 FRESULT f_mkdir (
-	const XCHAR *path		/* Pointer to the directory path */
+	const TCHAR *path		/* Pointer to the directory path */
 )
 {
     if( SDCARD_Wrapper_getDir() == nil )
@@ -294,12 +271,12 @@ FRESULT f_mkdir (
 DRESULT disk_read (
 	BYTE drv,		/* Physical drive nmuber (0..) */
 	BYTE *buff,		/* Data buffer to store read data */
-	DWORD sector,	/* Sector address (LBA) */
-	BYTE count		/* Number of sectors to read (1..255) */
+	LBA_t sector,	/* Sector address (LBA) */
+	UINT count		/* Number of sectors to read */
 )
 {
     // DUMMY
-    return FR_OK;
+    return RES_OK;
 }
 
 @end

@@ -60,6 +60,9 @@ extern "C" {
 // simplified file reference, part of FIL structure of FatFs
 typedef struct {
   u8  flag;  // file status flag
+  u8  err;   // abort flag
+  u8  attr;  // object attributes
+  u8  stat;  // object chain status
   u8  csect; // sector address in cluster
   u32 fptr;  // file r/w pointer
   u32 fsize; // file size

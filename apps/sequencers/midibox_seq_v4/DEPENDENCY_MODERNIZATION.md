@@ -29,11 +29,12 @@ USB-MIDI, Ethernet, and SD-card tests on each board family.
 | Subsystem | Previous/current bundled version | Current upstream checked | Decision |
 | --- | --- | --- | --- |
 | FreeRTOS kernel | V9.0.0 / V11.3.0 after modernization | V11.3.0 (March 2026) | Updated and cross-target compiled. |
-| FatFs | R0.07e (2009) | R0.16 plus upstream patches through July 2026 | Separate storage migration; API/configuration and disk-I/O contracts changed substantially. |
+| FatFs | R0.07e / R0.16 patch 2 after modernization | R0.16 patch 2 (July 2026) | Updated and cross-target compiled; hardware/media fault testing remains. |
 | uIP | uIP 1.0 historical sources | No maintained drop-in uIP release | Replace with a maintained stack rather than relabeling the historical code. |
 | STM32F4 support | StdPeriph V1.1.0-era tree and legacy USB libraries | STM32CubeF4 V1.28.3; legacy SPL V1.9.0 | Port to Cube HAL/LL and Cube USB as an STM32F4-only project. |
 | STM32F1 support | StdPeriph V3.3.0 and legacy USB library | STM32CubeF1 V1.8.7; legacy SPL V3.6.x | Port separately from F4; retain F103/F105 target coverage. |
 | LPC17xx support | CMSIS 1.30-era device layer and custom legacy USB stack | LPCOpen 2.10 / LPC1700 DFP 2.7.2 | Port as an LPC17xx-only project; current NXP sources require account/license retrieval. |
+| MIOS Studio / JUCE | External `~/JUCE/modules`; no pinned revision | JUCE 9.0.0 (July 2026) | Add reproducible desktop checks, then upgrade JUCE as an independent migration. |
 
 ## Completed changes
 
@@ -46,6 +47,10 @@ USB-MIDI, Ethernet, and SD-card tests on each board family.
    current FreeRTOS types and timing APIs with backward aliases disabled.
 4. The LPC17xx USB vendor-response buffer was given static lifetime after GCC 14
    diagnosed a returned pointer to automatic storage.
+5. FatFs was upgraded from R0.07e to R0.16 with upstream patches 1 and 2.
+   MIOS32 disk I/O, formatting, file-object snapshots, directory listings, the
+   STM32F4 USB-host adapter, and the SEQ V4 desktop shims were migrated to the
+   current API. exFAT and 64-bit LBA remain disabled.
 
 ## Verified build matrix
 
@@ -53,9 +58,9 @@ Built with GNU Arm Embedded Toolchain 14.2.Rel1 and GNU Make 4.4.1:
 
 | Board environment | Processor | Text | Data | BSS | Result |
 | --- | --- | ---: | ---: | ---: | ---: |
-| `source_me_MBHP_CORE_STM32F4` | STM32F407VG | 429424 | 960 | 73400 | Pass |
-| `source_me_MBHP_CORE_STM32` | STM32F103RE | 413884 | 952 | 59728 | Pass |
-| `source_me_MBHP_CORE_LPC17` | LPC1769 | 407332 | 904 | 62784 | Pass |
+| `source_me_MBHP_CORE_STM32F4` | STM32F407VG | 430368 | 960 | 73440 | Pass |
+| `source_me_MBHP_CORE_STM32` | STM32F103RE | 414804 | 952 | 59768 | Pass |
+| `source_me_MBHP_CORE_LPC17` | LPC1769 | 408268 | 904 | 62824 | Pass |
 
 The make graph has ordering races under a direct parallel build.  Run `make
 dirs` before `make -j`, or use a serial build, until the build graph is repaired.
@@ -69,13 +74,12 @@ MIDI enumeration/traffic, SD-card session load/save, DHCP, and OSC send/receive
 on STM32F4 and LPC17xx hardware.  Keep binary-size and stack-usage reports for
 each target.
 
-### 2. Move FatFs to R0.16 plus all published patches
+### 2. Validate the FatFs R0.16 migration on hardware
 
-Treat this as a storage-layer change.  Update `ffconf.h`, the MIOS32 `diskio`
-adapter, changed mount/format calls, and every direct use of FatFs object fields.
-Test clean, fragmented, full, read-only, corrupt, and unexpectedly removed SD
-cards.  Do not enable exFAT unless its additional memory and licensing behavior
-is explicitly wanted.
+The source migration and cross-target builds are complete. Test clean,
+fragmented, full, read-only, and corrupt cards, plus unexpected removal during
+reads and writes. Exercise terminal formatting on each MCU family. Do not enable
+exFAT unless its additional memory and licensing behavior is explicitly wanted.
 
 ### 3. Replace uIP 1.0
 
@@ -108,6 +112,15 @@ package for LPC1769, but it is also old and account-gated; archive its exact
 package and checksum when it is imported.  Keep this work independent of both
 STM32 family migrations.
 
+### 7. Add MIOS Studio checks and update JUCE
+
+Make the desktop tool reproducible before changing its framework: pin JUCE,
+generate/build the Windows, macOS, and Linux projects in CI, and add focused
+checks for MIDI port discovery, firmware upload, terminal SysEx, file browsing,
+and OSC. Then migrate MIOS Studio to JUCE 9.0.0 (or the latest stable release at
+implementation time) in its own commit, including the JUCE 9 breaking changes
+and licensing review. This is a roadmap item, not an ordering decision.
+
 ## Known risks found during compilation
 
 - FreeRTOS Cortex-M ports only perform several vector-table and priority checks
@@ -119,4 +132,3 @@ STM32 family migrations.
 - The repository-wide application license permits personal non-commercial use
   only.  Confirm redistribution terms before publishing combined binaries or
   refreshed proprietary vendor code.
-

@@ -21,6 +21,7 @@
 #include <seq_midi_out.h>
 #include <blm_scalar_master.h>
 #include <ff.h>
+#include <mios32_fatfs.h>
 
 #include <aout.h>
 #include <app_lcd.h>
@@ -371,7 +372,7 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
 	MUTEX_SDCARD_TAKE;
 	out("Formatting SD Card...");
 	FRESULT res;
-	if( (res=f_mkfs(0,0,0)) != FR_OK ) {
+	if( (res=MIOS32_FATFS_Format()) != FR_OK ) {
 	  out("Formatting failed with error code: %d!", res);
 	} else {
 	  out("...with success!");
@@ -1356,32 +1357,20 @@ s32 SEQ_TERMINAL_PrintSdCardInfo(void *_output_function)
 
   taskYIELD();
 
-#if _USE_LFN
-  static char lfn[_MAX_LFN * (_DF1S ? 2 : 1) + 1];
-  fno.lfname = lfn;
-  fno.lfsize = sizeof(lfn);
-#endif
-
   MUTEX_SDCARD_TAKE;
   if( (res=f_opendir(&dir, "/")) != FR_OK ) {
     out("Failed to open root directory - error status: %d\n", res);
   } else {
     while( (f_readdir(&dir, &fno) == FR_OK) && fno.fname[0] ) {
-#if _USE_LFN
-      fn = *fno.lfname ? fno.lfname : fno.fname;
-#else
       fn = fno.fname;
-#endif
       char date[10];
       ShowFatDate(fno.fdate,(char*)&date);
       char time[12];
       ShowFatTime(fno.ftime,(char*)&time);
-      out("[%s%s%s%s%s%s%s] %s  %s   %s %u %s\n",
+      out("[%s%s%s%s%s] %s  %s   %s %u %s\n",
 		(fno.fattrib & AM_RDO ) ? "r" : ".",
 		(fno.fattrib & AM_HID ) ? "h" : ".",
 		(fno.fattrib & AM_SYS ) ? "s" : ".",
-		(fno.fattrib & AM_VOL ) ? "v" : ".",
-		(fno.fattrib & AM_LFN ) ? "l" : ".",
 		(fno.fattrib & AM_DIR ) ? "d" : ".",
 		(fno.fattrib & AM_ARC ) ? "a" : ".",
 		date,time,

@@ -20,6 +20,7 @@
 #include <string.h>
 #include <ff.h>
 #include <diskio.h>
+#include <mios32_fatfs.h>
 
 #include "app.h"
 # include <FreeRTOS.h>
@@ -40,7 +41,7 @@
 static FATFS fs; // Work area (file system object) for logical drives
 static char line_buffer[100];
 static char dir_path[MAX_PATH];
-static u8 tmp_buffer[_MAX_SS]; //_MAX_SS
+static u8 tmp_buffer[FF_MAX_SS];
 static u16 line_ix;
 static char disk_label[12];
 static FIL fsrc, fdst; // File handles for copy routine.
@@ -89,7 +90,7 @@ s32 SDCARD_Mount(void)
   FRESULT res;
   DIR dir;
   DEBUG_MSG("Mounting SD Card...\n");
-  if( (res=f_mount(0, &fs)) != FR_OK ) {
+  if( (res=f_mount(&fs, "", 1)) != FR_OK ) {
     DEBUG_MSG("Failed to mount SD Card - error status: %d\n", res);
     return -1; // error
   }
@@ -101,12 +102,11 @@ s32 SDCARD_Mount(void)
     return -1; // error
   }
 
-  // Get volume label from base sector  
-  if(disk_read(0, &dir.fs->win, dir.fs->dirbase,  1) != 0){
-    DEBUG_MSG("Couldn't read directory sector...\n");
-    return -1;   
-  }  
-  strncpy( disk_label, dir.fs->win, 11 );
+  // Get the volume label through the public FatFs API.
+  if( (res=f_getlabel("", disk_label, NULL)) != FR_OK ) {
+    DEBUG_MSG("Couldn't read volume label - error status: %d\n", res);
+    return -1;
+  }
   
   return 0;
 }  
@@ -320,11 +320,11 @@ void SDCARD_Messages(FRESULT res)
 
 void SDCARD_Format(void)
 {
-#if _USE_MKFS && !_FS_READONLY
+#if FF_USE_MKFS && !FF_FS_READONLY
   DEBUG_MSG("Formatting SDCARD....\n");
-  SDCARD_Messages(f_mkfs(0,0,0));
+  SDCARD_Messages(MIOS32_FATFS_Format());
 #else
-  DEBUG_MSG("Please set _MKFS=1 and _FS_READONLY=0 in ffconf.h\n"); 
+  DEBUG_MSG("Please set FF_USE_MKFS=1 and FF_FS_READONLY=0 in ffconf.h\n");
 #endif
 }
 
@@ -372,16 +372,11 @@ void SDCARD_Dir(void)
 {
   FRESULT res;
   DWORD free_clust;
+  FATFS *mounted_fs;
   FILINFO fno;
   DIR dir;
   char *fn;
   
-#if _USE_LFN
-  static char lfn[_MAX_LFN * (_DF1S ? 2 : 1) + 1];
-  fno.lfname = lfn;
-  fno.lfsize = sizeof(lfn);
-#endif
-
   if (disk_label[0]==' ')
 	DEBUG_MSG("Volume in Drive 0 has no label.\n");
   else
@@ -396,33 +391,27 @@ void SDCARD_Dir(void)
   
   while (( f_readdir(&dir,&fno) == FR_OK) && fno.fname[0]) {
 
-#if _USE_LFN
-    fn = *fno.lfname ? fno.lfname : fno.fname;
-#else
     fn = fno.fname;
-#endif
     char date[10];
 	ShowFatDate(fno.fdate,(char*)&date);
 	char time[12];
 	ShowFatTime(fno.ftime,(char*)&time);
-	DEBUG_MSG("[%s%s%s%s%s%s%s] %s  %s   %s %u %s\n",
+	DEBUG_MSG("[%s%s%s%s%s] %s  %s   %s %u %s\n",
 		(fno.fattrib & AM_RDO ) ? "r" : ".",
 		(fno.fattrib & AM_HID ) ? "h" : ".",
 		(fno.fattrib & AM_SYS ) ? "s" : ".",
-		(fno.fattrib & AM_VOL ) ? "v" : ".",
-		(fno.fattrib & AM_LFN ) ? "l" : ".",
 		(fno.fattrib & AM_DIR ) ? "d" : ".",
 		(fno.fattrib & AM_ARC ) ? "a" : ".",
 		date,time,
 		(fno.fattrib & AM_DIR) ? "<DIR>" : " ",
 		fno.fsize,fn);
   }
-  if (f_getfree("", &free_clust, &dir.fs))
+  if (f_getfree("", &free_clust, &mounted_fs))
   {
 	DEBUG_MSG("f_getfree() failed...\n");
 	return;
   }
-  DEBUG_MSG("%u KB total disk space.\n",(DWORD)(fs.max_clust-2)*fs.csize/2);
+  DEBUG_MSG("%u KB total disk space.\n",(DWORD)(mounted_fs->n_fatent-2)*mounted_fs->csize/2);
   DEBUG_MSG("%u KB available on the disk.\n\n",free_clust*fs.csize/2);
   return; 
 }
@@ -437,19 +426,19 @@ void SDCARD_FileSystem(void)
       return; // error
     }
 
-    DEBUG_MSG("%u sector/s per cluster, %u clusters.\n", dir.fs->csize, dir.fs->max_clust);
-    DEBUG_MSG("%u sectors per FAT, first FAT at sector #%u, root dir at #%u.\n", dir.fs->sects_fat, dir.fs->fatbase, dir.fs->dirbase);
-    DEBUG_MSG("%u root dir entries (not valid for FAT32)\n", dir.fs->n_rootdir);
+    DEBUG_MSG("%u sector/s per cluster, %u clusters.\n", fs.csize, fs.n_fatent);
+    DEBUG_MSG("%u sectors per FAT, first FAT at sector #%u, root dir at #%u.\n", fs.fsize, fs.fatbase, fs.dirbase);
+    DEBUG_MSG("%u root dir entries (not valid for FAT32)\n", fs.n_rootdir);
     char file_system[20];
-    if( dir.fs->fs_type == FS_FAT12 )
+    if( fs.fs_type == FS_FAT12 )
       strcpy(file_system, "FAT12");
-    else if( dir.fs->fs_type == FS_FAT16 )
+    else if( fs.fs_type == FS_FAT16 )
       strcpy(file_system, "FAT16");
-    else if( dir.fs->fs_type == FS_FAT32 )
+    else if( fs.fs_type == FS_FAT32 )
       strcpy(file_system, "FAT32");
     else
       strcpy(file_system, "unknown FS");
-    DEBUG_MSG("Filesystem: 0x%02x (%s)\n", dir.fs->fs_type, file_system);
+    DEBUG_MSG("Filesystem: 0x%02x (%s)\n", fs.fs_type, file_system);
 
 }
 
@@ -549,7 +538,7 @@ void SDCARD_Copy(char* source, char* dest)
   UINT successcount_wr;
   u32 num_bytes = 0;
   do {
-    if( (res=f_read(&fsrc, tmp_buffer, _MAX_SS, &successcount)) != FR_OK ) {
+    if( (res=f_read(&fsrc, tmp_buffer, FF_MAX_SS, &successcount)) != FR_OK ) {
           DEBUG_MSG("Failed to read sector at position 0x%08x, status: %u\n", fsrc.fptr, res);
           successcount=0;
           status=-1;
@@ -580,7 +569,7 @@ void SDCARD_Benchmark(num_sectors)
   strcpy(dest,"/benchmrk.cpy");
   int f;
 
-  for(f=0;f<_MAX_SS;f++)
+  for(f=0;f<FF_MAX_SS;f++)
 	tmp_buffer[f]='X';
 
   DEBUG_MSG("benchmark: Starting\n");
@@ -601,7 +590,7 @@ void SDCARD_Benchmark(num_sectors)
   MIOS32_SYS_TimeSet(t);
 
   for (f=0;f<num_sectors;f++) {
-    if( f_write(&fsrc, tmp_buffer, _MAX_SS, &successcount_wr) != FR_OK ) {
+    if( f_write(&fsrc, tmp_buffer, FF_MAX_SS, &successcount_wr) != FR_OK ) {
 	  DEBUG_MSG("Failed to write sector at position 0x%08x, status: %u\n", fsrc.fptr, res);
 	  status=-1;
 	  break;
@@ -627,7 +616,7 @@ void SDCARD_Benchmark(num_sectors)
   MIOS32_SYS_TimeSet(t);
 
   do {
-    if( (res=f_read(&fsrc, tmp_buffer, _MAX_SS, &successcount)) != FR_OK ) {
+    if( (res=f_read(&fsrc, tmp_buffer, FF_MAX_SS, &successcount)) != FR_OK ) {
 	  DEBUG_MSG("Failed to read sector at position 0x%08x, status: %u\n", fsrc.fptr, res);
 	} else {
 	num_bytes += successcount;
@@ -654,7 +643,7 @@ void SDCARD_Benchmark(num_sectors)
 
   num_bytes = 0;
   do {
-    if( (res=f_read(&fsrc, tmp_buffer, _MAX_SS, &successcount)) != FR_OK ) {
+    if( (res=f_read(&fsrc, tmp_buffer, FF_MAX_SS, &successcount)) != FR_OK ) {
 	  DEBUG_MSG("Failed to read sector at position 0x%08x, status: %u\n", fsrc.fptr, res);
 	  successcount=0;
 	  status=-1;

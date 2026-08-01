@@ -6,7 +6,9 @@
 /*-----------------------------------------------------------------------*/
 
 #include "mios32.h" // Needed for mios32_sdcard_csd_t
+#include "ff.h"
 #include "diskio.h"
+#include "mios32_fatfs.h"
 
 // TK: defined in integer.h as bool - alternative enum here
 //typedef enum { FALSE = 0, TRUE } BOOL;
@@ -27,9 +29,6 @@
 
 #define SDCARD	        0
 
-static DWORD sdcard_sector_count;
-
-
 /*-----------------------------------------------------------------------*/
 /* Inidialize a Drive                                                    */
 DSTATUS disk_initialize (
@@ -39,11 +38,6 @@ DSTATUS disk_initialize (
   if( drv == SDCARD ) {
     // check availability of SD Card
     // we assume that it has been initialized by application
-    sdcard_sector_count = 0xffffffff; // TODO
-#if DEBUG_VERBOSE_LEVEL >= 2
-    MIOS32_MIDI_SendDebugMessage("[disk_init] size = %u\n", sdcard_sector_count);
-#endif
-
     int status;
     if( (status=MIOS32_SDCARD_CheckAvailable(1)) < 1 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
@@ -84,8 +78,8 @@ DSTATUS disk_status (
 DRESULT disk_read (
 	BYTE drv,		/* Physical drive nmuber (0..) */
 	BYTE *buff,		/* Data buffer to store read data */
-	DWORD sector,	/* Sector address (LBA) */
-	BYTE count		/* Number of sectors to read (1..255) */
+	LBA_t sector,	/* Sector address (LBA) */
+	UINT count		/* Number of sectors to read */
 )
 {
   if( drv == SDCARD ) {
@@ -119,12 +113,12 @@ DRESULT disk_read (
 /*-----------------------------------------------------------------------*/
 /* Write Sector(s)                                                       */
 
-#if _READONLY == 0
+#if FF_FS_READONLY == 0
 DRESULT disk_write (
 	BYTE drv,			/* Physical drive nmuber (0..) */
 	const BYTE *buff,	/* Data to be written */
-	DWORD sector,		/* Sector address (LBA) */
-	BYTE count			/* Number of sectors to write (1..255) */
+	LBA_t sector,		/* Sector address (LBA) */
+	UINT count			/* Number of sectors to write */
 )
 {
   if( drv == SDCARD ) {
@@ -151,7 +145,7 @@ DRESULT disk_write (
 
   return RES_PARERR;
 }
-#endif /* _READONLY */
+#endif /* FF_FS_READONLY */
 
 
 
@@ -183,8 +177,8 @@ DRESULT disk_ioctl (
     case GET_SECTOR_COUNT: /* Mandatory for only f_mkfs() */
       // Returns total sectors on the drive into the DWORD variable pointed by Buffer.
       // This command is used in only f_mkfs function.
-      //*(DWORD*)buff = sdcard_sector_count;
-	  MIOS32_SDCARD_CSDRead(&csd);
+	  if( MIOS32_SDCARD_CSDRead(&csd) < 0 )
+	    return RES_ERROR;
 	  u32 sectors;
 	  if (csd.CSDStruct==1) // SD V2 
   	    sectors = (DWORD)(csd.DeviceSize + 1) << 10;
@@ -199,9 +193,9 @@ DRESULT disk_ioctl (
 	  break;
     case GET_SECTOR_SIZE: /* Mandatory for multiple sector size cfg */
       // Returns sector size of the drive into the WORD variable pointed by Buffer.
-      // This command is not required in single sector size configuration, _MAX_SS is 512.
-#if _MAX_SS
-      *(DWORD*)buff = 512; // only single size supported by MIOS32
+      // This command is not required in fixed sector size configuration.
+#if FF_MAX_SS != FF_MIN_SS
+      *(WORD*)buff = 512; // only single size supported by MIOS32
 #if DEBUG_VERBOSE_LEVEL >= 1
       MIOS32_MIDI_SendDebugMessage("[GET_SECTOR_SIZE] Sector Size is %d\n", 512);
 #endif
@@ -216,7 +210,8 @@ DRESULT disk_ioctl (
       // Returns erase block size of the memory array in unit of sector into the DWORD variable
       // pointed by Buffer. When the erase block size is unknown or magnetic disk device, 
       // return 1. This command is used in only f_mkfs function.
-	  MIOS32_SDCARD_CSDRead(&csd);
+	  if( MIOS32_SDCARD_CSDRead(&csd) < 0 )
+	    return RES_ERROR;
 	  u32 size;
 	  if (csd.CSDStruct==1){  // SD V2
 		// Some SDHC cards seem to report block size differently.
@@ -254,4 +249,15 @@ DWORD __attribute__ ((weak)) get_fattime(void)
   /* 31-25: Year(0-127 org.1980), 24-21: Month(1-12), 20-16: Day(1-31) */
   /* 15-11: Hour(0-23), 10-5: Minute(0-59), 4-0: Second(0-29 *2) */
   return 0;
+}
+
+
+/*-----------------------------------------------------------------------*/
+/* Format logical drive 0 with the current FatFs defaults.                */
+
+FRESULT MIOS32_FATFS_Format(void)
+{
+  BYTE work[FF_MAX_SS];
+
+  return f_mkfs("", NULL, work, sizeof(work));
 }

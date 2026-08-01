@@ -119,7 +119,7 @@ static s32 FILE_CreateTarHeader(char *filename, char *src_path, u8 is_dir, u32 f
 /////////////////////////////////////////////////////////////////////////////
 
 // FatFs variables
-#define SECTOR_SIZE _MAX_SS
+#define SECTOR_SIZE FF_MAX_SS
 
 // Work area (file system object) for logical drives
 static FATFS fs;
@@ -141,7 +141,7 @@ static u32 volume_free_bytes;
 static u8 status_msg_ctr;
 
 // buffer for copy operations and SysEx sender
-#define TMP_BUFFER_SIZE _MAX_SS
+#define TMP_BUFFER_SIZE FF_MAX_SS
 static u8 tmp_buffer[TMP_BUFFER_SIZE];
 
 // for FILE_BrowserHandler
@@ -244,7 +244,7 @@ static s32 FILE_MountFS(void)
   file_read_is_open = 0;
   file_write_is_open = 0;
 
-  if( (res=f_mount(0, &fs)) != FR_OK ) {
+  if( (res=f_mount(&fs, "", 1)) != FR_OK ) {
     DEBUG_MSG("[FILE] Failed to mount SD Card - error status: %d\n", res);
     return -1; // error
   }
@@ -279,7 +279,8 @@ s32 FILE_UpdateFreeBytes(void)
     return FILE_ERR_UPDATE_FREE;
   }
 
-  if( (res=f_getfree("/", &free_clust, &dir.fs)) != FR_OK ) {
+  FATFS *mounted_fs;
+  if( (res=f_getfree("/", &free_clust, &mounted_fs)) != FR_OK ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
     DEBUG_MSG("[FILE_UpdateFreeBytes] f_getfree failed with status %d!\n", res);
 #endif
@@ -308,7 +309,7 @@ u32 FILE_VolumeCluster2Sector(u32 cluster)
 {
   // from ff.c
   cluster -= 2;
-  if( cluster >= (fs.max_clust - 2) )
+  if( cluster >= (fs.n_fatent - 2) )
     return 0;              /* Invalid cluster# */
 
   return cluster * fs.csize + fs.database;
@@ -347,7 +348,7 @@ u32 FILE_VolumeBytesFree(void)
 /////////////////////////////////////////////////////////////////////////////
 u32 FILE_VolumeBytesTotal(void)
 {
-  return (fs.max_clust-2)*fs.csize * 512;
+  return (fs.n_fatent-2)*fs.csize * 512;
 }
 
 
@@ -402,17 +403,20 @@ s32 FILE_ReadOpen(file_t* file, char *filepath)
   }
 
 #if DEBUG_VERBOSE_LEVEL >= 2
-  DEBUG_MSG("[FILE] found '%s' of length %u\n", filepath, file_read.fsize);
+  DEBUG_MSG("[FILE] found '%s' of length %u\n", filepath, (u32)f_size(&file_read));
 #endif
 
   // store current file variables in file_t
   file->flag = file_read.flag;
-  file->csect = file_read.csect;
+  file->err = file_read.err;
+  file->attr = file_read.obj.attr;
+  file->stat = file_read.obj.stat;
+  file->csect = 0;
   file->fptr = file_read.fptr;
-  file->fsize = file_read.fsize;
-  file->org_clust = file_read.org_clust;
-  file->curr_clust = file_read.curr_clust;
-  file->dsect = file_read.dsect;
+  file->fsize = file_read.obj.objsize;
+  file->org_clust = file_read.obj.sclust;
+  file->curr_clust = file_read.clust;
+  file->dsect = file_read.sect;
   file->dir_sect = file_read.dir_sect;
   file->dir_ptr = file_read.dir_ptr;
 
@@ -441,23 +445,26 @@ s32 FILE_ReadReOpen(file_t* file)
   }
 
   // for later check if we need to reload the sector
-  u32 prev_dsect = file_read.dsect;
+  u32 prev_dsect = file_read.sect;
 
   // restore file variables from file_t
-  file_read.fs = &fs;
-  file_read.id = fs.id;
+  file_read.obj.fs = &fs;
+  file_read.obj.id = fs.id;
+  file_read.obj.attr = file->attr;
+  file_read.obj.stat = file->stat;
+  file_read.obj.sclust = file->org_clust;
+  file_read.obj.objsize = file->fsize;
   file_read.flag = file->flag;
-  file_read.csect = file->csect;
+  file_read.err = file->err;
   file_read.fptr = file->fptr;
-  file_read.fsize = file->fsize;
-  file_read.org_clust = file->org_clust;
-  file_read.curr_clust = file->curr_clust;
-  file_read.dsect = file->dsect;
+  file_read.clust = file->curr_clust;
+  file_read.sect = file->dsect;
   file_read.dir_sect = file->dir_sect;
   file_read.dir_ptr = file->dir_ptr;
 
-  if( prev_dsect != file_read.dsect ) {
-    disk_read(file_read.fs->drive, file_read.buf, file_read.dsect, 1);
+  if( file_read.sect != 0 && prev_dsect != file_read.sect ) {
+    if( disk_read(file_read.obj.fs->pdrv, file_read.buf, file_read.sect, 1) != RES_OK )
+      return FILE_ERR_READ;
   }
 
   // file is opened (again)
@@ -476,12 +483,15 @@ s32 FILE_ReadClose(file_t *file)
 {
   // store current file variables in file_t
   file->flag = file_read.flag;
-  file->csect = file_read.csect;
+  file->err = file_read.err;
+  file->attr = file_read.obj.attr;
+  file->stat = file_read.obj.stat;
+  file->csect = 0;
   file->fptr = file_read.fptr;
-  file->fsize = file_read.fsize;
-  file->org_clust = file_read.org_clust;
-  file->curr_clust = file_read.curr_clust;
-  file->dsect = file_read.dsect;
+  file->fsize = file_read.obj.objsize;
+  file->org_clust = file_read.obj.sclust;
+  file->curr_clust = file_read.clust;
+  file->dsect = file_read.sect;
   file->dir_sect = file_read.dir_sect;
   file->dir_ptr = file_read.dir_ptr;
 
@@ -515,7 +525,7 @@ s32 FILE_ReadSeek(u32 offset)
 /////////////////////////////////////////////////////////////////////////////
 u32 FILE_ReadGetCurrentSize(void)
 {
-  return file_read.fsize;
+  return f_size(&file_read);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -590,7 +600,7 @@ s32 FILE_ReadLine(u8 *buffer, u32 max_len)
   s32 status;
   u32 num_read = 0;
 
-  while( file_read.fptr < file_read.fsize ) {
+  while( file_read.fptr < f_size(&file_read) ) {
     status = FILE_ReadBuffer(buffer, 1);
 
     if( status < 0 )
@@ -716,7 +726,7 @@ u32 FILE_WriteGetCurrentSize(void)
 {
   if( !file_write_is_open )
     return 0;
-  return file_write.fsize;
+  return f_size(&file_write);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -861,7 +871,7 @@ s32 FILE_Copy(char *src_file, char *dst_file)
 	status = FILE_ERR_WRITE;
       } else {
 	num_bytes += successcount_wr;
-	file_copy_percentage = (u8)((100 * num_bytes) / file_read.fsize);
+	file_copy_percentage = (u8)((100 * num_bytes) / f_size(&file_read));
       }
     } while( status == 0 && successcount > 0 );
 
