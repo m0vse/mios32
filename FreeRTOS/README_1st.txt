@@ -1,16 +1,16 @@
 
-This is a downstripped copy of FreeRTOS V9.0.0
+This is a downstripped copy of FreeRTOS Kernel V11.3.0.
 
-It only contains the required sources for building on STM32 and LPC17 target
+It only contains the required sources and GCC ports for building MIOS32 on
+STM32 and LPC17 targets.
 
-The complete version can be downloaded from:
-http://sourceforge.net/projects/freertos/files/FreeRTOS/V9.0.0/
+The complete version is available from:
+https://github.com/FreeRTOS/FreeRTOS-Kernel/tree/V11.3.0
 
 
 Modifications:
 
-- TK (2016-11-03): added vPortMallocDebugInfo to Source/portable/MemMang/heap_4.c
-- Sauraen (2017-02-02): added pvPortRealloc to Source/portable/MemMang/heap_4.c.
-  This also included a definition in Source/include/portable.h and the function
-  which maps realloc to pvPortRealloc in ../programming_models/traditional/
-  freertos_heap.cpp.
+- MIOS32 retains a small pvPortRealloc compatibility helper in heap_4.c because
+  the traditional programming model redirects the C allocator to FreeRTOS.
+- The MIOS32 heap report is implemented outside the kernel in
+  ../programming_models/traditional/freertos_heap.cpp using vPortGetHeapStats().

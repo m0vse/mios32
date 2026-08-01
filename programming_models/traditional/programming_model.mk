@@ -1,8 +1,6 @@
 # $Id$
 # defines rules building the programming model
 
-# philetaylor - changed to use umm_malloc and added MemMang to the include dirs.
-
 # where is FreeRTOS located
 
 FREE_RTOS      =    $(MIOS32_PATH)/FreeRTOS
