@@ -305,6 +305,11 @@ static void MIOS32_USB_MIDI_TxBufferHandler(u8 bEP)
 #if defined(MIOS32_USB_USE_TINYUSB)
   (void)bEP;
 
+  // This handler is also called by the blocking MIOS32 send path when its
+  // software ring is full.  Process deferred endpoint completions here so
+  // TinyUSB's FIFO can make progress even while the producer is waiting.
+  tud_task_ext(0, false);
+
   while( tx_buffer_size && transfer_possible ) {
     const u8 *packet = (const u8 *)&tx_buffer[tx_buffer_tail];
     if( !tud_midi_packet_write(packet) )
