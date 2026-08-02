@@ -207,11 +207,11 @@ s32 TERMINAL_ParseFilebrowser(mios32_midi_port_t port, char byte)
     // for the auto-load function
     FILE_BrowserUploadCallback_Init(TERMINAL_BrowserUploadCallback);
 
-    MUTEX_MIDIOUT_TAKE;
     MUTEX_SDCARD_TAKE;
+    MUTEX_MIDIOUT_TAKE;
     FILE_BrowserHandler(port, line_buffer);
-    MUTEX_SDCARD_GIVE;
     MUTEX_MIDIOUT_GIVE;
+    MUTEX_SDCARD_GIVE;
     line_ix = 0;
     line_buffer[line_ix] = 0;
   } else if( line_ix < (STRING_MAX-1) ) {

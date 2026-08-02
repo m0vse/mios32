@@ -52,6 +52,8 @@ extern s32 SEQ_PATTERN_Init(u32 mode);
 
 extern char *SEQ_PATTERN_NameGet(u8 group);
 extern s32 SEQ_PATTERN_Change(u8 group, seq_pattern_t pattern, u8 force_immediate_change);
+extern s32 SEQ_PATTERN_HandlerRequest(void);
+extern u8 SEQ_PATTERN_HandlerRequested(void);
 extern s32 SEQ_PATTERN_Handler(void);
 
 extern s32 SEQ_PATTERN_Load(u8 group, seq_pattern_t pattern);

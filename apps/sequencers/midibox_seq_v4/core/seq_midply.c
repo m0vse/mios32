@@ -251,13 +251,12 @@ s32 SEQ_MIDPLY_ReadFile(char *path)
   MID_PARSER_InstallEventCallbacks(&SEQ_MIDPLY_PlayEvent, &SEQ_MIDPLY_PlayMeta);
   MIOS32_IRQ_Enable();
 
+  // Keep the global lock order SD Card -> MIDI while the parser is active.
+  MUTEX_SDCARD_TAKE;
   // ensure exclusive access to parser (this routine could be interrupted by sequencer handler)
   MUTEX_MIDIOUT_TAKE;
-
-  MUTEX_SDCARD_TAKE;
   status = FILE_ReadOpen(&midifile_fi, path);
   FILE_ReadClose(&midifile_fi); // close again - file will be reopened by read handler
-  MUTEX_SDCARD_GIVE;
 
   if( status < 0 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
@@ -287,6 +286,7 @@ s32 SEQ_MIDPLY_ReadFile(char *path)
   }
 
   MUTEX_MIDIOUT_GIVE;
+  MUTEX_SDCARD_GIVE;
 
   return status;
 }

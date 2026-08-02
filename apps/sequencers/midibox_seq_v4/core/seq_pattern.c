@@ -55,6 +55,7 @@ mios32_sys_time_t seq_pattern_start_time;
 u8 seq_pattern_log_load_time; // can be changed in terminal with "set seq_pattern_log_load_time on"
 u8 seq_pattern_mixer_num;
 u16 seq_pattern_remix_map;
+static volatile u8 seq_pattern_handler_req;
 
 /////////////////////////////////////////////////////////////////////////////
 // Initialisation
@@ -65,6 +66,7 @@ s32 SEQ_PATTERN_Init(u32 mode)
   seq_pattern_mixer_num = 0;
   seq_pattern_remix_map = 0;
   seq_pattern_log_load_time = 0;
+  seq_pattern_handler_req = 0;
 	
   // pre-init pattern numbers
   u8 group;
@@ -93,6 +95,22 @@ s32 SEQ_PATTERN_Init(u32 mode)
   }
 
   return 0; // no error
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// Request/Get deferred pattern handling from the non-MIDI task.  Synchronous
+// changes are scheduled by the MIDI task, but filesystem access must not run
+// while that task owns the MIDI output mutex.
+/////////////////////////////////////////////////////////////////////////////
+s32 SEQ_PATTERN_HandlerRequest(void)
+{
+  seq_pattern_handler_req = 1;
+  return 0;
+}
+
+u8 SEQ_PATTERN_HandlerRequested(void)
+{
+  return seq_pattern_handler_req;
 }
 
 
@@ -174,6 +192,8 @@ s32 SEQ_PATTERN_Handler(void)
 {
   u8 group;
   u8 any_pattern_loaded = 0;
+
+  seq_pattern_handler_req = 0;
 
 #if LED_PERFORMANCE_MEASURING
   MIOS32_BOARD_LED_Set(0x00000001, 1);

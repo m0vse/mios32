@@ -570,7 +570,7 @@ s32 SEQ_CORE_Handler(void)
 	  } else {
 	    if( seq_core_options.SYNCHED_PATTERN_CHANGE &&
 		seq_core_state.ref_step_pattern == seq_core_steps_per_pattern ) {
-	      SEQ_PATTERN_Handler();
+	      SEQ_PATTERN_HandlerRequest();
 	    }
 	  }
 	}

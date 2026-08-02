@@ -509,7 +509,7 @@ void SEQ_TASK_Period1mS(void)
 {
 #if MEASURE_IDLE_CTR == 0
   // pattern switching if not in sync mode
-  if( !seq_core_options.SYNCHED_PATTERN_CHANGE || SEQ_SONG_ActiveGet() ) {
+  if( !seq_core_options.SYNCHED_PATTERN_CHANGE || SEQ_SONG_ActiveGet() || SEQ_PATTERN_HandlerRequested() ) {
     SEQ_PATTERN_Handler();
   }
 
