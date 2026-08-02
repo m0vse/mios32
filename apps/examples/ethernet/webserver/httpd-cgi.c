@@ -215,7 +215,6 @@ generate_rtos_stats(void *arg)
 }
 #else
 
-extern void vTaskList( signed char *pcWriteBuffer );
 static char cCountBuf[ 32 ];
 long lRefreshCount = 0;
 static unsigned short
@@ -277,7 +276,6 @@ generate_runtime_stats(void *arg)
 }
 #else
 
-extern void vTaskGetRunTimeStats( signed char *pcWriteBuffer );
 static unsigned short
 generate_runtime_stats(void *arg)
 {

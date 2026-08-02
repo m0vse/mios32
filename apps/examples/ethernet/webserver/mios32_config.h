@@ -14,6 +14,11 @@
 #define MIOS32_LCD_BOOT_MSG_LINE1 "uIP Example"
 #define MIOS32_LCD_BOOT_MSG_LINE2 "(c) 2009 T.Klose"
 
+// Used by the SD card and ENC28J60 mutex hooks below.  This header is also
+// included by FreeRTOS sources which don't include the application's app.h.
+extern void APP_MutexSPI0Take(void);
+extern void APP_MutexSPI0Give(void);
+
 // function used to output debug messages (must be printf compatible!)
 #define DEBUG_MSG MIOS32_MIDI_SendDebugMessage
 
@@ -37,6 +42,8 @@
 #define MIOS32_ENC28J60_MUTEX_TAKE    APP_MutexSPI0Take()
 #define MIOS32_ENC28J60_MUTEX_GIVE    APP_MutexSPI0Give()
 
+#include <freertos_utils.h>
+
 // optional performance measuring
 #define configGENERATE_RUN_TIME_STATS           1
 #if configGENERATE_RUN_TIME_STATS
@@ -47,6 +54,7 @@
 
 // optional task information
 #define configUSE_TRACE_FACILITY				1
+#define configUSE_STATS_FORMATTING_FUNCTIONS    1
 #define configINCLUDE_vTaskDelete				1
 #define configINCLUDE_vTaskSuspend				1
 
