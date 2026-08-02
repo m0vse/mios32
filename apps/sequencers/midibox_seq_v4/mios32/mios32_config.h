@@ -85,7 +85,15 @@ extern void APP_SendDebugMessage(char *format, ...)
 # define MIDI_TASK_STACK_SIZE              2100
 # define PERIOD1MS_TASK_STACK_SIZE         2100
 #else
-# define MIOS32_TASK_HOOKS_STACK_SIZE      1000
+# if defined(MIOS32_FAMILY_LPC17xx)
+// Hardware high-water measurements left 864 bytes free in Hooks and 1168
+// bytes free in Period1mS. Retain more than 600 bytes of observed margin.
+#  define MIOS32_TASK_HOOKS_STACK_SIZE       768
+#  define PERIOD1MS_TASK_STACK_SIZE         1024
+# else
+#  define MIOS32_TASK_HOOKS_STACK_SIZE      1000
+#  define PERIOD1MS_TASK_STACK_SIZE         1400
+# endif
 # if defined(MIOS32_FAMILY_LPC17xx)
 #  define LWIP_TASK_STACK_SIZE             1400
 # else
@@ -93,7 +101,6 @@ extern void APP_SendDebugMessage(char *format, ...)
 # endif
 # define MIOS32_TASK_MIDI_HOOKS_STACK_SIZE 1400
 # define MIDI_TASK_STACK_SIZE              1400
-# define PERIOD1MS_TASK_STACK_SIZE         1400
 #endif
 #define PERIOD1MS_LOWPRIO_TASK_STACK_SIZE  1400
 
