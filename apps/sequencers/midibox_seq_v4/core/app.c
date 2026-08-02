@@ -210,6 +210,24 @@ void APP_Background(void)
 }
 
 
+#ifndef MIOS32_FAMILY_EMULATION
+/////////////////////////////////////////////////////////////////////////////
+// Traditional programming-model task heartbeats.  These callbacks run only
+// after the complete Hooks/MIDI_Hooks loop has returned successfully.
+/////////////////////////////////////////////////////////////////////////////
+void APP_Tick(void)
+{
+  TASKS_WatchdogHeartbeat(TASKS_WATCHDOG_HEARTBEAT_HOOKS);
+}
+
+
+void APP_MIDI_Tick(void)
+{
+  TASKS_WatchdogHeartbeat(TASKS_WATCHDOG_HEARTBEAT_MIDI_HOOKS);
+}
+#endif
+
+
 /////////////////////////////////////////////////////////////////////////////
 // This hook is called when a MIDI package has been received
 /////////////////////////////////////////////////////////////////////////////
@@ -680,7 +698,10 @@ void SEQ_TASK_Period1S(void)
 	strcpy(seq_file_new_session_name, "DEF_V4L");
 	DEBUG_MSG("Creating initial session '%s'... this can take some seconds!\n", seq_file_new_session_name);
 
-	if( (status=SEQ_FILE_Format()) < 0 ) {
+	TASKS_WatchdogSuspend(TASKS_WATCHDOG_LONG_OPERATION_MS);
+	status = SEQ_FILE_Format();
+	TASKS_WatchdogResume();
+	if( status < 0 ) {
 	  DEBUG_MSG("Failed to create session! (status: %d)\n", status);
 	} else {
 	  SEQ_FILE_StoreSessionName();
@@ -707,7 +728,10 @@ void SEQ_TASK_Period1S(void)
   // this is running with low priority, so that LCD is updated in parallel!
   if( seq_ui_format_req ) {
     // note: request should be cleared at the end of this process to avoid double-triggers!
-    if( (status = SEQ_FILE_Format()) < 0 ) {
+    TASKS_WatchdogSuspend(TASKS_WATCHDOG_LONG_OPERATION_MS);
+    status = SEQ_FILE_Format();
+    TASKS_WatchdogResume();
+    if( status < 0 ) {
 #ifndef MBSEQV4L
       SEQ_UI_SDCardErrMsg(2000, status);
 #endif
@@ -733,7 +757,9 @@ void SEQ_TASK_Period1S(void)
   // this is running with low priority, so that LCD is updated in parallel!
   if( seq_ui_backup_req ) {
     // note: request should be cleared at the end of this process to avoid double-triggers!
+    TASKS_WatchdogSuspend(TASKS_WATCHDOG_LONG_OPERATION_MS);
     status = SEQ_FILE_CreateBackup();
+    TASKS_WatchdogResume();
       
     if( status < 0 ) {
       if( status == FILE_ERR_COPY ) {

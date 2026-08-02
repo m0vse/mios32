@@ -111,6 +111,19 @@ extern "C" {
 extern s32 TASKS_Init(u32 mode);
 extern u32 TASKS_ResetSourceGet(void);
 
+#define TASKS_WATCHDOG_HEARTBEAT_HOOKS       0
+#define TASKS_WATCHDOG_HEARTBEAT_MIDI_HOOKS  1
+#define TASKS_WATCHDOG_HEARTBEAT_MIDI        2
+#define TASKS_WATCHDOG_HEARTBEAT_LOW_PRIO    3
+#define TASKS_WATCHDOG_LONG_OPERATION_MS      600000
+
+extern void TASKS_WatchdogHeartbeat(u8 source);
+extern void TASKS_WatchdogSuspend(u32 maximum_ms);
+extern void TASKS_WatchdogResume(void);
+extern s32 TASKS_WatchdogEnabled(void);
+extern u32 TASKS_WatchdogMissingGet(void);
+extern u32 TASKS_WatchdogSuspendRemainingGet(void);
+
 extern void SEQ_TASK_MIDI(void);
 extern void SEQ_TASK_Period1mS(void);
 extern void SEQ_TASK_Period1mS_LowPrio(void);

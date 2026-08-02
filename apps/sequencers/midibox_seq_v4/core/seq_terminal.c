@@ -383,6 +383,7 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
       } else {
 #if !defined(MIOS32_FAMILY_EMULATION)
 	MUTEX_SDCARD_TAKE;
+	TASKS_WatchdogSuspend(TASKS_WATCHDOG_LONG_OPERATION_MS);
 	out("Formatting SD Card...");
 	FRESULT res;
 	if( (res=MIOS32_FATFS_Format()) != FR_OK ) {
@@ -396,6 +397,7 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
 #endif
 	  out("Thereafter enter 'reset' to restart the application.");
 	}
+	TASKS_WatchdogResume();
 	MUTEX_SDCARD_GIVE;
 #else
 	out("Not in emulation...!");
@@ -1028,6 +1030,12 @@ s32 SEQ_TERMINAL_PrintSystem(void *_output_function)
 
 #if !defined(MIOS32_FAMILY_EMULATION)
   SEQ_TERMINAL_PrintResetSource(out);
+  if( TASKS_WatchdogEnabled() ) {
+    out("Task watchdog: enabled (missing mask 0x%02x, suspend remaining %u ms)",
+        TASKS_WatchdogMissingGet(), TASKS_WatchdogSuspendRemainingGet());
+  } else {
+    out("Task watchdog: disabled on this platform");
+  }
 #endif
 
   {

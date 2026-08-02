@@ -60,6 +60,15 @@ extern void APP_SendDebugMessage(char *format, ...)
 // switch.  The common programming model contains the failure hook.
 #define configCHECK_FOR_STACK_OVERFLOW 2
 
+// LPC17 is the first hardware-validated target for the MBSEQ task watchdog.
+// Other platforms retain the monitoring code but do not start their hardware
+// watchdog until they can be tested on a physical core.
+#if defined(MIOS32_FAMILY_LPC17xx)
+# define MBSEQ_WATCHDOG_ENABLE 1
+#else
+# define MBSEQ_WATCHDOG_ENABLE 0
+#endif
+
 // use ./../../bin/avstack.pl  | less
 // to doublecheck memory consumption
 

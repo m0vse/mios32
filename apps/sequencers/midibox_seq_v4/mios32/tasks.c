@@ -70,6 +70,9 @@ SemaphoreHandle_t xJ16Semaphore;
 static void TASK_MIDI(void *pvParameters);
 static void TASK_Period1mS(void *pvParameters);
 static void TASK_Period1mS_LowPrio(void *pvParameters);
+static void TASKS_WatchdogCheck(void);
+static void TASKS_WatchdogHardwareInit(void);
+static void TASKS_WatchdogHardwareFeed(void);
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -77,6 +80,12 @@ static void TASK_Period1mS_LowPrio(void *pvParameters);
 /////////////////////////////////////////////////////////////////////////////
 
 static u32 reset_source;
+static volatile u32 watchdog_heartbeat[4];
+static u32 watchdog_heartbeat_previous[4];
+static volatile u32 watchdog_missing_mask;
+static volatile TickType_t watchdog_suspend_until;
+static volatile u8 watchdog_suspend_depth;
+static u8 watchdog_enabled;
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -87,6 +96,129 @@ static u32 reset_source;
 u32 TASKS_ResetSourceGet(void)
 {
   return reset_source;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Records forward progress from one of the independently scheduled tasks.
+/////////////////////////////////////////////////////////////////////////////
+void TASKS_WatchdogHeartbeat(u8 source)
+{
+  if( source < (sizeof(watchdog_heartbeat) / sizeof(watchdog_heartbeat[0])) )
+    ++watchdog_heartbeat[source];
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Temporarily ignores missing task heartbeats for a bounded operation.  The
+// deadline remains effective even if a caller hangs before Resume().
+/////////////////////////////////////////////////////////////////////////////
+void TASKS_WatchdogSuspend(u32 maximum_ms)
+{
+  if( maximum_ms > TASKS_WATCHDOG_LONG_OPERATION_MS )
+    maximum_ms = TASKS_WATCHDOG_LONG_OPERATION_MS;
+
+  TickType_t deadline = xTaskGetTickCount() + pdMS_TO_TICKS(maximum_ms);
+  taskENTER_CRITICAL();
+  if( watchdog_suspend_depth == 0 ||
+      (s32)(deadline - watchdog_suspend_until) > 0 )
+    watchdog_suspend_until = deadline;
+  if( watchdog_suspend_depth < 0xff )
+    ++watchdog_suspend_depth;
+  taskEXIT_CRITICAL();
+}
+
+
+void TASKS_WatchdogResume(void)
+{
+  taskENTER_CRITICAL();
+  if( watchdog_suspend_depth > 0 )
+    --watchdog_suspend_depth;
+  if( watchdog_suspend_depth == 0 )
+    watchdog_suspend_until = 0;
+  taskEXIT_CRITICAL();
+}
+
+
+s32 TASKS_WatchdogEnabled(void)
+{
+  return watchdog_enabled;
+}
+
+
+u32 TASKS_WatchdogMissingGet(void)
+{
+  return watchdog_missing_mask;
+}
+
+
+u32 TASKS_WatchdogSuspendRemainingGet(void)
+{
+  TickType_t now = xTaskGetTickCount();
+  if( watchdog_suspend_depth == 0 ||
+      (s32)(watchdog_suspend_until - now) <= 0 )
+    return 0;
+
+  return (u32)(watchdog_suspend_until - now) * portTICK_PERIOD_MS;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Feed only after every monitored task has advanced since the previous check.
+// TASK_Period1mS is the supervisor, so reaching this function is its heartbeat.
+/////////////////////////////////////////////////////////////////////////////
+static void TASKS_WatchdogCheck(void)
+{
+  u32 missing = 0;
+  unsigned i;
+
+  for(i=0; i<(sizeof(watchdog_heartbeat) / sizeof(watchdog_heartbeat[0])); ++i) {
+    u32 current = watchdog_heartbeat[i];
+    if( current == watchdog_heartbeat_previous[i] )
+      missing |= (1UL << i);
+    watchdog_heartbeat_previous[i] = current;
+  }
+
+  TickType_t now = xTaskGetTickCount();
+  if( watchdog_suspend_depth != 0 &&
+      (s32)(watchdog_suspend_until - now) > 0 )
+    missing = 0;
+
+  watchdog_missing_mask = missing;
+  if( watchdog_enabled && missing == 0 )
+    TASKS_WatchdogHardwareFeed();
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// LPC17 watchdog: IRC is 4 MHz and the counter advances every four watchdog
+// clocks.  12,000,000 counts therefore provides an approximately 12 second
+// recovery window while staying below the 24-bit WDTC limit.
+/////////////////////////////////////////////////////////////////////////////
+static void TASKS_WatchdogHardwareInit(void)
+{
+#if MBSEQ_WATCHDOG_ENABLE && defined(MIOS32_FAMILY_LPC17xx)
+  LPC_WDT->WDCLKSEL = 1; // internal RC oscillator
+  LPC_WDT->WDTC = 12000000;
+  LPC_WDT->WDMOD = (1 << 0) | (1 << 1); // enable watchdog and reset
+  watchdog_enabled = 1;
+  TASKS_WatchdogHardwareFeed();
+#else
+  watchdog_enabled = 0;
+#endif
+}
+
+
+static void TASKS_WatchdogHardwareFeed(void)
+{
+#if MBSEQ_WATCHDOG_ENABLE && defined(MIOS32_FAMILY_LPC17xx)
+  u32 interrupt_state = __get_PRIMASK();
+  __disable_irq();
+  LPC_WDT->WDFEED = 0xaa;
+  LPC_WDT->WDFEED = 0x55;
+  if( !interrupt_state )
+    __enable_irq();
+#endif
 }
 
 
@@ -109,6 +241,18 @@ s32 TASKS_Init(u32 mode)
 #else
   reset_source = 0;
 #endif
+
+  unsigned watchdog_source;
+  for(watchdog_source=0;
+      watchdog_source<(sizeof(watchdog_heartbeat) / sizeof(watchdog_heartbeat[0]));
+      ++watchdog_source) {
+    watchdog_heartbeat[watchdog_source] = 0;
+    watchdog_heartbeat_previous[watchdog_source] = 0;
+  }
+  watchdog_missing_mask = 0;
+  watchdog_suspend_until = 0;
+  watchdog_suspend_depth = 0;
+  watchdog_enabled = 0;
 
   // create semaphores
   xSDCardSemaphore = xSemaphoreCreateRecursiveMutex();
@@ -147,6 +291,8 @@ s32 TASKS_Init(u32 mode)
   // finally init the lwIP task
   UIP_TASK_Init(0);
 #endif
+
+  TASKS_WatchdogHardwareInit();
 
   return 0; // no error
 
@@ -201,6 +347,7 @@ static void TASK_MIDI(void *pvParameters)
 
     // continue in application hook
     SEQ_TASK_MIDI();
+    TASKS_WatchdogHeartbeat(TASKS_WATCHDOG_HEARTBEAT_MIDI);
   }
 }
 
@@ -211,6 +358,7 @@ static void TASK_MIDI(void *pvParameters)
 static void TASK_Period1mS(void *pvParameters)
 {
   TickType_t xLastExecutionTime;
+  u16 watchdog_ms = 0;
 
   // Initialise the xLastExecutionTime variable on task entry
   xLastExecutionTime = xTaskGetTickCount();
@@ -226,6 +374,11 @@ static void TASK_Period1mS(void *pvParameters)
 
     // continue in application hook
     SEQ_TASK_Period1mS();
+
+    if( ++watchdog_ms >= 1000 ) {
+      watchdog_ms = 0;
+      TASKS_WatchdogCheck();
+    }
   }
 }
 
@@ -245,6 +398,7 @@ static void TASK_Period1mS_LowPrio(void *pvParameters)
 
     // continue in application hook
     SEQ_TASK_Period1mS_LowPrio();
+    TASKS_WatchdogHeartbeat(TASKS_WATCHDOG_HEARTBEAT_LOW_PRIO);
 
     // 1 second task
     if( ++ms_ctr >= 1000 ) {
