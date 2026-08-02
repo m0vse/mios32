@@ -157,6 +157,7 @@ static u32 browser_write_file_size;
 static u32 browser_write_file_pos;
 
 static s32 (*browser_upload_callback_func)(char *filename);
+static file_tar_progress_callback_t tar_progress_callback_func;
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -173,6 +174,7 @@ s32 FILE_Init(u32 mode)
   volume_free_bytes = 0;
 
   browser_upload_callback_func = NULL;
+  tar_progress_callback_func = NULL;
 
   // init SDCard access
   s32 error = MIOS32_SDCARD_Init(0);
@@ -184,6 +186,16 @@ s32 FILE_Init(u32 mode)
   status_msg_ctr = 5;
 
   return error;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+//! Installs an optional progress callback for TAR file copies.
+/////////////////////////////////////////////////////////////////////////////
+s32 FILE_TarProgressCallback_Init(file_tar_progress_callback_t callback)
+{
+  tar_progress_callback_func = callback;
+  return 0;
 }
 
 
@@ -1735,13 +1747,8 @@ s32 FILE_CreateTar(char *filename, char *src_path, u8 exclude_tar_files, u8 max_
   u32 num_files = 0;
   status = FILE_CreateTarRecursive(filename, src_path, exclude_tar_files, 1, max_depth, &num_dirs, &num_files);
 
-  if( status < 0 ) {
+  if( status < 0 )
     DEBUG_MSG("[FILE_CreateTar] failed with error code: %d\n", status);
-  } else {
-#if DEBUG_VERBOSE_LEVEL >= 1
-    DEBUG_MSG("[FILE_CreateTar] archived %d files in %d directories under %s (%d bytes)\n", num_files, num_dirs, filename, FILE_WriteGetCurrentSize());
-#endif
-  }
 
   // finalize file by adding two dummy all-zero blocks
   {
@@ -1762,7 +1769,28 @@ s32 FILE_CreateTar(char *filename, char *src_path, u8 exclude_tar_files, u8 max_
     }
   }
 
-  FILE_WriteClose();
+  u32 archive_size = FILE_WriteGetCurrentSize();
+  s32 close_status = FILE_WriteClose();
+  if( close_status < 0 && status >= 0 ) {
+    status = close_status;
+    DEBUG_MSG("[FILE_CreateTar] failed to close %s (FatFs status: %u)\n", filename, file_dfs_errno);
+  }
+
+  // A valid archive always contains at least the root header and two terminal
+  // blocks. Remove incomplete output so that it cannot be mistaken for a
+  // successful backup or recursively consume an archive number.
+  if( status >= 0 && archive_size < (3 * TMP_BUFFER_SIZE) ) {
+    status = FILE_ERR_WRITE;
+    DEBUG_MSG("[FILE_CreateTar] invalid archive size: %u bytes\n", archive_size);
+  }
+
+  if( status < 0 ) {
+    f_unlink(filename);
+  } else {
+#if DEBUG_VERBOSE_LEVEL >= 1
+    DEBUG_MSG("[FILE_CreateTar] archived %d files in %d directories under %s (%u bytes)\n", num_files, num_dirs, filename, archive_size);
+#endif
+  }
   
   return status;
 }
@@ -1872,7 +1900,7 @@ static s32 FILE_CreateTarRecursive(char *filename, char *src_path, u8 exclude_ta
       if( (de.fattrib & AM_DIR) && !(de.fattrib & AM_HID) ) {
 	*num_dirs += 1;
 
-#if DEBUG_VERBOSE_LEVEL >= 1
+#if DEBUG_VERBOSE_LEVEL >= 2
 	DEBUG_MSG("[FILE_CreateTar] D %s\n", full_path);
 #endif
 	if( depth >= max_depth ) {
@@ -1886,18 +1914,18 @@ static s32 FILE_CreateTarRecursive(char *filename, char *src_path, u8 exclude_ta
 	}
       } else if( !(de.fattrib & AM_DIR) && !(de.fattrib & AM_HID) ) {
 	if( strcasecmp(de.fname, (char *)&filename[1]) == 0 ) {
-#if DEBUG_VERBOSE_LEVEL >= 1
+#if DEBUG_VERBOSE_LEVEL >= 2
 	  DEBUG_MSG("[FILE_CreateTar] Skip %s (same file)\n", full_path);
 #endif
 	} else if( exclude_tar_files &&
 	           strrchr(de.fname, '.') != NULL &&
 	           strcasecmp(strrchr(de.fname, '.'), ".TAR") == 0 ) {
-#if DEBUG_VERBOSE_LEVEL >= 1
+#if DEBUG_VERBOSE_LEVEL >= 2
 	  DEBUG_MSG("[FILE_CreateTar] Skip %s\n", full_path);
 #endif
 	} else {
 	  *num_files += 1;
-#if DEBUG_VERBOSE_LEVEL >= 1
+#if DEBUG_VERBOSE_LEVEL >= 2
 	  DEBUG_MSG("[FILE_CreateTar] F %s (%d bytes)\n", full_path, de.fsize);
 #endif
 
@@ -1918,6 +1946,10 @@ static s32 FILE_CreateTarRecursive(char *filename, char *src_path, u8 exclude_ta
 
 	  UINT successcount;
 	  UINT successcount_wr;
+	  u32 num_bytes = 0;
+	  u8 reported_percentage = 0;
+	  if( tar_progress_callback_func != NULL )
+	    tar_progress_callback_func(full_path, 0, de.fsize);
 	  do {
 	    if( (file_dfs_errno=f_read(&file_read, tmp_buffer, TMP_BUFFER_SIZE, &successcount)) != FR_OK ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
@@ -1932,8 +1964,18 @@ static s32 FILE_CreateTarRecursive(char *filename, char *src_path, u8 exclude_ta
 	      DEBUG_MSG("[FILE_CreateTar] Failed to write sector at position 0x%08x, status: %u\n", file_write.fptr, file_dfs_errno);
 #endif
 	      status = FILE_ERR_WRITE;
+	    } else if( successcount ) {
+	      num_bytes += successcount_wr;
+	      u8 percentage = de.fsize ? (u8)(((unsigned long long)num_bytes * 100) / de.fsize) : 100;
+	      if( percentage != reported_percentage && tar_progress_callback_func != NULL ) {
+	        reported_percentage = percentage;
+	        tar_progress_callback_func(full_path, num_bytes, de.fsize);
+	      }
 	    }
 	  } while( status == 0 && successcount > 0 );
+
+	  if( status >= 0 && reported_percentage < 100 && tar_progress_callback_func != NULL )
+	    tar_progress_callback_func(full_path, de.fsize, de.fsize);
 
 	  if( status >= 0 && (de.fsize % 512) != 0 ) {
 	    // fill remaining space

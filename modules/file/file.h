@@ -84,6 +84,8 @@ typedef struct {
 // Prototypes
 /////////////////////////////////////////////////////////////////////////////
 
+typedef void (*file_tar_progress_callback_t)(const char *filename, u32 copied, u32 total);
+
 extern s32 FILE_Init(u32 mode);
 
 extern s32 FILE_CheckSDCard(void);
@@ -145,6 +147,7 @@ extern s32 FILE_SendSyxDump(char *path, mios32_midi_port_t port, u32 ms_delay_be
 
   extern s32 FILE_CreateTar(char *filename, char *src_path, u8 exclude_tar_files, u8 max_depth);
 extern s32 FILE_BackupDiskAutoName(u8 max_depth);
+extern s32 FILE_TarProgressCallback_Init(file_tar_progress_callback_t callback);
 
 extern s32 FILE_PrintSDCardInfos(void);
 
