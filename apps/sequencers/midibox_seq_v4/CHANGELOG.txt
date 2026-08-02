@@ -6,6 +6,19 @@ Wishlist for future features
 -> see bottom of this document
 
 
+MIDIboxSEQ V4.099
+~~~~~~~~~~~~~~~~~
+
+   o Modernized the shared MIOS32 foundations, including FreeRTOS, FatFs,
+     lwIP, CMSIS, and LPC17xx device support.
+
+   o Migrated LPC17xx application USB MIDI to TinyUSB and corrected the
+     application/bootloader USB handoff.
+
+   o Updated the MIOS Studio build to Visual Studio 2022 and JUCE 9, including
+     reliable MIDI port reconnection during firmware upload.
+
+
 MIDIboxSEQ V4.098
 ~~~~~~~~~~~~~~~~~
 
