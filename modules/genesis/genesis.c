@@ -15,6 +15,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 #include <mios32.h>
+#include <string.h>
 #include "genesis.h"
 
 /////////////////////////////////////////////////////////////////////////////
@@ -327,10 +328,8 @@ void Genesis_WriteBoardBits(u8 board){
 void Genesis_Reset(u8 board){
     board &= 0x03;
     //Clear internal state
+    memset(&genesis[board], 0, sizeof(genesis[board]));
     u8 i;
-    for(i=0; i<sizeof(genesis_t); i++){
-        genesis[board].ALL[i] = 0;
-    }
     for(i=0; i<6; i++){
         genesis[board].opn2.chan[i].lfooutreg = 0xC0; //Output bits initialized to 1
     }
