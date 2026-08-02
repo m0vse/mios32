@@ -27,7 +27,11 @@
 #include "seq_ui.h"
 
 #include "seq_terminal.h"
-#include "lwip_terminal.h"
+#if defined(SEQ_NETWORK_USE_LWIP)
+# include "lwip_terminal.h"
+#else
+# include "uip_terminal.h"
+#endif
 
 #include "seq_core.h"
 #include "seq_midi_router.h"

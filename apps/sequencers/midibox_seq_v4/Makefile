@@ -9,6 +9,8 @@ FAMILY    = 	$(MIOS32_FAMILY)
 BOARD	  = 	$(MIOS32_BOARD)
 LCD       =     $(MIOS32_LCD)
 
+C_DEFINES += -DSEQ_NETWORK_USE_LWIP=1
+
 
 ################################################################################
 # Source Files, include paths and libraries

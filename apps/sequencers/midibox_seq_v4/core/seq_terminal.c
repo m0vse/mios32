@@ -66,7 +66,11 @@
 #include "seq_statistics.h"
 
 #if !defined(MIOS32_FAMILY_EMULATION)
-#include "lwip_terminal.h"
+#if defined(SEQ_NETWORK_USE_LWIP)
+# include "lwip_terminal.h"
+#else
+# include "uip_terminal.h"
+#endif
 
 extern void vPortMallocDebugInfo(void);
 #endif

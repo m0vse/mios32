@@ -51,7 +51,11 @@
 #include "seq_lcd_logo.h"
 
 #if !defined(MIOS32_FAMILY_EMULATION)
-#include "lwip_task.h"
+# if defined(SEQ_NETWORK_USE_LWIP)
+#  include "lwip_task.h"
+# else
+#  include "uip_task.h"
+# endif
 #include "osc_server.h"
 #endif
 
