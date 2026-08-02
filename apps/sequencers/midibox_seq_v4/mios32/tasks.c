@@ -198,7 +198,10 @@ static void TASKS_WatchdogCheck(void)
 static void TASKS_WatchdogHardwareInit(void)
 {
 #if MBSEQ_WATCHDOG_ENABLE && defined(MIOS32_FAMILY_LPC17xx)
-  LPC_WDT->WDCLKSEL = 1; // internal RC oscillator
+  // LPC17xx WDCLKSEL values are 0=IRC, 1=PCLK and 2=RTC.  Using PCLK here
+  // makes this nominal 12-second timeout only about 1.9 seconds at the
+  // default 25 MHz WDT peripheral clock, which is too short for SD writes.
+  LPC_WDT->WDCLKSEL = 0; // 4 MHz internal RC oscillator
   LPC_WDT->WDTC = 12000000;
   LPC_WDT->WDMOD = (1 << 0) | (1 << 1); // enable watchdog and reset
   watchdog_enabled = 1;

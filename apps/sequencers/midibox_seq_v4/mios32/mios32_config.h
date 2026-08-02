@@ -60,14 +60,12 @@ extern void APP_SendDebugMessage(char *format, ...)
 // switch.  The common programming model contains the failure hook.
 #define configCHECK_FOR_STACK_OVERFLOW 2
 
-// LPC17 is the first hardware-validated target for the MBSEQ task watchdog.
-// Other platforms retain the monitoring code but do not start their hardware
-// watchdog until they can be tested on a physical core.
-#if defined(MIOS32_FAMILY_LPC17xx)
-# define MBSEQ_WATCHDOG_ENABLE 1
-#else
-# define MBSEQ_WATCHDOG_ENABLE 0
-#endif
+// Keep the hardware-reset watchdog disabled until each platform's bootloader
+// handoff can preserve or service it.  In particular, LPC17 enters its legacy
+// bootloader with a core-only reset, which leaves an application-started WDT
+// running and can reset the bootloader in the middle of a firmware upload.
+// The task heartbeat and reset-source diagnostics remain available.
+#define MBSEQ_WATCHDOG_ENABLE 0
 
 // use ./../../bin/avstack.pl  | less
 // to doublecheck memory consumption
