@@ -64,6 +64,12 @@ AFLAGS += $(A_DEFINES) $(A_INCLUDE) -Wa,-adhlns=$(<:.s=.lst)
 # define C flags
 CFLAGS += $(C_DEFINES) $(C_INCLUDE) -Wall -Wno-format -Wno-switch -Wno-strict-aliasing
 
+# GCC 15 defaults to GNU C23, where bool is a language keyword.  The legacy
+# STM32F1 device headers still provide their own bool typedef, so keep embedded
+# C sources on the stable GNU C11 baseline unless an application opts in to a
+# newer language version explicitly.
+C_STANDARD ?= gnu11
+
 # add family specific arguments
 ifeq ($(FAMILY),STM32F10x)
 CFLAGS += -mcpu=cortex-m3 -mlittle-endian -ffunction-sections -fdata-sections -fomit-frame-pointer
@@ -165,7 +171,7 @@ projectinfo: $(PROJECT_OUT)/$(PROJECT).elf $(PROJECT_OUT)/$(PROJECT).sym
 $(PROJECT_OUT)/%.o: %.c
 	@echo Creating object file for $(notdir $<)
 	@mkdir -p $(dir $@)
-	@$(CC) -MMD -MP -MF $(@:.o=.d) -MT $@ $(CFLAGS) -mthumb -c $< -o $@
+	@$(CC) -std=$(C_STANDARD) -MMD -MP -MF $(@:.o=.d) -MT $@ $(CFLAGS) -mthumb -c $< -o $@
 
 $(PROJECT_OUT)/%.o: %.cpp
 	@echo Creating object file for $(notdir $<)
