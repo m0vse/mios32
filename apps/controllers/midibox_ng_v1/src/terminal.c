@@ -37,6 +37,7 @@
 #include "mbng_lcd.h"
 #include "mbng_file.h"
 #include "mbng_file_c.h"
+#include "mbng_file_k.h"
 #include "mbng_file_r.h"
 
 #if !defined(MIOS32_FAMILY_EMULATION)
