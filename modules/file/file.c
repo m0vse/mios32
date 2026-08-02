@@ -572,10 +572,17 @@ s32 FILE_ReadReOpen(file_t* file)
   file_read.dir_sect = file->dir_sect;
   file_read.dir_ptr = file->dir_ptr;
 
+#if !FF_FS_TINY
+  // Normal FatFS mode keeps a private sector cache in each FIL object, which
+  // has to be restored with the saved file state. Tiny mode has no private
+  // cache; f_read() loads the required sector into the shared FATFS window.
   if( file_read.sect != 0 && prev_dsect != file_read.sect ) {
     if( disk_read(file_read.obj.fs->pdrv, file_read.buf, file_read.sect, 1) != RES_OK )
       return FILE_ERR_READ;
   }
+#else
+  (void)prev_dsect;
+#endif
 
   // file is opened (again)
   file_read_is_open = 1;
