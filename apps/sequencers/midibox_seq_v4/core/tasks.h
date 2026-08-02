@@ -109,6 +109,7 @@ extern "C" {
 
 // called from tasks.c
 extern s32 TASKS_Init(u32 mode);
+extern u32 TASKS_ResetSourceGet(void);
 
 extern void SEQ_TASK_MIDI(void);
 extern void SEQ_TASK_Period1mS(void);

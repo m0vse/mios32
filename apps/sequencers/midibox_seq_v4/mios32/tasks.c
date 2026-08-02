@@ -76,7 +76,20 @@ static void TASK_Period1mS_LowPrio(void *pvParameters);
 // Local variables
 /////////////////////////////////////////////////////////////////////////////
 
- 
+static u32 reset_source;
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Returns the reset flags captured before TASKS_Init() cleared the hardware
+// register.  Keeping this value allocation-free also makes it available to a
+// later watchdog implementation.
+/////////////////////////////////////////////////////////////////////////////
+u32 TASKS_ResetSourceGet(void)
+{
+  return reset_source;
+}
+
+
 /////////////////////////////////////////////////////////////////////////////
 // Initialize all tasks
 /////////////////////////////////////////////////////////////////////////////
@@ -86,6 +99,16 @@ s32 TASKS_Init(u32 mode)
   TaskHandle_t midi_task = NULL;
   TaskHandle_t period_task = NULL;
   TaskHandle_t low_priority_task = NULL;
+
+#if defined(MIOS32_FAMILY_LPC17xx)
+  reset_source = LPC_SC->RSID;
+  LPC_SC->RSID = reset_source & 0x3f; // write one to clear captured flags
+#elif defined(MIOS32_FAMILY_STM32F10x) || defined(MIOS32_FAMILY_STM32F4xx)
+  reset_source = RCC->CSR;
+  RCC->CSR |= RCC_CSR_RMVF;
+#else
+  reset_source = 0;
+#endif
 
   // create semaphores
   xSDCardSemaphore = xSemaphoreCreateRecursiveMutex();

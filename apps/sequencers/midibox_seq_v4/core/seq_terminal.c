@@ -108,6 +108,11 @@ static uploading_file_t uploading_file;
 
 static s32 TERMINAL_ParseFilebrowser(mios32_midi_port_t port, char byte);
 
+#if !defined(MIOS32_FAMILY_EMULATION)
+static void SEQ_TERMINAL_PrintTaskStacks(void (*out)(char *format, ...));
+static void SEQ_TERMINAL_PrintResetSource(void (*out)(char *format, ...));
+#endif
+
 static s32 TERMINAL_BrowserUploadCallback(char *filename);
 
 
@@ -1021,6 +1026,10 @@ s32 SEQ_TERMINAL_PrintSystem(void *_output_function)
   out("Flash Memory Size: %d bytes\n", MIOS32_SYS_FlashSizeGet());
   out("RAM Size: %d bytes\n", MIOS32_SYS_RAMSizeGet());
 
+#if !defined(MIOS32_FAMILY_EMULATION)
+  SEQ_TERMINAL_PrintResetSource(out);
+#endif
+
   {
     out("MIDI IN Ports:");
     int num = SEQ_MIDI_PORT_InNumGet();
@@ -1269,10 +1278,82 @@ s32 SEQ_TERMINAL_PrintMemoryInfo(void *_output_function)
   MUTEX_MIDIOUT_TAKE;
   vPortMallocDebugInfo();
   MUTEX_MIDIOUT_GIVE;
+  SEQ_TERMINAL_PrintTaskStacks(_output_function);
 #endif
 
   return 0; // no error
 }
+
+
+#if !defined(MIOS32_FAMILY_EMULATION)
+/////////////////////////////////////////////////////////////////////////////
+// Prints allocation-free task stack high-water marks.  FreeRTOS reports the
+// result in StackType_t units, so include both words and bytes in the output.
+/////////////////////////////////////////////////////////////////////////////
+static void SEQ_TERMINAL_PrintTaskStacks(void (*out)(char *format, ...))
+{
+  static const char * const task_names[] = {
+    "Hooks", "MIDI_Hooks", "MIDI", "Period1mS", "Period1mS_LP", "lwIP"
+  };
+  const u32 warning_bytes = 128;
+
+  out("Task stack minimum free:");
+
+  unsigned i;
+  for(i=0; i<(sizeof(task_names) / sizeof(task_names[0])); ++i) {
+    TaskHandle_t task = xTaskGetHandle(task_names[i]);
+    if( task != NULL ) {
+      u32 free_words = uxTaskGetStackHighWaterMark(task);
+      u32 free_bytes = free_words * sizeof(StackType_t);
+      out("  %-12s %4u words / %4u bytes%s", task_names[i], free_words,
+          free_bytes, free_bytes < warning_bytes ? "  WARNING" : "");
+    }
+  }
+
+  TaskHandle_t idle_task = xTaskGetIdleTaskHandle();
+  if( idle_task != NULL ) {
+    u32 free_words = uxTaskGetStackHighWaterMark(idle_task);
+    u32 free_bytes = free_words * sizeof(StackType_t);
+    out("  %-12s %4u words / %4u bytes%s", "IDLE", free_words,
+        free_bytes, free_bytes < warning_bytes ? "  WARNING" : "");
+  }
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Decodes the reset flags captured at task startup.  Multiple sources can be
+// latched simultaneously, so report every bit rather than selecting one.
+/////////////////////////////////////////////////////////////////////////////
+static void SEQ_TERMINAL_PrintResetSource(void (*out)(char *format, ...))
+{
+  u32 flags = TASKS_ResetSourceGet();
+  out("Reset source flags: 0x%08x", flags);
+
+#if defined(MIOS32_FAMILY_LPC17xx)
+  if( flags & (1 << 0) ) out("  - power-on reset");
+  if( flags & (1 << 1) ) out("  - external reset");
+  if( flags & (1 << 2) ) out("  - watchdog reset");
+  if( flags & (1 << 3) ) out("  - brown-out reset");
+  if( flags & (1 << 4) ) out("  - software system reset");
+  if( flags & (1 << 5) ) out("  - processor lockup reset");
+#elif defined(MIOS32_FAMILY_STM32F4xx)
+  if( flags & (1UL << 25) ) out("  - brown-out reset");
+  if( flags & (1UL << 26) ) out("  - external pin reset");
+  if( flags & (1UL << 27) ) out("  - power-on reset");
+  if( flags & (1UL << 28) ) out("  - software system reset");
+  if( flags & (1UL << 29) ) out("  - independent watchdog reset");
+  if( flags & (1UL << 30) ) out("  - window watchdog reset");
+  if( flags & (1UL << 31) ) out("  - low-power reset");
+#elif defined(MIOS32_FAMILY_STM32F10x)
+  if( flags & (1UL << 26) ) out("  - external pin reset");
+  if( flags & (1UL << 27) ) out("  - power-on reset");
+  if( flags & (1UL << 28) ) out("  - software system reset");
+  if( flags & (1UL << 29) ) out("  - independent watchdog reset");
+  if( flags & (1UL << 30) ) out("  - window watchdog reset");
+  if( flags & (1UL << 31) ) out("  - low-power reset");
+#endif
+}
+#endif
 
 
 ///////////////////////////////////////////////////////////////////
