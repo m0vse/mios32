@@ -64,7 +64,9 @@
 /* Hook function related definitions. */
 #define configUSE_IDLE_HOOK                     1
 #define configUSE_TICK_HOOK                     1
+#ifndef configCHECK_FOR_STACK_OVERFLOW // can be changed in mios32_config.h
 #define configCHECK_FOR_STACK_OVERFLOW          0
+#endif
 #define configUSE_MALLOC_FAILED_HOOK            1 // vApplicationMallocFailedHook located in main.c (debug message will be sent to debug terminal and LCD)
 #define configUSE_DAEMON_TASK_STARTUP_HOOK      0
 

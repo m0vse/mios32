@@ -56,6 +56,10 @@ extern void APP_SendDebugMessage(char *format, ...)
 // memory allocated for tasks (observe this with avstack.pl and "memory" terminal command!)
 // add +64 for interrupts
 
+// Check both the task stack pointer and the stack fill pattern on each context
+// switch.  The common programming model contains the failure hook.
+#define configCHECK_FOR_STACK_OVERFLOW 2
+
 // use ./../../bin/avstack.pl  | less
 // to doublecheck memory consumption
 

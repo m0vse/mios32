@@ -529,30 +529,25 @@ void HardFault_Handler(void)
   __asm("B HardFault_Handler_c");
 }
 
-// used if configCHECK_FOR_STACK_OVERFLOW enabled (set to 1 or 2) in FreeRTOSConfig.h
+// Used if configCHECK_FOR_STACK_OVERFLOW is enabled (set to 1 or 2) in
+// mios32_config.h.  FreeRTOS calls this hook after detecting stack corruption,
+// so it must not use formatted output, drivers, mutexes, or the scheduler.
 #if configCHECK_FOR_STACK_OVERFLOW
 void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
 {
-  MIOS32_MIDI_SendDebugMessage("======================\n");
-  MIOS32_MIDI_SendDebugMessage("!!! STACK OVERFLOW !!!\n");
-  MIOS32_MIDI_SendDebugMessage("======================\n");
-  MIOS32_MIDI_SendDebugMessage("Function: %s\n", pcTaskName);
+  (void)xTask;
+  (void)pcTaskName;
 
-#ifndef MIOS32_DONT_USE_LCD
-  // TODO: here we should select the normal font - but only if available!
-  // MIOS32_LCD_FontInit((u8 *)GLCD_FONT_NORMAL);
-  MIOS32_LCD_BColourSet(0xffffff);
-  MIOS32_LCD_FColourSet(0x000000);
+  taskDISABLE_INTERRUPTS();
 
-  MIOS32_LCD_DeviceSet(0);
-  MIOS32_LCD_Clear();
-  MIOS32_LCD_CursorSet(0, 0);
-  MIOS32_LCD_PrintString("!! STACK OVERFLOW !!");
-  MIOS32_LCD_CursorSet(0, 1);
-  MIOS32_LCD_PrintFormattedString("in Task %s", pcTaskName);
+#if defined(MIOS32_FAMILY_LPC17xx) || defined(MIOS32_FAMILY_STM32F10x) || defined(MIOS32_FAMILY_STM32F4xx)
+  NVIC_SystemReset();
 #endif
 
-  _abort();
+  // NVIC_SystemReset() does not return on supported hardware.  Keep a safe
+  // fallback for non-Cortex-M simulation targets.
+  while( 1 ) {
+  }
 }
 #endif
 
