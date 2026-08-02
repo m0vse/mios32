@@ -35,7 +35,7 @@ static u8 meter_level[8];
 static u8 meter_counter[8];
 
 // the meter patterns
-static u16 meter_pattern[8]; // 16 bit words for 8 meters -- global variable, used also be LC_VPOT_LEDRing_SRHandler
+u16 meter_pattern[8]; // 16 bit words for 8 meters -- also used by LC_VPOT_LEDRing_SRHandler
 static u8 meter_update_req; // 8 update request flags
 
 // patterns used for LEDrings/Meters

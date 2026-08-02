@@ -59,14 +59,14 @@ extern const u8 HW_LED_BLUE_COPY;
 extern const u8 HW_LED_BLUE_PASTE;
 extern const u8 HW_LED_BLUE_DELETE;
 
-const u8 HW_LED_SCENE_SWITCH_ALL;
+extern const u8 HW_LED_SCENE_SWITCH_ALL;
 extern const u8 HW_LED_SCENE_1;
 extern const u8 HW_LED_SCENE_2;
 extern const u8 HW_LED_SCENE_3;
 extern const u8 HW_LED_SCENE_4;
 extern const u8 HW_LED_SCENE_5;
 extern const u8 HW_LED_SCENE_6;
-const u8 HW_LED_SCENE_SWITCH_CLIP;
+extern const u8 HW_LED_SCENE_SWITCH_CLIP;
 
 extern const u8 HW_LED_LIVEMODE_TRANSPOSE;
 extern const u8 HW_LED_LIVEMODE_1;

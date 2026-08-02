@@ -59,7 +59,7 @@ unsigned char* MCU_out_ptr;
 unsigned char* MCU_out_end;
 unsigned char MCU_outbuf[WAVETABLE_SIZE];
 
-int MCU_pitch_offset;
+extern int MCU_pitch_offset;
 
 int MCUTranslate(char* src);
 

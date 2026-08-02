@@ -20,7 +20,7 @@
 
 // 16 bit words for 8 meters 
 // global variable, used also be LC_VPOT_LEDRing_SRHandler
-u16 meter_pattern[8];
+extern u16 meter_pattern[8];
 
 /////////////////////////////////////////////////////////////////////////////
 // Prototypes
