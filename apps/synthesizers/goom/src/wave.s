@@ -123,6 +123,8 @@
 
 @ R0=v
 @ R1=p
+.type wavupa,%function
+.thumb_func
 wavupa:
  push {r4-r12,r14}  @ we will use all the registers
  sub r13,r13,#16    @ make room on stack
@@ -376,3 +378,4 @@ waz3:
  b waz4r            @ drop into code above to process next voice
 
 wavupaend:
+.size wavupa,wavupaend-wavupa
