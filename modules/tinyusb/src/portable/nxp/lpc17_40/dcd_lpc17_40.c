@@ -91,6 +91,7 @@ typedef struct
     uint8_t  in_bytes;
   } control;
 
+  uint32_t in_waiting_ack;
 } dcd_data_t;
 
 CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(128) static dcd_data_t _dcd;
@@ -198,6 +199,10 @@ static void bus_reset(void)
   LPC_USB->EoTIntClr    = 0xFFFFFFFF;
   LPC_USB->NDDRIntClr   = 0xFFFFFFFF;
   LPC_USB->SysErrIntClr = 0xFFFFFFFF;
+  // NDDR is enabled only while an IN transfer is waiting for its host ACK.
+  // Leaving it enabled while endpoints are idle causes an interrupt for every
+  // host poll that finds no descriptor.
+  LPC_USB->DMAIntEn = DMA_INT_END_OF_XFER_MASK | DMA_INT_ERROR_MASK;
 
   tu_memclr(&_dcd, sizeof(dcd_data_t));
 }
@@ -215,7 +220,6 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
   LPC_USB->DevIntEn = (DEV_INT_DEVICE_STATUS_MASK | DEV_INT_ENDPOINT_FAST_MASK | DEV_INT_ENDPOINT_SLOW_MASK | DEV_INT_ERROR_MASK);
   LPC_USB->UDCAH = (uint32_t) _dcd.udca;
-  LPC_USB->DMAIntEn = (DMA_INT_END_OF_XFER_MASK /*| DMA_INT_NEW_DD_REQUEST_MASK*/ | DMA_INT_ERROR_MASK);
 
   dcd_connect(rhport);
 
@@ -484,8 +488,14 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
     {
       // Clear EP interrupt before Enable DMA
       bool const lock = usb_irq_lock();
-      LPC_USB->EpIntEn &= ~TU_BIT(ep_id);
-      LPC_USB->EpDMAEn = TU_BIT(ep_id);
+      uint32_t const ep_mask = TU_BIT(ep_id);
+      LPC_USB->EpIntEn &= ~ep_mask;
+      _dcd.in_waiting_ack &= ~ep_mask;
+      if ( !_dcd.in_waiting_ack )
+      {
+        LPC_USB->DMAIntEn &= ~DMA_INT_NEW_DD_REQUEST_MASK;
+      }
+      LPC_USB->EpDMAEn = ep_mask;
       usb_irq_unlock(lock);
 
       // endpoint IN need to actively raise DMA request
@@ -626,6 +636,12 @@ void dcd_int_handler(uint8_t rhport)
         // Clear Ep interrupt for next DMA
         LPC_USB->EpIntEn &= ~TU_BIT(ep_id);
 
+        _dcd.in_waiting_ack &= ~TU_BIT(ep_id);
+        if ( !_dcd.in_waiting_ack )
+        {
+          LPC_USB->DMAIntEn &= ~DMA_INT_NEW_DD_REQUEST_MASK;
+        }
+
         dd_complete_isr(rhport, ep_id);
       }
     }
@@ -646,14 +662,57 @@ void dcd_int_handler(uint8_t rhport)
       {
         if ( ep_id & 0x01 )
         {
-          // IN enable EpInt for end of usb transfer
-          LPC_USB->EpIntEn |= TU_BIT(ep_id);
+          uint32_t const ep_mask = TU_BIT(ep_id);
+          _dcd.in_waiting_ack |= ep_mask;
+          LPC_USB->EpIntEn |= ep_mask;
+          LPC_USB->DMAIntEn |= DMA_INT_NEW_DD_REQUEST_MASK;
+          // NDDR may already have latched while its interrupt was disabled.
+          // Force one more ISR pass so it is evaluated after EOT setup has
+          // completed, never against the transient pre-validation state.
+          if ( LPC_USB->USBNDDRIntSt & ep_mask )
+          {
+            NVIC_SetPendingIRQ(USB_IRQn);
+          }
         }else
         {
           // OUT
           dd_complete_isr(rhport, ep_id);
         }
       }
+    }
+  }
+
+  // If an IN packet is ACKed before EOT has enabled the slow endpoint
+  // interrupt, the controller reports NDDR instead: the endpoint requested a
+  // new transfer but the one-shot descriptor was already retired. Treat that
+  // native event as the missing IN completion once EOT has marked it pending.
+  if (dma_int_status & DMA_INT_NEW_DD_REQUEST_MASK)
+  {
+    uint32_t const nddr = LPC_USB->USBNDDRIntSt;
+    LPC_USB->USBNDDRIntClr = nddr;
+
+    for ( uint8_t ep_id = 3; ep_id < DCD_ENDPOINT_MAX; ep_id += 2 )
+    {
+      uint32_t const ep_mask = TU_BIT(ep_id);
+      if ( (nddr & ep_mask) && (_dcd.in_waiting_ack & ep_mask) )
+      {
+        uint8_t const ep_status = sie_read(SIE_CMDCODE_ENDPOINT_SELECT + ep_id);
+        if ( !(ep_status & SIE_SELECT_ENDPOINT_FULL_EMPTY_MASK) )
+        {
+          LPC_USB->EpIntEn &= ~ep_mask;
+          if ( LPC_USB->EpIntSt & ep_mask )
+          {
+            LPC_USB->EpIntClr = ep_mask;
+          }
+          _dcd.in_waiting_ack &= ~ep_mask;
+          dd_complete_isr(rhport, ep_id);
+        }
+      }
+    }
+
+    if ( !_dcd.in_waiting_ack )
+    {
+      LPC_USB->DMAIntEn &= ~DMA_INT_NEW_DD_REQUEST_MASK;
     }
   }
 
