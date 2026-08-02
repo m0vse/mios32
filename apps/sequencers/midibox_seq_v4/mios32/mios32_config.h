@@ -129,6 +129,7 @@ extern void APP_SendDebugMessage(char *format, ...)
 // mode provides sufficient main SRAM for it on LPC17.
 #if defined(MIOS32_FAMILY_LPC17xx) && defined(MIOS32_USB_USE_TINYUSB)
 # define configSUPPORT_STATIC_ALLOCATION 1
+# define MBSEQ_LAZY_CLIPBOARD 1
 #endif
 
 

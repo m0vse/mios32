@@ -16,6 +16,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 #include <mios32.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "tasks.h"
@@ -73,10 +74,20 @@ static u8 show_mixer_util_page;
 static u8 mixer_par;
 
 static u8 copypaste_buffer_filled = 0;
-static u8 copypaste_buffer[SEQ_MIXER_NUM_CHANNELS][SEQ_MIXER_NUM_PARAMETERS];
+#if MBSEQ_LAZY_CLIPBOARD
+typedef struct {
+  u8 copypaste[SEQ_MIXER_NUM_CHANNELS][SEQ_MIXER_NUM_PARAMETERS];
+  u8 undo[SEQ_MIXER_NUM_CHANNELS][SEQ_MIXER_NUM_PARAMETERS];
+} seq_ui_mixer_workspace_t;
 
-static u8 undo_buffer_filled = 0;
+static seq_ui_mixer_workspace_t *mixer_workspace;
+# define copypaste_buffer (mixer_workspace->copypaste)
+# define undo_buffer      (mixer_workspace->undo)
+#else
+static u8 copypaste_buffer[SEQ_MIXER_NUM_CHANNELS][SEQ_MIXER_NUM_PARAMETERS];
 static u8 undo_buffer[SEQ_MIXER_NUM_CHANNELS][SEQ_MIXER_NUM_PARAMETERS];
+#endif
+static u8 undo_buffer_filled = 0;
 static u8 undo_map;
 
 static char edit_mixer_map_name[20];
@@ -87,6 +98,7 @@ static char edit_mixer_map_name[20];
 /////////////////////////////////////////////////////////////////////////////
 static s32 Button_Handler(seq_ui_button_t button, s32 depressed);
 static s32 CheckStoreFile(void);
+static s32 EnsureWorkspace(void);
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -162,7 +174,8 @@ static s32 Encoder_Handler(seq_ui_encoder_t encoder, s32 incrementer)
 
         case SEQ_UI_ENCODER_GP2: // Copy
 	  // copy map
-	  SEQ_UI_MIXER_Copy();
+	  if( SEQ_UI_MIXER_Copy() < 0 )
+	    return -1;
 	  // print message
 	  in_menu_msg = MSG_COPY & 0x7f;
 	  ui_hold_msg_ctr = 1000;
@@ -170,7 +183,8 @@ static s32 Encoder_Handler(seq_ui_encoder_t encoder, s32 incrementer)
 
         case SEQ_UI_ENCODER_GP3: // Paste
 	  // update undo buffer
-	  SEQ_UI_MIXER_UndoUpdate();
+	  if( SEQ_UI_MIXER_UndoUpdate() < 0 )
+	    return -1;
 	  // paste map
 	  SEQ_UI_MIXER_Paste();
 	  // print message
@@ -180,7 +194,8 @@ static s32 Encoder_Handler(seq_ui_encoder_t encoder, s32 incrementer)
 
         case SEQ_UI_ENCODER_GP4: // Clear
 	  // update undo buffer
-	  SEQ_UI_MIXER_UndoUpdate();
+	  if( SEQ_UI_MIXER_UndoUpdate() < 0 )
+	    return -1;
 	  // clear map
 	  SEQ_UI_MIXER_Clear();
 	  // print message
@@ -683,8 +698,30 @@ s32 SEQ_UI_MIXER_Init(u32 mode)
 /////////////////////////////////////////////////////////////////////////////
 // Copy Mixer Map
 /////////////////////////////////////////////////////////////////////////////
+static s32 EnsureWorkspace(void)
+{
+#if MBSEQ_LAZY_CLIPBOARD
+  if( mixer_workspace == NULL ) {
+    mixer_workspace = malloc(sizeof(*mixer_workspace));
+    if( mixer_workspace == NULL ) {
+      copypaste_buffer_filled = 0;
+      undo_buffer_filled = 0;
+      DEBUG_MSG("[SEQ_UI_MIXER] unable to allocate %u-byte mixer workspace\n",
+                (unsigned)sizeof(*mixer_workspace));
+      SEQ_UI_Msg(SEQ_UI_MSG_USER, 3000, "Mixer edit memory", "not available!");
+      return -1;
+    }
+  }
+#endif
+
+  return 0;
+}
+
 s32 SEQ_UI_MIXER_Copy(void)
 {
+  if( EnsureWorkspace() < 0 )
+    return -1;
+
   u8 chn;
   for(chn=0; chn<SEQ_MIXER_NUM_CHANNELS; ++chn) {
     u8 par;
@@ -754,6 +791,9 @@ s32 SEQ_UI_MIXER_Undo(void)
 /////////////////////////////////////////////////////////////////////////////
 s32 SEQ_UI_MIXER_UndoUpdate(void)
 {
+  if( EnsureWorkspace() < 0 )
+    return -1;
+
   u8 chn;
   for(chn=0; chn<SEQ_MIXER_NUM_CHANNELS; ++chn) {
     u8 par;

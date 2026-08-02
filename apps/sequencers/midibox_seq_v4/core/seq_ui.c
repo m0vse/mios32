@@ -983,13 +983,14 @@ static s32 SEQ_UI_Button_Copy(s32 depressed)
 
   if( ui_page == SEQ_UI_PAGE_MIXER ) {
     if( depressed ) return -1;
-    SEQ_UI_MIXER_Copy();
+    if( SEQ_UI_MIXER_Copy() < 0 )
+      return -1;
     SEQ_UI_Msg_MixerMap("copied");
     return 1;
   } else if( ui_page == SEQ_UI_PAGE_PARSEL ) {
     if( !depressed ) {
-      SEQ_UI_UTIL_CopyParLayer();
-      SEQ_UI_Msg_ParLayer("copied");
+      if( SEQ_UI_UTIL_CopyParLayer() >= 0 )
+        SEQ_UI_Msg_ParLayer("copied");
     }
   } else if( ui_page == SEQ_UI_PAGE_TRGSEL ) {
     if( !depressed ) {
@@ -997,17 +998,17 @@ static s32 SEQ_UI_Button_Copy(s32 depressed)
       u8 event_mode = SEQ_CC_Get(visible_track, SEQ_CC_MIDI_EVENT_MODE);
       u8 selbuttons_available = seq_hwcfg_blm8x8.dout_gp_mapping == 3;
       if( event_mode == SEQ_EVENT_MODE_Drum && !selbuttons_available ) {
-	SEQ_UI_UTIL_CopyInsLayer();
-	SEQ_UI_Msg_InsLayer("copied");
+        if( SEQ_UI_UTIL_CopyInsLayer() >= 0 )
+          SEQ_UI_Msg_InsLayer("copied");
       } else {
-	SEQ_UI_UTIL_CopyTrgLayer();
-	SEQ_UI_Msg_TrgLayer("copied");
+        if( SEQ_UI_UTIL_CopyTrgLayer() >= 0 )
+          SEQ_UI_Msg_TrgLayer("copied");
       }
     }
   } else if( ui_page == SEQ_UI_PAGE_INSSEL ) {
     if( !depressed ) {
-      SEQ_UI_UTIL_CopyInsLayer();
-      SEQ_UI_Msg_InsLayer("copied");
+      if( SEQ_UI_UTIL_CopyInsLayer() >= 0 )
+        SEQ_UI_Msg_InsLayer("copied");
     }
   } else if( ui_page == SEQ_UI_PAGE_PATTERN || ui_page == SEQ_UI_PAGE_PATTERN_RMX ) {
     if( depressed ) return -1;
@@ -1021,7 +1022,8 @@ static s32 SEQ_UI_Button_Copy(s32 depressed)
     return 1;
   } else if( SEQ_UI_TRKJAM_PatternRecordSelected() ) {
     if( depressed ) return -1;
-    SEQ_UI_UTIL_CopyLivePattern();
+    if( SEQ_UI_UTIL_CopyLivePattern() < 0 )
+      return -1;
     SEQ_UI_Msg_LivePattern("copied");
     return 1;
   } else {

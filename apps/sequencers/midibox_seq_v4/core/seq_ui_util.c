@@ -16,6 +16,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 #include <mios32.h>
+#include <stdlib.h>
 #include <string.h>
 #include "seq_lcd.h"
 #include "seq_ui.h"
@@ -83,10 +84,25 @@ static u8 copypaste_end;
 
 static u8 copypaste_buffer_filled = 0;
 static u8 copypaste_track = 0;
+#if MBSEQ_LAZY_CLIPBOARD
+typedef struct {
+  u8 par_layer[SEQ_PAR_MAX_BYTES];
+  u8 trg_layer[SEQ_TRG_MAX_BYTES];
+  u8 cc[128];
+  u8 trk_name[81];
+} seq_ui_util_clipboard_t;
+
+static seq_ui_util_clipboard_t *copypaste_workspace;
+# define copypaste_par_layer (copypaste_workspace->par_layer)
+# define copypaste_trg_layer (copypaste_workspace->trg_layer)
+# define copypaste_cc        (copypaste_workspace->cc)
+# define copypaste_trk_name  (copypaste_workspace->trk_name)
+#else
 static u8 copypaste_par_layer[SEQ_PAR_MAX_BYTES];
 static u8 copypaste_trg_layer[SEQ_TRG_MAX_BYTES];
 static u8 copypaste_cc[128];
 static u8 copypaste_trk_name[81];
+#endif
 static u8 copypaste_par_layers;
 static u16 copypaste_par_steps;
 static u8 copypaste_trg_layers;
@@ -118,6 +134,7 @@ static u16 move_trg_layer[2];
 /////////////////////////////////////////////////////////////////////////////
 // Local Prototypes
 /////////////////////////////////////////////////////////////////////////////
+static s32 COPY_EnsureWorkspace(void);
 static s32 COPY_Track(u8 track);
 static s32 PASTE_Track(u8 track, paste_clear_mode_t paste_clear_mode);
 static s32 CLEAR_Track(u8 track, paste_clear_mode_t paste_clear_mode);
@@ -272,7 +289,10 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 	in_menu_msg &= 0x7f;
 	ui_hold_msg_ctr = 1000;
 	// copy steps
-	COPY_Track(visible_track);
+	if( COPY_Track(visible_track) < 0 ) {
+	  in_menu_msg = MSG_DEFAULT;
+	  return -1;
+	}
       } else {
 	if( in_menu_msg & 0x80 )
 	  return 0; // ignore as long as other message is displayed
@@ -582,9 +602,30 @@ u8 SEQ_UI_UTIL_CopyPasteEndGet(void)
 /////////////////////////////////////////////////////////////////////////////
 // Copy track
 /////////////////////////////////////////////////////////////////////////////
+static s32 COPY_EnsureWorkspace(void)
+{
+#if MBSEQ_LAZY_CLIPBOARD
+  if( copypaste_workspace == NULL ) {
+    copypaste_workspace = malloc(sizeof(*copypaste_workspace));
+    if( copypaste_workspace == NULL ) {
+      copypaste_buffer_filled = 0;
+      DEBUG_MSG("[SEQ_UI_UTIL] unable to allocate %u-byte track clipboard\n",
+                (unsigned)sizeof(*copypaste_workspace));
+      SEQ_UI_Msg(SEQ_UI_MSG_USER, 3000, "Clipboard memory", "not available!");
+      return -1;
+    }
+  }
+#endif
+
+  return 0;
+}
+
 static s32 COPY_Track(u8 track)
 {
   int i;
+
+  if( COPY_EnsureWorkspace() < 0 )
+    return -1;
 
   // copy layers into buffer
   memcpy((u8 *)copypaste_par_layer, (u8 *)&seq_par_layer_value[track], SEQ_PAR_MAX_BYTES);
@@ -806,7 +847,8 @@ static s32 PASTE_Track(u8 track, paste_clear_mode_t paste_clear_mode)
 /////////////////////////////////////////////////////////////////////////////
 s32 SEQ_UI_UTIL_PasteDuplicateSteps(u8 track)
 {
-  COPY_Track(track);
+  if( COPY_Track(track) < 0 )
+    return 0;
 
   int length = (int)SEQ_CC_Get(track, SEQ_CC_LENGTH) + 1;
   int num_trg_steps = SEQ_TRG_NumStepsGet(track);
@@ -995,7 +1037,8 @@ s32 SEQ_UI_UTIL_CopyLivePattern(void)
   u8 visible_track = SEQ_UI_VisibleTrackGet();
 
   // start with common copy operation
-  COPY_Track(visible_track);
+  if( COPY_Track(visible_track) < 0 )
+    return -2;
   copypaste_begin = 0;
   copypaste_end = 15;
 

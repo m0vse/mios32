@@ -439,6 +439,10 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
         case SEQ_UI_BUTTON_GP3:
           // Copy Pattern
 
+	  // Reserve the mixer clipboard before changing the other copy state.
+	  if( SEQ_UI_MIXER_Copy() < 0 )
+	    return -1;
+
 	  // copy the pattern name
 	  if (remix_mode == 1) {
 	    PatternNameCopy(pattern_name_copypaste, pattern_name);
@@ -449,9 +453,6 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 	  
 	  // We are going to use the multicopy procedure
 	  SEQ_UI_PATTERN_MultiCopy(0);
-
-	  // coping mixer
-	  SEQ_UI_MIXER_Copy();
 
           break;
 
