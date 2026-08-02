@@ -85,6 +85,7 @@ typedef struct
   {
     uint8_t* out_buffer;
     uint8_t  out_bytes;
+    volatile bool out_queued;   // an OUT xfer is queued; out_buffer can be NULL for a status ZLP
     volatile bool out_received; // indicate if data is already received in endpoint
 
     uint8_t  in_bytes;
@@ -98,6 +99,26 @@ CFG_TUD_MEM_SECTION TU_ATTR_ALIGNED(128) static dcd_data_t _dcd;
 //--------------------------------------------------------------------+
 // SIE Command
 //--------------------------------------------------------------------+
+
+// The SIE command protocol, the slave-mode data registers, and endpoint
+// interrupt-enable read/modify/write operations are shared between task and
+// interrupt context. They are not reentrant, so mask only the USB interrupt
+// around these short sequences. This is safe to nest, including from the ISR.
+static inline bool usb_irq_lock(void)
+{
+  bool const enabled = NVIC_GetEnableIRQ(USB_IRQn) != 0;
+  if (enabled)
+  {
+    NVIC_DisableIRQ(USB_IRQn);
+  }
+  return enabled;
+}
+
+static inline void usb_irq_unlock(bool enabled)
+{
+  if (enabled) NVIC_EnableIRQ(USB_IRQn);
+}
+
 static void sie_cmd_code (sie_cmdphase_t phase, uint8_t code_data)
 {
   LPC_USB->DevIntClr = (DEV_INT_COMMAND_CODE_EMPTY_MASK | DEV_INT_COMMAND_DATA_FULL_MASK);
@@ -111,19 +132,28 @@ static void sie_cmd_code (sie_cmdphase_t phase, uint8_t code_data)
 
 static void sie_write (uint8_t cmd_code, uint8_t data_len, uint8_t data)
 {
+  bool const lock = usb_irq_lock();
+
   sie_cmd_code(SIE_CMDPHASE_COMMAND, cmd_code);
 
   if (data_len)
   {
     sie_cmd_code(SIE_CMDPHASE_WRITE, data);
   }
+
+  usb_irq_unlock(lock);
 }
 
 static uint8_t sie_read (uint8_t cmd_code)
 {
+  bool const lock = usb_irq_lock();
+
   sie_cmd_code(SIE_CMDPHASE_COMMAND , cmd_code);
   sie_cmd_code(SIE_CMDPHASE_READ    , cmd_code);
-  return (uint8_t) LPC_USB->CmdData;
+  uint8_t const data = (uint8_t) LPC_USB->CmdData;
+
+  usb_irq_unlock(lock);
+  return data;
 }
 
 //--------------------------------------------------------------------+
@@ -136,6 +166,9 @@ static inline uint8_t ep_addr2idx(uint8_t ep_addr)
 
 static void set_ep_size(uint8_t ep_id, uint16_t max_packet_size)
 {
+  // A bus reset in the ISR clears the same endpoint-realized handshake flag.
+  bool const lock = usb_irq_lock();
+
   // follows example in 11.10.4.2
   LPC_USB->ReEp    |= TU_BIT(ep_id);
   LPC_USB->EpInd    = ep_id; // select index before setting packet size
@@ -143,6 +176,8 @@ static void set_ep_size(uint8_t ep_id, uint16_t max_packet_size)
 
   while ((LPC_USB->DevIntSt & DEV_INT_ENDPOINT_REALIZED_MASK) == 0) {}
   LPC_USB->DevIntClr = DEV_INT_ENDPOINT_REALIZED_MASK;
+
+  usb_irq_unlock(lock);
 }
 
 
@@ -249,6 +284,7 @@ static inline uint8_t byte2dword(uint8_t bytes)
 static void control_ep_write(void const * buffer, uint8_t len)
 {
   uint32_t const * buf32 = (uint32_t const *) buffer;
+  bool const lock = usb_irq_lock();
 
   LPC_USB->Ctrl   = USBCTRL_WRITE_ENABLE_MASK; // logical endpoint = 0
   LPC_USB->TxPLen = (uint32_t) len;
@@ -264,10 +300,14 @@ static void control_ep_write(void const * buffer, uint8_t len)
   // select control IN & validate the endpoint
   sie_write(SIE_CMDCODE_ENDPOINT_SELECT+1, 0, 0);
   sie_write(SIE_CMDCODE_BUFFER_VALIDATE  , 0, 0);
+
+  usb_irq_unlock(lock);
 }
 
 static uint8_t control_ep_read(void * buffer, uint8_t len)
 {
+  bool const lock = usb_irq_lock();
+
   LPC_USB->Ctrl = USBCTRL_READ_ENABLE_MASK; // logical endpoint = 0
   while ((LPC_USB->RxPLen & USBRXPLEN_PACKET_READY_MASK) == 0) {} // TODO blocking, should have timeout
 
@@ -286,6 +326,7 @@ static uint8_t control_ep_read(void * buffer, uint8_t len)
   sie_write(SIE_CMDCODE_ENDPOINT_SELECT+0, 0, 0);
   sie_write(SIE_CMDCODE_BUFFER_CLEAR     , 0, 0);
 
+  usb_irq_unlock(lock);
   return len;
 }
 
@@ -388,19 +429,25 @@ static bool control_xact(uint8_t rhport, uint8_t dir, uint8_t * buffer, uint8_t 
     control_ep_write(buffer, len);
   }else
   {
+    // Guard the control OUT handshake against the EP0 OUT ISR.
+    bool const lock = usb_irq_lock();
+
     if ( _dcd.control.out_received )
     {
       // Already received the DATA OUT packet
       _dcd.control.out_received = false;
-      _dcd.control.out_buffer = NULL;
-      _dcd.control.out_bytes  = 0;
 
       uint8_t received = control_ep_read(buffer, len);
       dcd_event_xfer_complete(0, 0, received, XFER_RESULT_SUCCESS, true);
+      usb_irq_unlock(lock);
     }else
     {
+      // A status-stage OUT ZLP has a NULL buffer, so track the queued
+      // transaction explicitly instead of using out_buffer as the signal.
       _dcd.control.out_buffer = buffer;
       _dcd.control.out_bytes  = len;
+      _dcd.control.out_queued = true;
+      usb_irq_unlock(lock);
     }
   }
 
@@ -436,8 +483,10 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
     if ( ep_id % 2 )
     {
       // Clear EP interrupt before Enable DMA
+      bool const lock = usb_irq_lock();
       LPC_USB->EpIntEn &= ~TU_BIT(ep_id);
       LPC_USB->EpDMAEn = TU_BIT(ep_id);
+      usb_irq_unlock(lock);
 
       // endpoint IN need to actively raise DMA request
       LPC_USB->DMARSet = TU_BIT(ep_id);
@@ -470,13 +519,20 @@ static void control_xfer_isr(uint8_t rhport, uint32_t ep_int_status)
       uint8_t setup_packet[8];
       control_ep_read(setup_packet, 8); // TODO read before clear setup above
 
+      // A new SETUP invalidates any half-finished control OUT state.
+      _dcd.control.out_queued   = false;
+      _dcd.control.out_received = false;
+      _dcd.control.out_buffer   = NULL;
+      _dcd.control.out_bytes    = 0;
+
       dcd_event_setup_received(rhport, setup_packet, true);
     }
-    else if ( _dcd.control.out_buffer )
+    else if ( _dcd.control.out_queued )
     {
-      // software queued transfer previously
+      // Software queued transfer previously (out_buffer can be NULL for ZLP).
       uint8_t received = control_ep_read(_dcd.control.out_buffer, _dcd.control.out_bytes);
 
+      _dcd.control.out_queued = false;
       _dcd.control.out_buffer = NULL;
       _dcd.control.out_bytes = 0;
 
