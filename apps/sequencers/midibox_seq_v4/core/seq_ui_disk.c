@@ -134,7 +134,7 @@ static u8 menu_dialog;
 static s32 dir_num_items; // contains FILE error status if < 0
 static u8 dir_view_offset = 0; // only changed once after startup
 static u8 dir_selected_item = 0; // only changed once after startup
-static char dir_name[12]; // directory name of device (first char is 0 if no device selected)
+static char dir_name[9]; // FAT 8.3 name (first char is 0 if none selected)
 
 static u16 source_pattern_begin = 0; // only changed once after startup
 static u16 source_pattern_end = 0;   // only changed once after startup
@@ -980,7 +980,7 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 
 	    if( dir_num_items >= 1 && (dir_selected_item+dir_view_offset) < dir_num_items ) {
 	      // Play MIDI File
-	      char mid_file[30];
+	      char mid_file[9];
 	      int i;
 	      char *p = (char *)&mid_file[0];
 	      for(i=0; i<8; ++i) {
@@ -991,7 +991,7 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 	      *p++ = 0;
 
 	      char path[40];
-	      sprintf(path, "/MIDI/%s.MID", mid_file);
+	      snprintf(path, sizeof(path), "/MIDI/%s.MID", mid_file);
 
 	      MUTEX_MIDIOUT_TAKE;
 	      s32 status;
@@ -1040,7 +1040,7 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 
 	  if( dir_num_items >= 1 && (dir_selected_item+dir_view_offset) < dir_num_items ) {
 	    // Import MIDI File
-	    char mid_file[30];
+	    char mid_file[9];
 	    int i;
 	    char *p = (char *)&mid_file[0];
 	    for(i=0; i<8; ++i) {
@@ -1051,7 +1051,7 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 	    *p++ = 0;
 
 	    char path[40];
-	    sprintf(path, "/MIDI/%s.MID", mid_file);
+	    snprintf(path, sizeof(path), "/MIDI/%s.MID", mid_file);
 
 	    s32 status = SEQ_MIDIMP_ReadFile(path);
 
@@ -1790,7 +1790,7 @@ static s32 DoMfExport(u8 force_overwrite)
     return -4;
   }
 
-  char mid_file[30];
+  char mid_file[9];
   char *p = (char *)&mid_file[0];
   for(i=0; i<8; ++i) {
     char c = dir_name[i];
@@ -1799,7 +1799,7 @@ static s32 DoMfExport(u8 force_overwrite)
   }
   *p++ = 0;
 
-  sprintf(path, "/MIDI/%s.MID", mid_file);
+  snprintf(path, sizeof(path), "/MIDI/%s.MID", mid_file);
 
   MUTEX_SDCARD_TAKE;
   status = FILE_FileExists(path);
@@ -1867,15 +1867,15 @@ static s32 DoSessionCopyPatterns(char *from_session, u16 from_pattern, char *to_
     u8 d_bank = (to_pattern+ix) >> 6;
     u8 d_pattern = (to_pattern+ix) & 0x3f;
 
-    char msg_u[20];
-    sprintf(msg_u, "Copy %-8s %d:%c%c",
+    char msg_u[24];
+    snprintf(msg_u, sizeof(msg_u), "Copy %-8.8s %d:%c%c",
 	    from_session,
 	    1 + s_bank,
 	    'A' + (s_pattern >> 3),
 	    '1' + (s_pattern & 7));
 
-    char msg_l[20];
-    sprintf(msg_l, "---> %-8s %d:%c%c",
+    char msg_l[24];
+    snprintf(msg_l, sizeof(msg_l), "---> %-8.8s %d:%c%c",
 	    to_session,
 	    1 + d_bank,
 	    'A' + (d_pattern >> 3),
@@ -1976,11 +1976,11 @@ static s32 DoSessionCopySongs(char *from_session, u16 from_pattern, char *to_ses
     u8 s_pattern = from_pattern + ix;
     u8 d_pattern = to_pattern + ix;
 
-    char msg_u[20];
-    sprintf(msg_u, "Copy %-8s S%03d", from_session, s_pattern+1);
+    char msg_u[24];
+    snprintf(msg_u, sizeof(msg_u), "Copy %-8.8s S%03d", from_session, s_pattern+1);
 
-    char msg_l[20];
-    sprintf(msg_l, "---> %-8s S%03d", to_session, d_pattern+1);
+    char msg_l[24];
+    snprintf(msg_l, sizeof(msg_l), "---> %-8.8s S%03d", to_session, d_pattern+1);
 
     SEQ_UI_Msg(SEQ_UI_MSG_USER_R, 65535, msg_u, msg_l);
 
@@ -2062,11 +2062,11 @@ static s32 DoSessionCopyMixerMaps(char *from_session, u16 from_pattern, char *to
     u8 s_pattern = from_pattern + ix;
     u8 d_pattern = to_pattern + ix;
 
-    char msg_u[20];
-    sprintf(msg_u, "Copy %-8s M%03d", from_session, s_pattern+1);
+    char msg_u[24];
+    snprintf(msg_u, sizeof(msg_u), "Copy %-8.8s M%03d", from_session, s_pattern+1);
 
-    char msg_l[20];
-    sprintf(msg_l, "---> %-8s M%03d", to_session, d_pattern+1);
+    char msg_l[24];
+    snprintf(msg_l, sizeof(msg_l), "---> %-8.8s M%03d", to_session, d_pattern+1);
 
     SEQ_UI_Msg(SEQ_UI_MSG_USER_R, 65535, msg_u, msg_l);
 
@@ -2134,8 +2134,8 @@ static s32 DoSessionCopyGrooves(char *from_session, u16 from_pattern, char *to_s
 {
   s32 status = 0;
 
-  char msg_l[20];
-  sprintf(msg_l, "%s -> %s", from_session, to_session);
+  char msg_l[24];
+  snprintf(msg_l, sizeof(msg_l), "%.8s -> %.8s", from_session, to_session);
 
   SEQ_UI_Msg(SEQ_UI_MSG_USER_R, 65535, "Copy Groove Templates", msg_l);
 
@@ -2179,8 +2179,8 @@ static s32 DoSessionCopyConfig(char *from_session, u16 from_pattern, char *to_se
 {
   s32 status = 0;
 
-  char msg_l[20];
-  sprintf(msg_l, "%s -> %s", from_session, to_session);
+  char msg_l[24];
+  snprintf(msg_l, sizeof(msg_l), "%.8s -> %.8s", from_session, to_session);
 
   SEQ_UI_Msg(SEQ_UI_MSG_USER_R, 65535, "Copy Local Config", msg_l);
 
@@ -2231,8 +2231,8 @@ static s32 DoSessionCopyBookmarks(char *from_session, u16 from_pattern, char *to
 {
   s32 status = 0;
 
-  char msg_l[20];
-  sprintf(msg_l, "%s -> %s", from_session, to_session);
+  char msg_l[24];
+  snprintf(msg_l, sizeof(msg_l), "%.8s -> %.8s", from_session, to_session);
 
   SEQ_UI_Msg(SEQ_UI_MSG_USER_R, 65535, "Copy Local Bookmarks", msg_l);
 

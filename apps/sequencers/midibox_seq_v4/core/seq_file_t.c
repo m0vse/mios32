@@ -181,7 +181,8 @@ s32 SEQ_FILE_T_Read(char *filepath, u8 track, seq_file_t_import_flags_t flags, u
 
 	    if( i != 16 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
-	      DEBUG_MSG("[SEQ_FILE_T] ERROR %s %03x: missing parameter %d\n", addr_offset, parameter, i);
+	      DEBUG_MSG("[SEQ_FILE_T] ERROR %s %03x: missing parameter %d\n",
+			parameter, (unsigned int)addr_offset, i);
 #endif
 	    } else {
 	      if( flags.STEPS ) {
@@ -479,8 +480,8 @@ s32 SEQ_FILE_T_Read(char *filepath, u8 track, seq_file_t_import_flags_t flags, u
 static s32 SEQ_FILE_T_Write_Hlp(u8 write_to_file, u8 track)
 {
   s32 status = 0;
-  char line_buffer[100];
-  char str_buffer[100];
+  char line_buffer[128];
+  char str_buffer[20];
   int i, j;
 
   if( track > SEQ_CORE_NUM_TRACKS )

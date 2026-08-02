@@ -163,6 +163,18 @@ static char ui_msg[2][UI_MSG_MAX_CHAR];
 static u16 ui_msg_ctr;
 static seq_ui_msg_type_t ui_msg_type;
 
+static void SEQ_UI_MsgLineCopy(char *destination, const char *source)
+{
+  size_t length = 0;
+
+  while( length < (UI_MSG_MAX_CHAR - 1) && source[length] != '\0' ) {
+    destination[length] = source[length];
+    ++length;
+  }
+
+  destination[length] = '\0';
+}
+
 static u16 ui_delayed_action_ctr;
 
 static u8 seq_ui_track_setup_visible_track;
@@ -456,7 +468,7 @@ void SEQ_UI_Msg_InsLayer(char *line2)
   u8 visible_track = SEQ_UI_VisibleTrackGet();
   u8 event_mode = SEQ_CC_Get(visible_track, SEQ_CC_MIDI_EVENT_MODE);
 
-  char name[7];
+  char name[8];
   if( event_mode == SEQ_EVENT_MODE_Drum ) {
     memcpy(name, seq_core_trk[visible_track].name + ui_selected_instrument*5, 5);
     name[5] = 0;
@@ -492,7 +504,7 @@ void SEQ_UI_Msg_Layer(char *line2)
 
 void SEQ_UI_Msg_MixerMap(char *line2)
 {
-  char buffer[20];
+  char buffer[24];
   snprintf(buffer, sizeof(buffer), "Mixer Map #%ld", (long)SEQ_MIXER_NumGet()+1);
   SEQ_UI_Msg(SEQ_UI_MSG_USER, 1000, buffer, line2);
 }
@@ -4281,12 +4293,12 @@ s32 SEQ_UI_CC_SetFlags(u8 cc, u8 flag_mask, u8 value)
 // Print temporary user messages (e.g. warnings, errors)
 // expects mS delay and two lines, each up to 20 characters
 /////////////////////////////////////////////////////////////////////////////
-s32 SEQ_UI_Msg(seq_ui_msg_type_t msg_type, u16 delay, char *line1, char *line2)
+s32 SEQ_UI_Msg(seq_ui_msg_type_t msg_type, u16 delay, const char *line1, const char *line2)
 {
   ui_msg_type = msg_type;
   ui_msg_ctr = delay;
-  strncpy((char *)ui_msg[0], line1, UI_MSG_MAX_CHAR-1);
-  strncpy((char *)ui_msg[1], line2, UI_MSG_MAX_CHAR-1);
+  SEQ_UI_MsgLineCopy(ui_msg[0], line1);
+  SEQ_UI_MsgLineCopy(ui_msg[1], line2);
 
   return 0; // no error
 }
@@ -4314,9 +4326,17 @@ s32 SEQ_UI_SDCardErrMsg(u16 delay, s32 status)
   MUTEX_MIDIOUT_GIVE;
 
   // print on LCD
-  char str[21];
-  snprintf(str, sizeof(str), "E%3ld (FatFs: D%3lu)",
-           (long)-status, (unsigned long)(file_dfs_errno < 1000 ? file_dfs_errno : 999));
+  unsigned long status_code;
+  if( status < -999 )
+    status_code = 999;
+  else if( status < 0 )
+    status_code = (unsigned long)-status;
+  else
+    status_code = status > 999 ? 999 : (unsigned long)status;
+
+  char str[33];
+  snprintf(str, sizeof(str), "E%3lu (FatFs: D%3lu)",
+           status_code, (unsigned long)(file_dfs_errno < 1000 ? file_dfs_errno : 999));
   return SEQ_UI_Msg(SEQ_UI_MSG_SDCARD, delay, "!! SD Card Error !!!", str);
 }
 

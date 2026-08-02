@@ -153,7 +153,7 @@ static u8 pr_dialog;
 
 static s32 dir_num_items; // contains FILE error status if < 0
 static u8 dir_view_offset = 0; // only changed once after startup
-static char dir_name[12]; // directory name of device (first char is 0 if no device selected)
+static char dir_name[9]; // FAT 8.3 name (first char is 0 if none selected)
 
 static seq_file_t_import_flags_t import_flags;
 
@@ -1606,7 +1606,7 @@ static s32 DoExport(u8 force_overwrite)
     return -4;
   }
 
-  char v4t_file[30];
+  char v4t_file[9];
   char *p = (char *)&v4t_file[0];
   for(i=0; i<8; ++i) {
     char c = dir_name[i];
@@ -1615,7 +1615,7 @@ static s32 DoExport(u8 force_overwrite)
   }
   *p++ = 0;
 
-  sprintf(path, "/PRESETS/%s.v4t", v4t_file);
+  snprintf(path, sizeof(path), "/PRESETS/%s.v4t", v4t_file);
 
   MUTEX_SDCARD_TAKE;
   status = FILE_FileExists(path);
@@ -1661,7 +1661,7 @@ static s32 DoImport(void)
   char path[30];
   u8 visible_track = SEQ_UI_VisibleTrackGet();
 
-  sprintf(path, "/PRESETS/%s.V4T", dir_name);
+  snprintf(path, sizeof(path), "/PRESETS/%s.V4T", dir_name);
 
   // mute track to avoid random effects while loading the file
   MIOS32_IRQ_Disable(); // this operation should be atomic!

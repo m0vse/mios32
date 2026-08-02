@@ -57,7 +57,7 @@ static s32 dir_num_items; // contains FILE error status if < 0
 static u8 dir_view_offset = 0; // only changed once after startup
 static mios32_midi_port_t sysex_port = DEFAULT; // only changed once after startup
 static u16 sysex_delay_between_dumps = 100; // only changed once after startup
-static char dir_name[12]; // directory name of device (first char is 0 if no device selected)
+static char dir_name[9]; // FAT 8.3 device directory (first char is 0 if none selected)
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -204,7 +204,7 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
         default:
           if( dir_num_items >= 1 && (ui_selected_item+dir_view_offset) < dir_num_items ) {
 	    // Send SysEx Dump
-	    char syx_file[30];
+	    char syx_file[9];
 	    int i;
 	    char *p = (char *)&syx_file[0];
 	    for(i=0; i<8; ++i) {
@@ -215,7 +215,7 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 	    *p++ = 0;
 
 	    char path[40];
-	    sprintf(path, "/SYSEX/%s/%s.SYX", dir_name, syx_file);
+	    snprintf(path, sizeof(path), "/SYSEX/%s/%s.SYX", dir_name, syx_file);
 	    SEQ_UI_Msg((ui_selected_item < 4) ? SEQ_UI_MSG_USER : SEQ_UI_MSG_USER_R, 10000, "Sending:", syx_file);
 	    MUTEX_SDCARD_TAKE;
 	    MUTEX_MIDIOUT_TAKE;
@@ -225,8 +225,8 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 	    if( status < 0 )
 	      SEQ_UI_SDCardErrMsg(2000, status);
 	    else {
-	      char buffer[20];
-	      sprintf(buffer, "Sent %d bytes", status);
+	      char buffer[24];
+	      snprintf(buffer, sizeof(buffer), "Sent %ld bytes", (long)status);
 	      SEQ_UI_Msg((ui_selected_item < 4) ? SEQ_UI_MSG_USER : SEQ_UI_MSG_USER_R, 1000, buffer, syx_file);
 	    }
 	  }

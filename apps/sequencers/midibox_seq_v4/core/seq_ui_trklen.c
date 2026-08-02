@@ -165,8 +165,8 @@ static s32 Encoder_Handler(seq_ui_encoder_t encoder, s32 incrementer)
 
 	SEQ_UI_Msg(SEQ_UI_MSG_USER_R, 1000, "Track only prepared", buffer);
       } else if( seq_cc_trk[visible_track].clkdiv.SYNCH_TO_MEASURE && ((int)len > (int)seq_core_steps_per_measure) ) {
-	char buffer[20];
-	sprintf(buffer, "active for %d steps", (int)seq_core_steps_per_measure+1);
+	char buffer[24];
+	snprintf(buffer, sizeof(buffer), "active for %d steps", (int)seq_core_steps_per_measure+1);
 	SEQ_UI_Msg(SEQ_UI_MSG_USER, 1000, "Synch-to-Measure is", buffer);
       }
 
@@ -187,8 +187,8 @@ static s32 Encoder_Handler(seq_ui_encoder_t encoder, s32 incrementer)
       if( SEQ_UI_CC_Inc(SEQ_CC_LENGTH, 0, num_steps-1, incrementer) >= 1 ) {
 	if( seq_cc_trk[visible_track].clkdiv.SYNCH_TO_MEASURE && 
 	    (int)SEQ_CC_Get(visible_track, SEQ_CC_LENGTH) > (int)seq_core_steps_per_measure ) {
-	  char buffer[20];
-	  sprintf(buffer, "active for %d steps", (int)seq_core_steps_per_measure+1);
+	  char buffer[24];
+	  snprintf(buffer, sizeof(buffer), "active for %d steps", (int)seq_core_steps_per_measure+1);
 	  SEQ_UI_Msg(SEQ_UI_MSG_USER, 1000, "Synch-to-Measure is", buffer);
 	}
 	return 1;

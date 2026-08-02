@@ -522,18 +522,23 @@ s32 SEQ_FILE_CreateBackup(void)
     return FILE_ERR_NO_VOLUME;
   }
 
-  char src_path[40];
-  sprintf(src_path, "%s/%s", SEQ_FILE_SESSION_PATH, seq_file_session_name);
-  char dst_path[40];
-  sprintf(dst_path, "%s/%s", SEQ_FILE_SESSION_PATH, seq_file_new_session_name);
+  char src_path[24];
+  int src_path_length = snprintf(src_path, sizeof(src_path), "%s/%.12s",
+                                 SEQ_FILE_SESSION_PATH, seq_file_session_name);
+  char dst_path[24];
+  int dst_path_length = snprintf(dst_path, sizeof(dst_path), "%s/%.12s",
+                                 SEQ_FILE_SESSION_PATH, seq_file_new_session_name);
+  if( src_path_length < 0 || src_path_length >= sizeof(src_path) ||
+      dst_path_length < 0 || dst_path_length >= sizeof(dst_path) )
+    return FILE_ERR_PATH_TOO_LONG;
 
-  char src_file[50];
-  char dst_file[50];
+  char src_file[36];
+  char dst_file[36];
   // We assume that session directory already has been created in seq_ui_menu.c
 
 #define COPY_FILE_MACRO(name) if( status >= 0 ) { \
-    sprintf(src_file, "%s/%s", src_path, name);   \
-    sprintf(dst_file, "%s/%s", dst_path, name);   \
+    snprintf(src_file, sizeof(src_file), "%s/%s", src_path, name); \
+    snprintf(dst_file, sizeof(dst_file), "%s/%s", dst_path, name); \
     DEBUG_MSG("Copy %s/%s to %s/%s\n", src_path, name, dst_path, name);	\
     seq_file_backup_notification = dst_file;      \
     SEQ_UI_LCD_Handler();                         \
