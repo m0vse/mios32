@@ -1,6 +1,8 @@
 #ifndef	_UWINDOWS_H_
 #define	_UWINDOWS_H_
 
+#include <stdbool.h>
+
 //#include "circle_api.h"
 #include "list.h"
 #include "UW_Config.h"
@@ -221,16 +223,21 @@ extern UW_Window		UWindows;
 extern UW_Window	*	pUW_Infocus;
 extern bool			Refresh;
 
-static void UW_DrawItem(UW_Window * pstrItem);
+void UW_Add(UW_Window *pWindow, UW_Type type, UW_Window *pParent, void *extra_properties);
+void UW_Init(void);
+void UW_Run(void);
+
+// These hooks belonged to the original CircleOS port. The MIOS32 renderer
+// uses the configured GLCD font and receives input through application code.
+#define UW_SetFont(pWindow, font) do { (void)(pWindow); (void)(font); } while(0)
+#define UW_Keypress(pin, value) do { (void)(pin); (void)(value); } while(0)
+
 void		UW_ListBoxSetItemHeight(UW_Window *pListBox, u8 value);
 void 		UW_ListBoxAddItem(UW_Window *ListBox, UW_Window *Item);
 void 		UW_ListBoxRemoveItem(UW_Window * ListBox, UW_Window * Item);
 UW_Window * UW_ListBoxGetActiveItem(UW_Window * ListBox);
 UW_Window * UW_ListBoxGetItem(UW_Window * ListBox,u32 index);
 s32 		UW_ListBoxGetIndex(UW_Window * ListBox,UW_Window * Item);
-
-static void 	UW_DrawCircle(s32 xpos, s32 ypos, s32 r, u16 color);
-static void 	UW_DrawLine(s32 x1, s32 y1, s32 x2, s32 y2,u16 color);
 
 #ifdef	MALLOC
 void 		ialloc();

@@ -10,6 +10,8 @@
 #include <app_lcd.h>
 
 #include "UWindows.h"
+
+static void UW_DrawItem(UW_Window *pstrItem);
 #include "UW_CharSet.h"
 
 #ifdef _MIOS32_CONFIG_H
@@ -1282,12 +1284,11 @@ static void UW_HandleItemClicked(UW_Window * pstrItem, u8 x,u8 y)
 	}
 	 if (pstrItem->type == UW_BUTTON)
 	{
-		u32 BGColor;
-		u32 temp;
-        	BGColor = DRAW_GetBGndColor();    
-		LCD_FillRect(pstrItem->Absx,pstrItem->Absy,pstrItem->length,pstrItem->height,BLUE);	
+		volatile u32 temp;
+		UW_FillRect(pstrItem->Absx + 1, pstrItem->Absy + 1,
+			    pstrItem->length - 2, pstrItem->height - 2, BLUE);
 		for (temp=0; temp<0x4FFF; temp++);
-		LCD_FillRect(pstrItem->Absx,pstrItem->Absy,pstrItem->length,pstrItem->height,BGColor);
+		UW_DrawItem(pstrItem);
 	}
 	if (pstrItem->type == UW_EDIT)
 		CharSet_Show(pstrItem);

@@ -2,6 +2,9 @@
 #define	_UW_CHRSET_H_
 extern		UW_Window	CharSetWindow;
 
+extern void CharSet_Show(UW_Window *CurrentEditBox);
+extern void CharSet_Init(void);
+
 #define		CHAR_A_INDEX		0
 #define		CHAR_a_INDEX		26
 #define		CHAR_1_INDEX		52
