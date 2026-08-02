@@ -97,10 +97,10 @@ jobs:
         platform: [lpc17, stm32, stm32f4]
     steps:
       - uses: actions/checkout@v6
-      - name: Install Arm GNU Toolchain 15.2.Rel1
-        uses: carlosperate/arm-none-eabi-gcc-action@v1.12.3
+      - name: Install Arm GNU Toolchain 15.3.Rel1
+        uses: carlosperate/arm-none-eabi-gcc-action@v1.13.0
         with:
-          release: 15.2.Rel1
+          release: 15.3.Rel1
       - name: Show toolchain version
         run: arm-none-eabi-gcc --version
       - name: Build selected applications
@@ -122,10 +122,10 @@ jobs:
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v6
-      - name: Install Arm GNU Toolchain 15.2.Rel1
-        uses: carlosperate/arm-none-eabi-gcc-action@v1.12.3
+      - name: Install Arm GNU Toolchain 15.3.Rel1
+        uses: carlosperate/arm-none-eabi-gcc-action@v1.13.0
         with:
-          release: 15.2.Rel1
+          release: 15.3.Rel1
       - name: Run GCC safety analysis
         env:
           MIOS32_EXTRA_CFLAGS: >-
