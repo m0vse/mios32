@@ -25,7 +25,7 @@ void APP_Init(void)
 	MIOS32_MIDI_SendDebugMessage("APP_Init:Hello World!");
 #endif
 
-	if( status = DISPLAY_Init(0) < 0 ) {
+	if( (status = DISPLAY_Init(0)) < 0 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
 		MIOS32_MIDI_SendDebugMessage("APP_Init:Error Knoepfli Init");
 #endif

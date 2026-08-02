@@ -41,6 +41,8 @@ PROJECT   = 	project
 DEBUG     =	$(DEBUG_PARAMETERS)
 OPTIMIZE  =	$(OPTIMIZATION_PARAMETERS)
 
+DEBUG_VERBOSE_LEVEL ?= 0
+
 CFLAGS =	$(DEBUG) $(OPTIMIZE) -DDEBUG_VERBOSE_LEVEL=$(DEBUG_VERBOSE_LEVEL)
 
 ################################################################################

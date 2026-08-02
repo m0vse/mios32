@@ -169,8 +169,9 @@ void SYSEX_GetCommand(void)
 /////////////////////////////////////////////////////////////////////////////
 // This function parses an incoming sysex stream for SysEx messages
 /////////////////////////////////////////////////////////////////////////////
-s32 SYSEX_Parser(u8 midi_in)
-{		
+s32 SYSEX_Parser(mios32_midi_port_t port, u8 midi_in)
+{
+    (void)port;
 #if DEBUG_VERBOSE_LEVEL >= 5 && DEBUG_VERBOSE_LEVEL < 9 
 	MIOS32_MIDI_SendDebugMessage("SYSEX_Parser: BEGIN");
 #endif
