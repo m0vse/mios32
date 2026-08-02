@@ -20,7 +20,7 @@
 #define MIOS32_LCD_BOOT_MSG_DELAY 0 // we delay the boot and print a message inside the app
 //                                <---------------------->
 #ifndef MIOS32_RELEASE_VERSION
-#define MIOS32_RELEASE_VERSION "4.100"
+#define MIOS32_RELEASE_VERSION "4.101"
 #endif
 #ifdef MBSEQV4P
 #define MIOS32_LCD_BOOT_MSG_LINE1 "MIDIbox SEQ+ V" MIOS32_RELEASE_VERSION
