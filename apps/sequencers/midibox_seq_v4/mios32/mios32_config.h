@@ -135,9 +135,9 @@ extern void APP_SendDebugMessage(char *format, ...)
 #ifdef MBSEQV4P
 # define MIOS32_HEAP_SIZE 20*1024
 #elif defined(MIOS32_FAMILY_LPC17xx) && defined(MIOS32_USB_USE_TINYUSB)
-// FatFS tiny mode and the mixer-table relocation recover enough main/AHB SRAM
-// to retain a larger runtime reserve while leaving the USB DMA area intact.
-# define MIOS32_HEAP_SIZE (13*1024 + 256)
+// FatFS tiny mode and the non-DMA data relocations recover enough main/AHB
+// SRAM for a larger runtime reserve while leaving the USB DMA area intact.
+# define MIOS32_HEAP_SIZE (14*1024)
 #else
 # define MIOS32_HEAP_SIZE 13*1024
 #endif
