@@ -438,6 +438,7 @@ TU_ATTR_ALWAYS_INLINE static inline bool queue_event(dcd_event_t const * event, 
 //--------------------------------------------------------------------+
 static bool usbd_control_xfer_cb(uint8_t rhport, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes);
 static bool process_setup_received(uint8_t rhport, tusb_control_request_t const * p_request);
+static bool process_get_status(uint8_t rhport, tusb_control_request_t const * request, uint16_t status);
 static bool process_set_config(uint8_t rhport, uint8_t cfg_num);
 static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const * p_request);
 
@@ -1061,15 +1062,22 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
       // Device status bit mask
       // - Bit 0: Self Powered TODO must invoke callback to get actual status
       // - Bit 1: Remote Wakeup enabled
-      uint16_t status = (uint16_t) _usbd_dev.dev_state_bm;
-      tud_control_xfer(rhport, p_request, &status, 2);
-      return true;
+      return process_get_status(rhport, p_request, (uint16_t) _usbd_dev.dev_state_bm);
     }
 
     default:
       TU_BREAKPOINT();
       return false;
   }
+}
+
+
+// Reply to a standard GET_STATUS request with its two-byte status word.
+// Reject a misdirected OUT request instead of exposing a stack local as the
+// destination for host data after this frame has returned.
+static bool process_get_status(uint8_t rhport, tusb_control_request_t const * request, uint16_t status) {
+  TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_IN);
+  return tud_control_xfer(rhport, request, &status, 2);
 }
 
 
@@ -1170,7 +1178,15 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
           }
 
           case TUSB_REQ_SET_INTERFACE:
+            // A class with alternate settings handles this itself. Reaching
+            // here means only alternate setting zero is valid.
+            TU_VERIFY(tu_u16_low(p_request->wValue) == 0);
             tud_control_status(rhport, p_request);
+            break;
+
+          case TUSB_REQ_GET_STATUS:
+            // Interface GET_STATUS returns two reserved zero bytes.
+            TU_VERIFY(process_get_status(rhport, p_request, 0x0000));
             break;
 
           default: return false;
@@ -1195,35 +1211,31 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
       } else {
         // Handle STD request to endpoint
         switch (p_request->bRequest) { //-V2520
-          case TUSB_REQ_GET_STATUS: {
-            uint16_t status = usbd_edpt_stalled(rhport, ep_addr) ? 0x0001u : 0x0000u;
-            tud_control_xfer(rhport, p_request, &status, 2);
-          }
-          break;
+          case TUSB_REQ_GET_STATUS:
+            TU_VERIFY(process_get_status(rhport, p_request,
+                                         usbd_edpt_stalled(rhport, ep_addr) ? 0x0001u : 0x0000u));
+            break;
 
           case TUSB_REQ_CLEAR_FEATURE:
           case TUSB_REQ_SET_FEATURE: {
-            if ( TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue ) {
-              if ( TUSB_REQ_CLEAR_FEATURE ==  p_request->bRequest ) {
-                usbd_edpt_clear_stall(rhport, ep_addr);
-              }else {
-                usbd_edpt_stall(rhport, ep_addr);
-              }
+            // ENDPOINT_HALT applies only to a non-control endpoint owned by a
+            // class driver.
+            TU_VERIFY(TUSB_REQ_FEATURE_EDPT_HALT == p_request->wValue);
+            TU_VERIFY(ep_num != 0);
+            TU_VERIFY(driver != NULL);
+
+            if ( TUSB_REQ_CLEAR_FEATURE == p_request->bRequest ) {
+              usbd_edpt_clear_stall(rhport, ep_addr);
+            } else {
+              usbd_edpt_stall(rhport, ep_addr);
             }
 
-            if (driver != NULL) {
-              // Some classes such as USBTMC needs to clear/re-init its buffer when receiving CLEAR_FEATURE request
-              // We will also forward std request targeted endpoint to class drivers as well
-
-              // STD request must always be ACKed regardless of driver returned value
-              // Also clear complete callback if driver set since it can also stall the request.
-              (void) invoke_class_control(rhport, driver, p_request);
-              ctrl_xfer->complete_cb = NULL;
-
-              // skip ZLP status if driver already did that
-              if (!(_usbd_dev.ep_status[0][TUSB_DIR_IN] & TU_EDPT_STATE_BUSY)) {
-                tud_control_status(rhport, p_request);
-              }
+            // Give the class a chance to reset its buffers, then ACK unless it
+            // already started the status stage itself.
+            (void) invoke_class_control(rhport, driver, p_request);
+            ctrl_xfer->complete_cb = NULL;
+            if (!(_usbd_dev.ep_status[0][TUSB_DIR_IN] & TU_EDPT_STATE_BUSY)) {
+              tud_control_status(rhport, p_request);
             }
           }
           break;
@@ -1668,10 +1680,16 @@ void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
   uint8_t const epnum = tu_edpt_number(ep_addr);
   uint8_t const dir = tu_edpt_dir(ep_addr);
 
-  // only clear if currently stalled
   TU_LOG_USBD("    Clear Stall EP %02X\r\n", ep_addr);
+  const bool was_stalled = (_usbd_dev.ep_status[epnum][dir] & TU_EDPT_STATE_STALLED) != 0;
   dcd_edpt_clear_stall(rhport, ep_addr);
-  _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~(TU_EDPT_STATE_STALLED | TU_EDPT_STATE_BUSY);
+  uint8_t clear_mask = TU_EDPT_STATE_STALLED | TU_EDPT_STATE_BUSY;
+  if (was_stalled) {
+    // A stall aborts the transfer without a completion event, so release the
+    // endpoint claim as part of recovery.
+    clear_mask |= TU_EDPT_STATE_CLAIMED;
+  }
+  _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~clear_mask;
 }
 
 bool usbd_edpt_stalled(uint8_t rhport, uint8_t ep_addr) {
