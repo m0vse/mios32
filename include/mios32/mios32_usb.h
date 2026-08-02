@@ -68,6 +68,11 @@ extern s32 MIOS32_USB_IsInitialized(void);
 extern s32 MIOS32_USB_ForceSingleUSB(void);
 extern s32 MIOS32_USB_ForceDeviceMode(void);
 
+#if defined(MIOS32_FAMILY_LPC17xx) && defined(MIOS32_USB_USE_TINYUSB)
+// Internal service entry point for TinyUSB's single owning FreeRTOS task.
+extern s32 MIOS32_USB_TinyUSB_TaskService(void);
+#endif
+
 
 /////////////////////////////////////////////////////////////////////////////
 // Export global variables

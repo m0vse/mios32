@@ -903,6 +903,9 @@ static const u8 MIOS32_USB_ConfigDescriptor_SingleUSB[] = {
 static void HandleUsbReset(U8 bDevStatus);
 static BOOL HandleClassRequest(TSetupPacket *pSetup, int *piLen, U8 **ppbData);
 static BOOL HandleCustomRequest(TSetupPacket *pSetup, int *piLen, U8 **ppbData);
+#else
+static TaskHandle_t tinyusb_task_handle;
+static u8 tinyusb_init_requested;
 #endif
 
 
@@ -926,6 +929,22 @@ s32 MIOS32_USB_Init(u32 mode)
     return -1; // unsupported mode
 
 #if defined(MIOS32_USB_USE_TINYUSB)
+  // The traditional programming model calls MIOS32_USB_Init() before the
+  // scheduler starts. TinyUSB requires init, deinit and tud_task() to share
+  // one RTOS task context, so defer the actual initialization to the MIDI
+  // service task.
+  if( xTaskGetSchedulerState() == taskSCHEDULER_NOT_STARTED ) {
+    if( mode == 0 ) {
+      tinyusb_init_requested = 1;
+      return 0;
+    }
+    return -5;
+  }
+
+  if( tinyusb_task_handle == NULL ||
+      xTaskGetCurrentTaskHandle() != tinyusb_task_handle )
+    return -5;
+
   // Runtime replacement of TinyUSB's class hooks is not supported. Mass
   // storage remains on the legacy stack until it is migrated separately.
   if( mode == 2 )
@@ -955,6 +974,10 @@ s32 MIOS32_USB_Init(u32 mode)
     .role = TUSB_ROLE_DEVICE,
     .speed = TUSB_SPEED_FULL,
   };
+  // Allocation failures are not transient after the scheduler has started.
+  // Clear the request before init so a partial failure cannot leak another
+  // queue or mutex on every 1 ms service pass.
+  tinyusb_init_requested = 0;
   if( !tusb_init(0, &rhport_init) )
     return -2;
 
@@ -965,7 +988,10 @@ s32 MIOS32_USB_Init(u32 mode)
   MIOS32_USB_COM_ChangeConnectionState(0);
 #endif
 
-  MIOS32_IRQ_Install(USB_IRQn, MIOS32_IRQ_USB_PRIORITY);
+  // TinyUSB's FreeRTOS OSAL posts events to a queue from the USB ISR. The ISR
+  // therefore has to run at a FreeRTOS-compatible priority; the legacy stack
+  // does not call the RTOS and retains the original priority below.
+  MIOS32_IRQ_Install(USB_IRQn, MIOS32_IRQ_PRIO_LOW);
   return 0;
 #else
   // force re-connection?
@@ -1023,6 +1049,37 @@ s32 MIOS32_USB_Init(u32 mode)
   return 0; // no error
 #endif
 }
+
+
+#if defined(MIOS32_USB_USE_TINYUSB)
+/////////////////////////////////////////////////////////////////////////////
+//! Owns TinyUSB initialization and device-event processing from one task.
+//! Returns < 0 if called from the wrong context or initialization failed
+/////////////////////////////////////////////////////////////////////////////
+s32 MIOS32_USB_TinyUSB_TaskService(void)
+{
+  if( xTaskGetSchedulerState() == taskSCHEDULER_NOT_STARTED )
+    return -1;
+
+  TaskHandle_t current_task = xTaskGetCurrentTaskHandle();
+  if( tinyusb_task_handle == NULL )
+    tinyusb_task_handle = current_task;
+  else if( current_task != tinyusb_task_handle )
+    return -2;
+
+  if( !tusb_inited() ) {
+    if( !tinyusb_init_requested )
+      return -3;
+
+    s32 status = MIOS32_USB_Init(0);
+    if( status < 0 )
+      return status;
+  }
+
+  tud_task_ext(0, false);
+  return 0;
+}
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////

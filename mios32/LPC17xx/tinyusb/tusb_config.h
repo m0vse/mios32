@@ -2,7 +2,7 @@
 #define _MIOS32_LPC17XX_TUSB_CONFIG_H
 
 #define CFG_TUSB_MCU             OPT_MCU_LPC175X_6X
-#define CFG_TUSB_OS              OPT_OS_NONE
+#define CFG_TUSB_OS              OPT_OS_FREERTOS
 #define CFG_TUSB_DEBUG           0
 
 #define CFG_TUSB_RHPORT0_MODE    (OPT_MODE_DEVICE | OPT_MODE_FULL_SPEED)

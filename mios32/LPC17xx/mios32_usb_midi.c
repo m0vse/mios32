@@ -280,8 +280,10 @@ s32 MIOS32_USB_MIDI_PackageReceive(mios32_midi_package_t *package)
 s32 MIOS32_USB_MIDI_Periodic_mS(void)
 {
 #if defined(MIOS32_USB_USE_TINYUSB)
-  // TinyUSB defers bus and endpoint work from the IRQ to this task context.
-  tud_task_ext(0, false);
+  // TinyUSB defers bus and endpoint work from the IRQ to one owning task.
+  s32 status = MIOS32_USB_TinyUSB_TaskService();
+  if( status < 0 )
+    return status;
 #endif
 
   if( transfer_possible ) {
@@ -306,9 +308,9 @@ static void MIOS32_USB_MIDI_TxBufferHandler(u8 bEP)
   (void)bEP;
 
   // This handler is also called by the blocking MIOS32 send path when its
-  // software ring is full.  Process deferred endpoint completions here so
-  // TinyUSB's FIFO can make progress even while the producer is waiting.
-  tud_task_ext(0, false);
+  // software ring is full. The service function processes device events only
+  // in the owning MIDI task; FreeRTOS protects class writes from other tasks.
+  (void)MIOS32_USB_TinyUSB_TaskService();
 
   while( tx_buffer_size && transfer_possible ) {
     const u8 *packet = (const u8 *)&tx_buffer[tx_buffer_tail];
