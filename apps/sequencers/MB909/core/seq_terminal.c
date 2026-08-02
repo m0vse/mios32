@@ -17,6 +17,7 @@
 
 #include <mios32.h>
 #include <string.h>
+#include <strings.h>
 
 #include <seq_midi_out.h>
 #include <ff.h>
@@ -101,6 +102,20 @@ static uploading_file_t uploading_file;
 static s32 TERMINAL_ParseFilebrowser(mios32_midi_port_t port, char byte);
 
 static s32 TERMINAL_BrowserUploadCallback(char *filename);
+
+static const char *TERMINAL_StrCaseStr(const char *haystack, const char *needle)
+{
+  size_t needle_len = strlen(needle);
+
+  if( !needle_len )
+    return haystack;
+
+  for(; *haystack; ++haystack)
+    if( strncasecmp(haystack, needle, needle_len) == 0 )
+      return haystack;
+
+  return NULL;
+}
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -224,13 +239,13 @@ static s32 TERMINAL_BrowserUploadCallback(char *filename)
     uploading_file = UPLOADING_FILE_NONE;
     if( strcasecmp(filename, "/mbseq_hw.v4") == 0 )
       uploading_file = UPLOADING_FILE_HW;
-    else if( strcasestr(filename, "/mbseq_c.v4") != NULL )
+    else if( TERMINAL_StrCaseStr(filename, "/mbseq_c.v4") != NULL )
       uploading_file = UPLOADING_FILE_C;
     else if( strcasecmp(filename, "/mbseq_gc.v4") == 0 )
       uploading_file = UPLOADING_FILE_GC;
-    else if( strcasestr(filename, "/mbseq_g.v4") != NULL )
+    else if( TERMINAL_StrCaseStr(filename, "/mbseq_g.v4") != NULL )
       uploading_file = UPLOADING_FILE_G;
-    else if( strcasestr(filename, "/mbseq_bm.v4") != NULL )
+    else if( TERMINAL_StrCaseStr(filename, "/mbseq_bm.v4") != NULL )
       uploading_file = UPLOADING_FILE_BM;
   } else {
     switch( uploading_file ) {
