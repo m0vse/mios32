@@ -387,7 +387,7 @@ static s32 SEQ_FILE_BM_Write_Hlp(u8 write_to_file, u8 global)
   s32 status = 0;
   char line_buffer[200];
 
-#define FLUSH_BUFFER if( !write_to_file ) { DEBUG_MSG(line_buffer); } else { status |= FILE_WriteBuffer((u8 *)line_buffer, strlen(line_buffer)); }
+#define FLUSH_BUFFER if( !write_to_file ) { DEBUG_MSG("%s", line_buffer); } else { status |= FILE_WriteBuffer((u8 *)line_buffer, strlen(line_buffer)); }
 
   u8 from_bookmark = global ? 0 : 8;
   u8 to_bookmark = global ? 7 : (SEQ_UI_BOOKMARKS_NUM-1);

@@ -1163,7 +1163,7 @@ s32 SEQ_TERMINAL_PrintTracks(void *_output_function)
     else
       sprintf((char *)(str_buffer + strlen(str_buffer)), "  no   |");
 
-    out(str_buffer);
+    out("%s", str_buffer);
   }
 
   out("+-------+-------+-------------+-----------+--------+-------+------+-------+");

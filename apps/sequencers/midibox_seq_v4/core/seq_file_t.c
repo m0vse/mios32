@@ -488,7 +488,7 @@ static s32 SEQ_FILE_T_Write_Hlp(u8 write_to_file, u8 track)
 
   seq_cc_trk_t *tcc = &seq_cc_trk[track];
 
-#define FLUSH_BUFFER if( !write_to_file ) { DEBUG_MSG(line_buffer); } else { status |= FILE_WriteBuffer((u8 *)line_buffer, strlen(line_buffer)); }
+#define FLUSH_BUFFER if( !write_to_file ) { DEBUG_MSG("%s", line_buffer); } else { status |= FILE_WriteBuffer((u8 *)line_buffer, strlen(line_buffer)); }
 
   // write comments if target is a file
   if( write_to_file ) {

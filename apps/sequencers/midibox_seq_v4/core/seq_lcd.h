@@ -52,7 +52,11 @@ extern s32 SEQ_LCD_Update(u8 force);
 extern s32 SEQ_LCD_InitSpecialChars(seq_lcd_charset_t charset);
 extern s32 SEQ_LCD_ReInitSpecialChars(void);
 extern s32 SEQ_LCD_PrintString(const char *str);
-extern s32 SEQ_LCD_PrintFormattedString(const char *format, ...);
+extern s32 SEQ_LCD_PrintFormattedString(const char *format, ...)
+#if defined(__GNUC__)
+  __attribute__((format(printf, 1, 2)))
+#endif
+  ;
 
 extern s32 SEQ_LCD_PrintSpaces(int num);
 extern s32 SEQ_LCD_PrintStringPadded(char *str, u32 width);

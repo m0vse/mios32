@@ -640,7 +640,7 @@ static s32 SEQ_FILE_GC_Write_Hlp(u8 write_to_file)
   s32 status = 0;
   char line_buffer[128];
 
-#define FLUSH_BUFFER if( !write_to_file ) { DEBUG_MSG(line_buffer); } else { status |= FILE_WriteBuffer((u8 *)line_buffer, strlen(line_buffer)); }
+#define FLUSH_BUFFER if( !write_to_file ) { DEBUG_MSG("%s", line_buffer); } else { status |= FILE_WriteBuffer((u8 *)line_buffer, strlen(line_buffer)); }
 
   // write global config values
   sprintf(line_buffer, "MetronomePort 0x%02x\n", (u8)seq_core_metronome_port);

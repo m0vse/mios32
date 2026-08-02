@@ -41,7 +41,11 @@
 //#define MIOS32_MIDI_DEBUG_PORT USB0
 
 // function used to output debug messages (must be printf compatible!)
-extern void APP_SendDebugMessage(char *format, ...);
+extern void APP_SendDebugMessage(char *format, ...)
+#if defined(__GNUC__)
+  __attribute__((format(printf, 1, 2)))
+#endif
+  ;
 #define DEBUG_MSG APP_SendDebugMessage
 
 
