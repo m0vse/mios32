@@ -24,6 +24,33 @@
 #include <fstream>
 #endif
 
+namespace
+{
+MidiDeviceInfo findMidiDevice(const Array<MidiDeviceInfo>& devices,
+                              const String& preferredName,
+                              bool connectToBootloader,
+                              bool allowApplicationNameForBootloader)
+{
+    if( preferredName.isNotEmpty() &&
+        (connectToBootloader || !preferredName.containsIgnoreCase("MIOS32 Bootloader")) ) {
+        for( const MidiDeviceInfo& device : devices )
+            if( device.name == preferredName && (!connectToBootloader || allowApplicationNameForBootloader) )
+                return device;
+    }
+
+    for( const MidiDeviceInfo& device : devices ) {
+        const bool isBootloader = device.name.containsIgnoreCase("MIOS32 Bootloader");
+        if( connectToBootloader == isBootloader ) {
+            if( isBootloader || device.name.startsWithIgnoreCase("MIDIbox") ||
+                device.name.containsIgnoreCase("MIOS32") )
+                return device;
+        }
+    }
+
+    return MidiDeviceInfo();
+}
+}
+
 //==============================================================================
 MiosStudio::MiosStudio()
     : batchMode(false)
@@ -34,6 +61,7 @@ MiosStudio::MiosStudio()
     , miosTerminal(0)
     , midiKeyboard(0)
     , initialMidiScanCounter(1) // start step-wise MIDI port scan
+    , midiScanRetriesRemaining(20)
     , midiInputCallbackRegistered(false)
     , batchWaitCounter(0)
     , initialGuiX(-1) // centered
@@ -292,7 +320,9 @@ MiosStudio::MiosStudio()
         uploadWindow->setDeviceId(firstDeviceId);
     }
 
-    Timer::startTimer(1);
+    // Some MIDI backends discover devices asynchronously. Give them time to
+    // populate before the first scan; timerCallback() retries if necessary.
+    Timer::startTimer(250);
 
     setSize(guiWidth, guiHeight);
 }
@@ -484,11 +514,187 @@ void MiosStudio::sendMidiMessage(MidiMessage &message)
 //==============================================================================
 void MiosStudio::closeMidiPorts(void)
 {
-    const Array<MidiDeviceInfo> allMidiIns(MidiInput::getAvailableDevices());
-    for (int i = allMidiIns.size(); --i >= 0;)
-        audioDeviceManager.setMidiInputDeviceEnabled(allMidiIns.getReference(i).identifier, false);
+    String inputIdentifier;
+    {
+        const ScopedLock sl(midiPortStateLock);
+        inputIdentifier = activeMidiInputIdentifier;
+        activeMidiInputName.clear();
+        activeMidiInputIdentifier.clear();
+        activeMidiOutputName.clear();
+        activeMidiOutputIdentifier.clear();
+    }
+
+    if( inputIdentifier.isNotEmpty() )
+        audioDeviceManager.setMidiInputDeviceEnabled(inputIdentifier, false);
 
     audioDeviceManager.setDefaultMidiOutputDevice(String());
+}
+
+String MiosStudio::getActiveMidiInput(void)
+{
+    const ScopedLock sl(midiPortStateLock);
+    return activeMidiInputName;
+}
+
+String MiosStudio::getActiveMidiOutput(void)
+{
+    const ScopedLock sl(midiPortStateLock);
+    return activeMidiOutputName;
+}
+
+bool MiosStudio::runMidiPortOperationOnMessageThread(
+    const std::function<void(MiosStudio&)>& operation,
+    int timeoutMs)
+{
+    MessageManager* messageManager = MessageManager::getInstanceWithoutCreating();
+    if( messageManager == 0 )
+        return false;
+
+    if( messageManager->isThisTheMessageThread() ) {
+        operation(*this);
+        return true;
+    }
+
+    struct PendingOperation
+    {
+        WaitableEvent completed;
+        std::atomic<bool> cancelled { false };
+    };
+
+    std::shared_ptr<PendingOperation> pending = std::make_shared<PendingOperation>();
+    Component::SafePointer<MiosStudio> safeThis(this);
+    if( !MessageManager::callAsync([safeThis, pending, operation]() {
+            if( !pending->cancelled.load() && safeThis != 0 )
+                operation(*safeThis.getComponent());
+            pending->completed.signal();
+        }) )
+        return false;
+
+    if( !pending->completed.wait(timeoutMs) ) {
+        pending->cancelled.store(true);
+        return false;
+    }
+
+    return true;
+}
+
+bool MiosStudio::reconnectMidiPortsForUpload(const String &applicationInput,
+                                             const String &applicationOutput,
+                                             bool connectToBootloader,
+                                             int timeoutMs)
+{
+    String previousInputName;
+    String previousInputIdentifier;
+    String previousOutputName;
+    String previousOutputIdentifier;
+    {
+        const ScopedLock sl(midiPortStateLock);
+        previousInputName = activeMidiInputName;
+        previousInputIdentifier = activeMidiInputIdentifier;
+        previousOutputName = activeMidiOutputName;
+        previousOutputIdentifier = activeMidiOutputIdentifier;
+    }
+
+    // AudioDeviceManager sends change notifications and owns backend objects.
+    // Keep all of its mutations on JUCE's message thread so that a device
+    // notification cannot deadlock against the upload worker.
+    if( !runMidiPortOperationOnMessageThread([](MiosStudio& studio) {
+            studio.closeMidiPorts();
+        }, 500) )
+        return false;
+
+    const uint32 startTime = Time::getMillisecondCounter();
+    bool previousInputDisappeared = previousInputIdentifier.isEmpty();
+    bool previousOutputDisappeared = previousOutputIdentifier.isEmpty();
+    while( !Thread::currentThreadShouldExit() &&
+           Time::getMillisecondCounter() - startTime < (uint32)timeoutMs ) {
+        const uint32 elapsed = Time::getMillisecondCounter() - startTime;
+        // Windows can retain the application product name and device
+        // identifier across the application/bootloader transition. Prefer a
+        // real remove/add transition, but permit the cached endpoint quickly
+        // enough to fit inside the legacy bootloader's short timeout.
+        const bool allowCachedEndpoint = elapsed >= 300;
+
+        struct ScanResult
+        {
+            bool previousInputPresent = false;
+            bool previousOutputPresent = false;
+            bool connected = false;
+        };
+        std::shared_ptr<ScanResult> result = std::make_shared<ScanResult>();
+
+        const bool operationCompleted = runMidiPortOperationOnMessageThread(
+            [result, applicationInput, applicationOutput, connectToBootloader,
+             allowCachedEndpoint, previousInputName, previousInputIdentifier,
+             previousOutputName, previousOutputIdentifier,
+             previousInputDisappeared, previousOutputDisappeared](MiosStudio& studio) {
+                const Array<MidiDeviceInfo> inputs = MidiInput::getAvailableDevices();
+                const Array<MidiDeviceInfo> outputs = MidiOutput::getAvailableDevices();
+
+                for( const MidiDeviceInfo& device : inputs )
+                    if( device.identifier == previousInputIdentifier )
+                        result->previousInputPresent = true;
+                for( const MidiDeviceInfo& device : outputs )
+                    if( device.identifier == previousOutputIdentifier )
+                        result->previousOutputPresent = true;
+
+                const bool inputDisappeared = previousInputDisappeared ||
+                                              !result->previousInputPresent;
+                const bool outputDisappeared = previousOutputDisappeared ||
+                                               !result->previousOutputPresent;
+                MidiDeviceInfo input = findMidiDevice(inputs, applicationInput,
+                                                      connectToBootloader,
+                                                      inputDisappeared || allowCachedEndpoint);
+                MidiDeviceInfo output = findMidiDevice(outputs, applicationOutput,
+                                                       connectToBootloader,
+                                                       outputDisappeared || allowCachedEndpoint);
+
+                const bool inputTransitionObserved = inputDisappeared ||
+                                                     input.identifier != previousInputIdentifier ||
+                                                     input.name != previousInputName ||
+                                                     allowCachedEndpoint;
+                const bool outputTransitionObserved = outputDisappeared ||
+                                                      output.identifier != previousOutputIdentifier ||
+                                                      output.name != previousOutputName ||
+                                                      allowCachedEndpoint;
+                if( !inputTransitionObserved )
+                    input = MidiDeviceInfo();
+                if( !outputTransitionObserved )
+                    output = MidiDeviceInfo();
+
+                if( input.identifier.isEmpty() || output.identifier.isEmpty() )
+                    return;
+
+                studio.audioDeviceManager.setMidiInputDeviceEnabled(input.identifier, true);
+                studio.audioDeviceManager.setDefaultMidiOutputDevice(output.identifier);
+
+                if( studio.audioDeviceManager.isMidiInputDeviceEnabled(input.identifier) &&
+                    studio.audioDeviceManager.getDefaultMidiOutput() != 0 ) {
+                    const ScopedLock sl(studio.midiPortStateLock);
+                    studio.activeMidiInputName = input.name;
+                    studio.activeMidiInputIdentifier = input.identifier;
+                    studio.activeMidiOutputName = output.name;
+                    studio.activeMidiOutputIdentifier = output.identifier;
+                    result->connected = true;
+                    return;
+                }
+
+                studio.audioDeviceManager.setMidiInputDeviceEnabled(input.identifier, false);
+                studio.audioDeviceManager.setDefaultMidiOutputDevice(String());
+            }, 500);
+
+        if( !operationCompleted )
+            return false;
+
+        previousInputDisappeared = previousInputDisappeared || !result->previousInputPresent;
+        previousOutputDisappeared = previousOutputDisappeared || !result->previousOutputPresent;
+        if( result->connected )
+            return true;
+
+        Thread::sleep(25);
+    }
+
+    return false;
 }
 
 
@@ -519,6 +725,22 @@ void MiosStudio::timerCallback()
         case 3:
             Timer::stopTimer();
 
+            {
+                const String wantedInput = inPortFromCommandLine.isNotEmpty()
+                    ? inPortFromCommandLine : getMidiInput();
+                const String wantedOutput = outPortFromCommandLine.isNotEmpty()
+                    ? outPortFromCommandLine : getMidiOutput();
+                const bool inputMissing = wantedInput.isNotEmpty() && getActiveMidiInput().isEmpty();
+                const bool outputMissing = wantedOutput.isNotEmpty() && getActiveMidiOutput().isEmpty();
+
+                if( (inputMissing || outputMissing) && midiScanRetriesRemaining > 0 ) {
+                    --midiScanRetriesRemaining;
+                    initialMidiScanCounter = 1;
+                    Timer::startTimer(250);
+                    break;
+                }
+            }
+
             if( !runningInBatchMode() ) {
                 // and check for infos
                 if( commandLineInfoMessages.length() ) {
@@ -540,10 +762,12 @@ void MiosStudio::timerCallback()
             }
 
             // try to query selected core
-            audioDeviceManager.addMidiInputDeviceCallback(String(), this);
-            midiInputCallbackRegistered = true;
+            if( !midiInputCallbackRegistered ) {
+                audioDeviceManager.addMidiInputDeviceCallback(String(), this);
+                midiInputCallbackRegistered = true;
+            }
 
-            if( getMidiOutput() != String() )
+            if( getActiveMidiInput().isNotEmpty() && getActiveMidiOutput().isNotEmpty() )
                 uploadWindow->queryCore();
 
             initialMidiScanCounter = 0; // stop scan
@@ -689,11 +913,30 @@ void MiosStudio::timerCallback()
 //==============================================================================
 void MiosStudio::setMidiInput(const String &port)
 {
+    String previousIdentifier;
+    {
+        const ScopedLock sl(midiPortStateLock);
+        previousIdentifier = activeMidiInputIdentifier;
+    }
+
     const Array<MidiDeviceInfo> allMidiIns(MidiInput::getAvailableDevices());
-    for (int i = allMidiIns.size(); --i >= 0;) {
-        const MidiDeviceInfo& midiInput = allMidiIns.getReference(i);
-        bool enabled = midiInput.name == port;
-        audioDeviceManager.setMidiInputDeviceEnabled(midiInput.identifier, enabled);
+    MidiDeviceInfo selectedInput;
+    for( const MidiDeviceInfo& midiInput : allMidiIns ) {
+        if( midiInput.name == port ) {
+            selectedInput = midiInput;
+            break;
+        }
+    }
+
+    if( previousIdentifier.isNotEmpty() && previousIdentifier != selectedInput.identifier )
+        audioDeviceManager.setMidiInputDeviceEnabled(previousIdentifier, false);
+    if( selectedInput.identifier.isNotEmpty() )
+        audioDeviceManager.setMidiInputDeviceEnabled(selectedInput.identifier, true);
+
+    {
+        const ScopedLock sl(midiPortStateLock);
+        activeMidiInputName = selectedInput.name;
+        activeMidiInputIdentifier = selectedInput.identifier;
     }
 
     // propagate port change
@@ -703,8 +946,10 @@ void MiosStudio::setMidiInput(const String &port)
     // store setting if MIDI input selected
     if( port != String() ) {
         PropertiesFile *propertiesFile = MiosStudioProperties::getInstance()->getCommonSettings(true);
-        if( propertiesFile )
+        if( propertiesFile ) {
             propertiesFile->setValue(T("midiIn"), port);
+            propertiesFile->setValue(T("midiInIdentifier"), selectedInput.identifier);
+        }
     }
 }
 
@@ -717,14 +962,20 @@ String MiosStudio::getMidiInput(void)
 
 void MiosStudio::setMidiOutput(const String &port)
 {
-    String identifier;
+    MidiDeviceInfo selectedOutput;
     for( const MidiDeviceInfo& midiOutput : MidiOutput::getAvailableDevices() ) {
         if( midiOutput.name == port ) {
-            identifier = midiOutput.identifier;
+            selectedOutput = midiOutput;
             break;
         }
     }
-    audioDeviceManager.setDefaultMidiOutputDevice(identifier);
+    audioDeviceManager.setDefaultMidiOutputDevice(selectedOutput.identifier);
+
+    {
+        const ScopedLock sl(midiPortStateLock);
+        activeMidiOutputName = selectedOutput.name;
+        activeMidiOutputIdentifier = selectedOutput.identifier;
+    }
 
     // propagate port change
     if( uploadWindow && initialMidiScanCounter == 0 && port != String() )
@@ -733,8 +984,10 @@ void MiosStudio::setMidiOutput(const String &port)
     // store setting if MIDI output selected
     if( port != String() ) {
         PropertiesFile *propertiesFile = MiosStudioProperties::getInstance()->getCommonSettings(true);
-        if( propertiesFile )
+        if( propertiesFile ) {
             propertiesFile->setValue(T("midiOut"), port);
+            propertiesFile->setValue(T("midiOutIdentifier"), selectedOutput.identifier);
+        }
     }
 }
 
@@ -970,29 +1223,10 @@ bool MiosStudio::perform(const InvocationInfo& info)
         break;
 
     case rescanDevices:
-        // TK: doesn't always work, therefore some warnings ;-)
-        if( !duggleMode && AlertWindow::showOkCancelBox(AlertWindow::WarningIcon,
-                                         T("Rescan MIDI Devices"),
-                                         T("Please note that the rescan function\nmostly doesn't work properly!\nIt's better to restart MIOS Studio!\n"),
-                                         T("I've no idea what this means"),
-                                         T("Understood")) ) {
-            if( AlertWindow::showOkCancelBox(AlertWindow::WarningIcon,
-                                             T("Rescan MIDI Devices"),
-                                             T("This means that it's better to quit MIOS Studio now, and open it again!\n"),
-                                             T("I've still no idea what this means"),
-                                             T("Understood")) ) {
-                AlertWindow::showOkCancelBox(AlertWindow::WarningIcon,
-                                             T("Rescan MIDI Devices"),
-                                             T("Switched to Newbie Mode:\n"),
-                                             T("Quit"),
-                                             T("Quit"));
-                // ;-)
-                JUCEApplication::quit();
-            }
-        }
-        
         closeMidiPorts();
         initialMidiScanCounter = 1;
+        midiScanRetriesRemaining = 20;
+        Timer::startTimer(250);
         break;
 
     case showSysexTool:

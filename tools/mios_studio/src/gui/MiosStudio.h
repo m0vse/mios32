@@ -16,6 +16,9 @@
 #define _MIOS_STUDIO_H
 
 #include "../includes.h"
+#include <atomic>
+#include <functional>
+#include <memory>
 #include <queue>
 
 #include "UploadWindow.h"
@@ -86,6 +89,12 @@ public:
     String getMidiInput(void);
     void setMidiOutput(const String &port);
     String getMidiOutput(void);
+    String getActiveMidiInput(void);
+    String getActiveMidiOutput(void);
+    bool reconnectMidiPortsForUpload(const String &applicationInput,
+                                     const String &applicationOutput,
+                                     bool connectToBootloader,
+                                     int timeoutMs);
 
     StringArray getMenuBarNames();
     PopupMenu getMenuForIndex(int topLevelMenuIndex, const String& menuName);
@@ -170,7 +179,17 @@ protected:
     Array<uint8> sysexReceiveBuffer;
 
     int initialMidiScanCounter;
+    int midiScanRetriesRemaining;
     bool midiInputCallbackRegistered;
+
+    CriticalSection midiPortStateLock;
+    String activeMidiInputName;
+    String activeMidiInputIdentifier;
+    String activeMidiOutputName;
+    String activeMidiOutputIdentifier;
+
+    bool runMidiPortOperationOnMessageThread(const std::function<void(MiosStudio&)>& operation,
+                                             int timeoutMs);
 
     // the command manager object used to dispatch command events
     ApplicationCommandManager* commandManager;

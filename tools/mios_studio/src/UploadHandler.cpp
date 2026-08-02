@@ -523,6 +523,8 @@ void UploadHandlerThread::run()
     bool viaBootloader = false; // (MIOS8: will be detected, MIOS32: always via bootloader)
     bool tryMios8Bootloader = false; // if step 1) fails
     uint8 deviceId = uploadHandler->getDeviceId();
+    const String applicationMidiInput = miosStudio->getActiveMidiInput();
+    const String applicationMidiOutput = miosStudio->getActiveMidiOutput();
 
 
     //////////////////////////////////////////////////////////////////////////////////////
@@ -731,14 +733,36 @@ void UploadHandlerThread::run()
         mios32RebootRequest = 1;
         sendMios32RebootCore();
 
-        // wait for wakeup from handleIncomingMidiMessage() - timeout after 1 second
-        for(int i=0; mios32RebootRequest && i<10; ++i)
-            wait(10);
+        // The legacy bootloader only waits briefly before returning to the
+        // application, so release the application handles as soon as the
+        // reboot SysEx has been delivered. Retry a cached Windows endpoint if
+        // the first handle was opened while the USB transition was in flight.
+        wait(25);
 
-        if( mios32RebootRequest ) {
-            errorStatusMessage = "MIOS32 Bootloader Mode cannot be entered - try again?";
+        bool bootloaderResponded = false;
+        const uint32 bootloaderDeadline = Time::getMillisecondCounter() + 1900;
+        while( !bootloaderResponded && !threadShouldExit() &&
+               (int32)(bootloaderDeadline - Time::getMillisecondCounter()) > 0 ) {
+            const int remainingMs = (int)(bootloaderDeadline - Time::getMillisecondCounter());
+            if( !miosStudio->reconnectMidiPortsForUpload(applicationMidiInput,
+                                                          applicationMidiOutput,
+                                                          true,
+                                                          jmin(remainingMs, 650)) )
+                continue;
+
+            sendMios32Query(mios32QueryRequest = 1);
+            for(int i=0; mios32QueryRequest && i<4; ++i)
+                wait(100);
+
+            bootloaderResponded = mios32QueryRequest == 0;
+        }
+
+        if( !bootloaderResponded ) {
+            errorStatusMessage = "MIOS32 Bootloader Mode cannot be entered - no response during the bootloader window.";
             return;
         }
+
+        mios32RebootRequest = 0;
     } else if( uploadHandler->hexFileLoader.requiresMios8Reboot &&
                !detectedMios8UploadRequest ) { // note: the !detectedMios8UploadRequest is important for the case that a non-MIOS8 firmware has been installed through the bootloader which doesn't support MIOS8 SysEx (e.g. the midimerger)
         mios8RebootRequest = 1;
@@ -842,13 +866,18 @@ void UploadHandlerThread::run()
         mios32RebootRequest = 1;
         sendMios32RebootCore();
 
-        // wait for wakeup from handleIncomingMidiMessage() - timeout after 1 second
-        wait(1000);
-
-        if( mios32RebootRequest ) {
-            errorStatusMessage = "No response from core after reboot";
+        // The application may enumerate as a new MIDI endpoint. Release the
+        // bootloader handles before Windows removes them, then wait for and
+        // open the application endpoints again.
+        wait(100);
+        if( !miosStudio->reconnectMidiPortsForUpload(applicationMidiInput,
+                                                      applicationMidiOutput,
+                                                      false,
+                                                      10000) ) {
+            errorStatusMessage = "Upload completed, but the application MIDI ports did not reappear.";
             return;
         }
+        mios32RebootRequest = 0;
     } else {
         // application will reboot automatically (unfortunately... this was a bad decition 10 years ago!)
         // we wait for up to 300*10 mS (for the case that multiple replies are received)

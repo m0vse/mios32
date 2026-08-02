@@ -103,18 +103,18 @@ void MidiMonitor::scanMidiDevices(const String& searchPort)
             }
         }
 
-        if( inPort )
-            miosStudio->audioDeviceManager.setMidiInputDeviceEnabled(midiPort.identifier, enabled);
-        else if( enabled )
-            miosStudio->audioDeviceManager.setDefaultMidiOutputDevice(midiPort.identifier);
     }
-    midiPortSelector->setSelectedId(current, true);
+    midiPortSelector->setSelectedId(current, dontSendNotification);
     midiPortSelector->setEnabled(true);
+
+    const String currentPort = current > 0 ? midiPorts.getReference(current - 1).name : String();
+    if( inPort )
+        miosStudio->setMidiInput(currentPort);
+    else
+        miosStudio->setMidiOutput(currentPort);
 
     if( current == -1 ) {
         if( inPort ) {
-            miosStudio->setMidiInput(String());
-
             if( searchPort.length() ) {
                 std::cout << "ERROR: MIDI IN Port '" << searchPort << "' not found!" << std::endl;
                 AlertWindow::showMessageBox(AlertWindow::WarningIcon,
@@ -123,8 +123,6 @@ void MidiMonitor::scanMidiDevices(const String& searchPort)
                                             String());
             }
         } else {
-            miosStudio->setMidiOutput(String());
-
             if( searchPort.length() ) {
                 std::cout << "ERROR: MIDI OUT Port '" << searchPort << "' not found!" << std::endl;
                 AlertWindow::showMessageBox(AlertWindow::WarningIcon,
