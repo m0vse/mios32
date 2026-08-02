@@ -63,7 +63,7 @@
 #include "http-strings.h"
 #include <string.h>
 
-#include <freertos.h>
+#include <FreeRTOS.h>
 
 #define STATE_WAITING 0
 #define STATE_OUTPUT  1
