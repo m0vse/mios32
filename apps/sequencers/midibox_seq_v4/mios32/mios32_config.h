@@ -104,6 +104,13 @@ extern void APP_SendDebugMessage(char *format, ...)
 #endif
 #define PERIOD1MS_LOWPRIO_TASK_STACK_SIZE  1400
 
+// The lwIP software heap does not require the LPC17 AHB bank used by USB DMA.
+// Keeping it in main SRAM makes the otherwise fragmented AHB capacity usable
+// by the FreeRTOS heap instead.
+#if defined(MIOS32_FAMILY_LPC17xx)
+# define MIOS32_LWIP_HEAP_IN_MAIN_SRAM 1
+#endif
+
 // only used by idle task
 #define MIOS32_MINIMAL_STACK_SIZE           384
 #if defined(MIOS32_FAMILY_LPC17xx)
