@@ -136,7 +136,7 @@ void APP_Tick(void){
     if(prescaler % 100 == 0){
         if(prescaler == 1000){
             prescaler = 0;
-            VGM_PerfMon_Second();
+            VGM_PerfMon_Periodic();
             updatescreen = 1;
         }
         switch(sdstate){
@@ -239,11 +239,11 @@ void APP_DIN_NotifyToggle(u32 pin, u32 pin_value){
         tempbuf[i++] = 'g';
         tempbuf[i++] = 'm';
         tempbuf[i++] = 0;
-        VgmSource* vgms = VGM_SourceStream_Create();
-        sources[selgenesis] = vgms;
-        s32 res = VGM_SourceStream_Start(vgms, tempbuf);
+        VgmSource* vgms = NULL;
+        s32 res = VGM_File_Load(tempbuf, &vgms, NULL);
         if(res >= 0){
-            VgmHead* vgmh = VGM_Head_Create(vgms);
+            sources[selgenesis] = vgms;
+            VgmHead* vgmh = VGM_Head_Create(vgms, 0x1000, 0x1000, 0);
             heads[selgenesis] = vgmh;
             VGM_Head_Restart(vgmh, VGM_Player_GetVGMTime());
             for(i=0; i<0xC; ++i){
