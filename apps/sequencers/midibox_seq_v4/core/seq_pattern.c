@@ -199,11 +199,14 @@ s32 SEQ_PATTERN_Handler(void)
   MIOS32_BOARD_LED_Set(0x00000001, 1);
 #endif
 
-  MUTEX_SDCARD_TAKE; // take SD Card Mutex before entering critical section, because within the section we won't get it anymore -> hangup
-  portENTER_CRITICAL();
+  // Pattern data is shared with the MIDI task.  Serialize that task while the
+  // active pattern is updated, but keep interrupts enabled so USB, Ethernet,
+  // timers and the RTOS tick continue to run during SD Card access.
+  MUTEX_SDCARD_TAKE;
+  MUTEX_MIDIOUT_TAKE;
 
   if( seq_pattern_log_load_time ) {
-    MIOS32_STOPWATCH_Reset(); // note: conflicts with SEQ_STATISTICS_Stopwatch, but can be accepted if executed in critical section
+    MIOS32_STOPWATCH_Reset(); // note: conflicts with SEQ_STATISTICS_Stopwatch
   }
 
   for(group=0; group<SEQ_CORE_NUM_GROUPS; ++group) {
@@ -254,7 +257,7 @@ s32 SEQ_PATTERN_Handler(void)
     }
   }
   u32 stopwatch_delta = MIOS32_STOPWATCH_ValueGet();
-  portEXIT_CRITICAL();
+  MUTEX_MIDIOUT_GIVE;
   MUTEX_SDCARD_GIVE;
   
 #if LED_PERFORMANCE_MEASURING
