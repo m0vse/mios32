@@ -1860,6 +1860,7 @@ static s32 FILE_CreateTarRecursive(char *filename, char *src_path, u8 exclude_ta
 
   // create header for new directory
   if( (status=FILE_CreateTarHeader(filename, src_path, 1, 0)) < 0 ) {
+    f_closedir(&di);
     return status;
   }
 
@@ -1888,7 +1889,9 @@ static s32 FILE_CreateTarRecursive(char *filename, char *src_path, u8 exclude_ta
 #if DEBUG_VERBOSE_LEVEL >= 1
 	  DEBUG_MSG("[FILE_CreateTar] Skip %s (same file)\n", full_path);
 #endif
-	} else if( exclude_tar_files && strcasecmp(de.fname, ".TAR") == 0 ) {
+	} else if( exclude_tar_files &&
+	           strrchr(de.fname, '.') != NULL &&
+	           strcasecmp(strrchr(de.fname, '.'), ".TAR") == 0 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
 	  DEBUG_MSG("[FILE_CreateTar] Skip %s\n", full_path);
 #endif
@@ -1900,6 +1903,7 @@ static s32 FILE_CreateTarRecursive(char *filename, char *src_path, u8 exclude_ta
 
 	  // create header for new file
 	  if( (status=FILE_CreateTarHeader(filename, full_path, 0, de.fsize)) < 0 ) {
+	    f_closedir(&di);
 	    return status;
 	  }
 
@@ -1908,12 +1912,12 @@ static s32 FILE_CreateTarRecursive(char *filename, char *src_path, u8 exclude_ta
 #if DEBUG_VERBOSE_LEVEL >= 1
 	    DEBUG_MSG("[FILE_CreateTar] Failed to open %s!\n", full_path);
 #endif
+	    f_closedir(&di);
 	    return FILE_ERR_COPY_NO_FILE;
 	  }
 
 	  UINT successcount;
 	  UINT successcount_wr;
-	  u32 num_bytes = 0;
 	  do {
 	    if( (file_dfs_errno=f_read(&file_read, tmp_buffer, TMP_BUFFER_SIZE, &successcount)) != FR_OK ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
@@ -1921,20 +1925,22 @@ static s32 FILE_CreateTarRecursive(char *filename, char *src_path, u8 exclude_ta
 #endif
 	      successcount = 0;
 	      status = FILE_ERR_READ;
-	    } else if( successcount && (file_dfs_errno=f_write(&file_write, tmp_buffer, successcount, &successcount_wr)) != FR_OK ) {
+	    } else if( successcount &&
+	               ((file_dfs_errno=f_write(&file_write, tmp_buffer, successcount, &successcount_wr)) != FR_OK ||
+	                successcount_wr != successcount) ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
 	      DEBUG_MSG("[FILE_CreateTar] Failed to write sector at position 0x%08x, status: %u\n", file_write.fptr, file_dfs_errno);
 #endif
 	      status = FILE_ERR_WRITE;
-	    } else {
-	      num_bytes += successcount_wr;
 	    }
 	  } while( status == 0 && successcount > 0 );
 
 	  if( status >= 0 && (de.fsize % 512) != 0 ) {
 	    // fill remaining space
+	    UINT padding = 512 - (de.fsize % 512);
 	    memset(tmp_buffer, 0, 512);
-	    if( (file_dfs_errno=f_write(&file_write, tmp_buffer, 512 - (de.fsize % 512), &successcount_wr)) != FR_OK ) {
+	    if( (file_dfs_errno=f_write(&file_write, tmp_buffer, padding, &successcount_wr)) != FR_OK ||
+	        successcount_wr != padding ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
 	      DEBUG_MSG("[FILE_CreateTar] Failed to write sector at position 0x%08x, status: %u\n", file_write.fptr, file_dfs_errno);
 #endif
@@ -1942,7 +1948,8 @@ static s32 FILE_CreateTarRecursive(char *filename, char *src_path, u8 exclude_ta
 	    }
 	  }
 
-	  //f_close(&file_read); // never close read files to avoid "invalid object"
+	  if( f_close(&file_read) != FR_OK && status >= 0 )
+	    status = FILE_ERR_READ;
 
 	  if( status < 0 )
 	    break;
@@ -1951,6 +1958,7 @@ static s32 FILE_CreateTarRecursive(char *filename, char *src_path, u8 exclude_ta
     }
   }
 
+  f_closedir(&di);
   return status;
 }
 
