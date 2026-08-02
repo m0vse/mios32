@@ -104,6 +104,8 @@ u8 ui_store_file_required;
 
 u8 seq_ui_backup_req;
 u8 seq_ui_tar_backup_req;
+volatile u8 seq_ui_tar_backup_percentage;
+char seq_ui_tar_backup_filename[13];
 u8 seq_ui_format_req;
 u8 seq_ui_saveall_req;
 
@@ -187,6 +189,7 @@ static seq_ui_track_setup_t seq_ui_track_setup[SEQ_CORE_NUM_TRACKS];
 /////////////////////////////////////////////////////////////////////////////
 static s32 SEQ_UI_Button_StepViewInc(s32 depressed);
 static s32 SEQ_UI_Button_StepViewDec(s32 depressed);
+static void SEQ_UI_TarBackupDisplay(void);
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -238,6 +241,8 @@ s32 SEQ_UI_Init(u32 mode)
   // misc
   seq_ui_backup_req = 0;
   seq_ui_tar_backup_req = 0;
+  seq_ui_tar_backup_percentage = 0;
+  seq_ui_tar_backup_filename[0] = 0;
   seq_ui_format_req = 0;
   seq_ui_saveall_req = 0;
 
@@ -3000,6 +3005,42 @@ s32 SEQ_UI_REMOTE_MIDI_Keyboard(u8 key, u8 depressed)
 }
 
 
+static void SEQ_UI_TarBackupDisplay(void)
+{
+  SEQ_LCD_Clear();
+  SEQ_LCD_CursorSet(0, 0);
+  SEQ_LCD_PrintString("SD Backup - please wait!!!");
+  SEQ_LCD_CursorSet(0, 1);
+  if( seq_ui_tar_backup_filename[0] )
+    SEQ_LCD_PrintFormattedString("%3d%% %s", seq_ui_tar_backup_percentage, seq_ui_tar_backup_filename);
+  else
+    SEQ_LCD_PrintString("Preparing archive...");
+}
+
+
+void SEQ_UI_TarBackupProgress(const char *filename, u32 copied, u32 total)
+{
+  const char *basename = strrchr(filename, '/');
+  basename = basename ? basename + 1 : filename;
+
+  u8 percentage = total ? (u8)(((unsigned long long)copied * 100) / total) : 100;
+  if( percentage > 100 )
+    percentage = 100;
+
+  u8 redraw = strncmp(seq_ui_tar_backup_filename, basename, sizeof(seq_ui_tar_backup_filename)) != 0 ||
+              (percentage / 5) != (seq_ui_tar_backup_percentage / 5) || percentage == 100;
+
+  strncpy(seq_ui_tar_backup_filename, basename, sizeof(seq_ui_tar_backup_filename)-1);
+  seq_ui_tar_backup_filename[sizeof(seq_ui_tar_backup_filename)-1] = 0;
+  seq_ui_tar_backup_percentage = percentage;
+
+  if( redraw && seq_ui_tar_backup_req ) {
+    SEQ_UI_TarBackupDisplay();
+    SEQ_UI_LCD_Update();
+  }
+}
+
+
 /////////////////////////////////////////////////////////////////////////////
 // Update LCD messages
 // Usually called from background task
@@ -3049,15 +3090,15 @@ s32 SEQ_UI_LCD_Handler(void)
 	SEQ_LCD_LOGO_Print(40, boot_animation_lcd_pos++);
       }
     }
-  } else if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
+  } else if( seq_ui_tar_backup_req ) {
+    SEQ_UI_TarBackupDisplay();
+  } else if( seq_ui_backup_req || seq_ui_format_req ) {
     SEQ_LCD_Clear();
     SEQ_LCD_CursorSet(0, 0);
     //                     <-------------------------------------->
     //                     0123456789012345678901234567890123456789
     if( seq_ui_backup_req )
       SEQ_LCD_PrintString("Copy Files - please wait!!!");
-    else if( seq_ui_tar_backup_req )
-      SEQ_LCD_PrintString("SD Backup - please wait!!!");
     else if( seq_ui_format_req )
       SEQ_LCD_PrintString("Creating Files - please wait!!!");
     else

@@ -297,6 +297,7 @@ extern s32 SEQ_UI_Button_Record(s32 depressed);
 extern s32 SEQ_UI_LED_Handler(void);
 extern s32 SEQ_UI_LED_Handler_Periodic();
 extern s32 SEQ_UI_LCD_Handler(void);
+extern void SEQ_UI_TarBackupProgress(const char *filename, u32 copied, u32 total);
 extern s32 SEQ_UI_MENU_Handler_Periodic();
 
 extern s32 SEQ_UI_PageSet(seq_ui_page_t page);
@@ -534,6 +535,8 @@ extern u8 ui_quicksel_loop_loop[UI_QUICKSEL_NUM_PRESETS];
 
 extern u8 seq_ui_backup_req;
 extern u8 seq_ui_tar_backup_req;
+extern volatile u8 seq_ui_tar_backup_percentage;
+extern char seq_ui_tar_backup_filename[13];
 extern u8 seq_ui_format_req;
 extern u8 seq_ui_saveall_req;
 

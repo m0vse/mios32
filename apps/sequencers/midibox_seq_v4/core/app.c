@@ -183,6 +183,7 @@ void APP_Init(void)
 
   // initial load of filesystem
   SEQ_FILE_Init(0);
+  FILE_TarProgressCallback_Init(SEQ_UI_TarBackupProgress);
 
 #if defined(SEQ_USE_MOD)
   SEQ_Mod_Init(0);
