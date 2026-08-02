@@ -1262,11 +1262,10 @@ s32 SEQ_FILE_C_Write(char *session)
 #endif
 
   s32 status = 0;
-  if( (status=FILE_WriteOpen(filepath, 1)) < 0 ) {
+  if( (status=FILE_WriteOpenAtomic(filepath)) < 0 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
     DEBUG_MSG("[SEQ_FILE_C] Failed to open/create config file, status: %d\n", status);
 #endif
-    FILE_WriteClose(); // important to free memory given by malloc
     info->valid = 0;
     return status;
   }
@@ -1275,7 +1274,7 @@ s32 SEQ_FILE_C_Write(char *session)
   status |= SEQ_FILE_C_Write_Hlp(1);
 
   // close file
-  status |= FILE_WriteClose();
+  status |= FILE_WriteCloseAtomic();
 
 
   // check if file is valid

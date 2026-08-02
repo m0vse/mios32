@@ -394,11 +394,10 @@ extern s32 SEQ_FILE_PRESETS_CreateDefaults(void)
   }
 
   if( FILE_FileExists(SEQ_PRESET_TRKLABEL_PATH) < 1 ) {
-    if( (status=FILE_WriteOpen(SEQ_PRESET_TRKLABEL_PATH, 1)) < 0 ) {
+    if( (status=FILE_WriteOpenAtomic(SEQ_PRESET_TRKLABEL_PATH)) < 0 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
       DEBUG_MSG("[SEQ_FILE_PRESETS] Failed to open/create '" SEQ_PRESET_TRKLABEL_PATH "', status: %d\n", status);
 #endif
-      FILE_WriteClose(); // important to free memory given by malloc
       return SEQ_FILE_PRESETS_ERR_WRITE;
     }
 
@@ -423,7 +422,7 @@ extern s32 SEQ_FILE_PRESETS_CreateDefaults(void)
     }
 
     // close file
-    status |= FILE_WriteClose();
+    status |= FILE_WriteCloseAtomic();
 
 #if DEBUG_VERBOSE_LEVEL >= 1
     if( status < 0 ) {
@@ -436,11 +435,10 @@ extern s32 SEQ_FILE_PRESETS_CreateDefaults(void)
 
 
   if( FILE_FileExists(SEQ_PRESET_TRKCATS_PATH) < 1 ) {
-    if( (status=FILE_WriteOpen(SEQ_PRESET_TRKCATS_PATH, 1)) < 0 ) {
+    if( (status=FILE_WriteOpenAtomic(SEQ_PRESET_TRKCATS_PATH)) < 0 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
       DEBUG_MSG("[SEQ_FILE_PRESETS] Failed to open/create '" SEQ_PRESET_TRKCATS_PATH "', status: %d\n", status);
 #endif
-      FILE_WriteClose(); // important to free memory given by malloc
       return SEQ_FILE_PRESETS_ERR_WRITE;
     }
 
@@ -465,7 +463,7 @@ extern s32 SEQ_FILE_PRESETS_CreateDefaults(void)
     }
 
     // close file
-    status |= FILE_WriteClose();
+    status |= FILE_WriteCloseAtomic();
 
 #if DEBUG_VERBOSE_LEVEL >= 1
     if( status < 0 ) {
@@ -478,11 +476,10 @@ extern s32 SEQ_FILE_PRESETS_CreateDefaults(void)
 
 
   if( FILE_FileExists(SEQ_PRESET_TRKDRUMS_PATH) < 1 ) {
-    if( (status=FILE_WriteOpen(SEQ_PRESET_TRKDRUMS_PATH, 1)) < 0 ) {
+    if( (status=FILE_WriteOpenAtomic(SEQ_PRESET_TRKDRUMS_PATH)) < 0 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
       DEBUG_MSG("[SEQ_FILE_PRESETS] Failed to open/create '" SEQ_PRESET_TRKDRUMS_PATH "', status: %d\n", status);
 #endif
-      FILE_WriteClose(); // important to free memory given by malloc
       return SEQ_FILE_PRESETS_ERR_WRITE;
     }
 
@@ -509,7 +506,7 @@ extern s32 SEQ_FILE_PRESETS_CreateDefaults(void)
     }
 
     // close file
-    status |= FILE_WriteClose();
+    status |= FILE_WriteCloseAtomic();
 
 #if DEBUG_VERBOSE_LEVEL >= 1
     if( status < 0 ) {

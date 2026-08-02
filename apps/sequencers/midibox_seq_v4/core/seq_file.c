@@ -234,12 +234,12 @@ s32 SEQ_FILE_StoreSessionName(void)
   char filepath[30];
 
   sprintf(filepath, "%s/LAST_ONE.V4", SEQ_FILE_SESSION_PATH);
-  status=FILE_WriteOpen(filepath, 1);
+  status=FILE_WriteOpenAtomic(filepath);
   if( status >= 0 ) {
     status = FILE_WriteBuffer((u8 *)seq_file_session_name, strlen(seq_file_session_name));
     if( status >= 0 )
       status = FILE_WriteByte('\n');
-    FILE_WriteClose();
+    status |= FILE_WriteCloseAtomic();
   }
 
   if( status < 0 ) {

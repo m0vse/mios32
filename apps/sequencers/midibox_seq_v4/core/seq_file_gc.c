@@ -945,11 +945,10 @@ s32 SEQ_FILE_GC_Write(void)
 #endif
 
   s32 status = 0;
-  if( (status=FILE_WriteOpen(filepath, 1)) < 0 ) {
+  if( (status=FILE_WriteOpenAtomic(filepath)) < 0 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
     DEBUG_MSG("[SEQ_FILE_GC] Failed to open/create global config file, status: %d\n", status);
 #endif
-    FILE_WriteClose(); // important to free memory given by malloc
     info->valid = 0;
     return status;
   }
@@ -958,7 +957,7 @@ s32 SEQ_FILE_GC_Write(void)
   status |= SEQ_FILE_GC_Write_Hlp(1);
 
   // close file
-  status |= FILE_WriteClose();
+  status |= FILE_WriteCloseAtomic();
 
 
   // check if file is valid

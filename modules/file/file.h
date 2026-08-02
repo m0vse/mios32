@@ -51,6 +51,12 @@ extern "C" {
 #define FILE_ERR_INVALID_SESSION_NAME -24 // FILE_LoadSessionName()
 #define FILE_ERR_UPDATE_FREE      -25 // FILE_UpdateFreeBytes()
 #define FILE_ERR_REMOVE           -26 // FILE_Remove() failed
+#define FILE_ERR_RENAME           -27 // transactional file rename failed
+#define FILE_ERR_PATH_TOO_LONG    -28 // path is too long for a transactional write
+
+#ifndef FILE_ATOMIC_PATH_MAX
+#define FILE_ATOMIC_PATH_MAX      128
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -107,6 +113,8 @@ extern s32 FILE_ReadWord(u32 *word);
 
 extern s32 FILE_WriteOpen(char *filepath, u8 create);
 extern s32 FILE_WriteClose(void);
+extern s32 FILE_WriteOpenAtomic(char *filepath);
+extern s32 FILE_WriteCloseAtomic(void);
 extern s32 FILE_WriteSeek(u32 offset);
 extern u32 FILE_WriteGetCurrentSize(void);
 extern u32 FILE_WriteGetCurrentPosition(void);

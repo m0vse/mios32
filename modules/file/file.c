@@ -110,6 +110,11 @@ typedef struct
 
 static s32 FILE_MountFS(void);
 
+static s32 FILE_AtomicPath(char *destination, const char *filepath, const char *extension);
+static s32 FILE_PathExists(const char *path);
+static s32 FILE_UnlinkIfExists(const char *path);
+static s32 FILE_RecoverAtomicBackup(const char *filepath);
+
 static s32 FILE_CreateTarRecursive(char *filename, char *src_path, u8 exclude_tar_files, u8 depth, u8 max_depth, u32 *num_dirs, u32 *num_files);
 static s32 FILE_CreateTarHeader(char *filename, char *src_path, u8 is_dir, u32 filesize);
 
@@ -132,6 +137,9 @@ static FIL file_read;
 static u8 file_read_is_open; // only for safety purposes
 static FIL file_write;
 static u8 file_write_is_open; // only for safety purposes
+static u8 file_write_is_atomic;
+static s32 file_write_error;
+static char file_write_atomic_target[FILE_ATOMIC_PATH_MAX];
 
 // SD Card status
 static u8 sdcard_available;
@@ -158,6 +166,8 @@ s32 FILE_Init(u32 mode)
 {
   file_read_is_open = 0;
   file_write_is_open = 0;
+  file_write_is_atomic = 0;
+  file_write_error = 0;
   sdcard_available = 0;
   volume_available = 0;
   volume_free_bytes = 0;
@@ -243,6 +253,8 @@ static s32 FILE_MountFS(void)
 
   file_read_is_open = 0;
   file_write_is_open = 0;
+  file_write_is_atomic = 0;
+  file_write_error = 0;
 
   if( (res=f_mount(&fs, "", 1)) != FR_OK ) {
     DEBUG_MSG("[FILE] Failed to mount SD Card - error status: %d\n", res);
@@ -362,6 +374,94 @@ char *FILE_VolumeLabel(void)
 
 
 /////////////////////////////////////////////////////////////////////////////
+//! Creates the temporary or backup path used by transactional writes.
+//! Replacing the existing extension keeps names compatible with FAT 8.3.
+/////////////////////////////////////////////////////////////////////////////
+static s32 FILE_AtomicPath(char *destination, const char *filepath, const char *extension)
+{
+  size_t filepath_len = strlen(filepath);
+  size_t prefix_len = filepath_len;
+  size_t i;
+
+  for(i=filepath_len; i > 0; --i) {
+    char c = filepath[i-1];
+    if( c == '/' || c == '\\' )
+      break;
+    if( c == '.' ) {
+      prefix_len = i-1;
+      break;
+    }
+  }
+
+  size_t extension_len = strlen(extension);
+  if( prefix_len + extension_len >= FILE_ATOMIC_PATH_MAX )
+    return FILE_ERR_PATH_TOO_LONG;
+
+  memcpy(destination, filepath, prefix_len);
+  memcpy(destination + prefix_len, extension, extension_len + 1);
+  return 0;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+//! Returns 1 if a path exists, 0 if it does not, or < 0 on an SD error.
+/////////////////////////////////////////////////////////////////////////////
+static s32 FILE_PathExists(const char *path)
+{
+  FILINFO info;
+  FRESULT result = f_stat(path, &info);
+
+  if( result == FR_OK )
+    return 1;
+  if( result == FR_NO_FILE || result == FR_NO_PATH )
+    return 0;
+
+  file_dfs_errno = result;
+  return FILE_ERR_SD_CARD;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+//! Removes a path, treating an already absent path as success.
+/////////////////////////////////////////////////////////////////////////////
+static s32 FILE_UnlinkIfExists(const char *path)
+{
+  FRESULT result = f_unlink(path);
+  if( result == FR_OK || result == FR_NO_FILE || result == FR_NO_PATH )
+    return 0;
+
+  file_dfs_errno = result;
+  return FILE_ERR_REMOVE;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+//! Restores the last complete file if power was lost between the two renames
+//! of a transactional commit.
+/////////////////////////////////////////////////////////////////////////////
+static s32 FILE_RecoverAtomicBackup(const char *filepath)
+{
+  s32 target_exists = FILE_PathExists(filepath);
+  if( target_exists != 0 )
+    return target_exists < 0 ? target_exists : 0;
+
+  char backup_path[FILE_ATOMIC_PATH_MAX];
+  s32 status = FILE_AtomicPath(backup_path, filepath, ".BAK");
+  if( status < 0 )
+    return status;
+
+  s32 backup_exists = FILE_PathExists(backup_path);
+  if( backup_exists <= 0 )
+    return backup_exists;
+
+  if( (file_dfs_errno=f_rename(backup_path, filepath)) != FR_OK )
+    return FILE_ERR_RENAME;
+
+  return 1;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
 //! opens a file for reading
 //! Note: to save memory, one a single file is allowed to be opened per
 //! time - always use FILE_ReadClose() before opening a new file!
@@ -381,7 +481,12 @@ s32 FILE_ReadOpen(file_t* file, char *filepath)
     return FILE_ERR_OPEN_READ_WITHOUT_CLOSE;
   }
 
-  if( (file_dfs_errno=f_open(&file_read, filepath, FA_OPEN_EXISTING | FA_READ)) != FR_OK ) {
+  file_dfs_errno = f_open(&file_read, filepath, FA_OPEN_EXISTING | FA_READ);
+  if( (file_dfs_errno == FR_NO_FILE || file_dfs_errno == FR_NO_PATH) &&
+      FILE_RecoverAtomicBackup(filepath) > 0 )
+    file_dfs_errno = f_open(&file_read, filepath, FA_OPEN_EXISTING | FA_READ);
+
+  if( file_dfs_errno != FR_OK ) {
 #if DEBUG_VERBOSE_LEVEL >= 2
     DEBUG_MSG("[FILE] Error opening file - try mounting the partition again\n");
 #endif
@@ -394,7 +499,12 @@ s32 FILE_ReadOpen(file_t* file, char *filepath)
       return FILE_ERR_SD_CARD;
     }
 
-    if( (file_dfs_errno=f_open(&file_read, filepath, FA_OPEN_EXISTING | FA_READ)) != FR_OK ) {
+    file_dfs_errno = f_open(&file_read, filepath, FA_OPEN_EXISTING | FA_READ);
+    if( (file_dfs_errno == FR_NO_FILE || file_dfs_errno == FR_NO_PATH) &&
+        FILE_RecoverAtomicBackup(filepath) > 0 )
+      file_dfs_errno = f_open(&file_read, filepath, FA_OPEN_EXISTING | FA_READ);
+
+    if( file_dfs_errno != FR_OK ) {
 #if DEBUG_VERBOSE_LEVEL >= 2
       DEBUG_MSG("[FILE] Still not able to open file - giving up!\n");
 #endif
@@ -679,6 +789,8 @@ s32 FILE_WriteOpen(char *filepath, u8 create)
 
   // remember state
   file_write_is_open = 1;
+  file_write_is_atomic = 0;
+  file_write_error = 0;
 
   return 0; // no error
 }
@@ -697,8 +809,107 @@ s32 FILE_WriteClose(void)
     status = FILE_ERR_WRITECLOSE;
 
   file_write_is_open = 0;
+  file_write_is_atomic = 0;
+  file_write_error = 0;
 
   return status;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+//! Opens a same-directory temporary file for a transactional replacement.
+//! The existing target remains untouched until FILE_WriteCloseAtomic().
+/////////////////////////////////////////////////////////////////////////////
+s32 FILE_WriteOpenAtomic(char *filepath)
+{
+  if( file_write_is_open )
+    return FILE_ERR_OPEN_WRITE_WITHOUT_CLOSE;
+
+  size_t filepath_len = strlen(filepath);
+  if( filepath_len >= FILE_ATOMIC_PATH_MAX )
+    return FILE_ERR_PATH_TOO_LONG;
+
+  s32 status = FILE_RecoverAtomicBackup(filepath);
+  if( status < 0 )
+    return status;
+
+  char temporary_path[FILE_ATOMIC_PATH_MAX];
+  if( (status=FILE_AtomicPath(temporary_path, filepath, ".TMP")) < 0 )
+    return status;
+  if( (status=FILE_UnlinkIfExists(temporary_path)) < 0 )
+    return status;
+
+  if( (status=FILE_WriteOpen(temporary_path, 1)) < 0 )
+    return status;
+
+  memcpy(file_write_atomic_target, filepath, filepath_len + 1);
+  file_write_is_atomic = 1;
+  return 0;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+//! Flushes and commits a transactional write.  The old target is retained as
+//! a backup until the temporary file has been renamed successfully.
+/////////////////////////////////////////////////////////////////////////////
+s32 FILE_WriteCloseAtomic(void)
+{
+  if( !file_write_is_open || !file_write_is_atomic )
+    return FILE_ERR_WRITECLOSE;
+
+  s32 status = file_write_error;
+  if( status >= 0 && (file_dfs_errno=f_sync(&file_write)) != FR_OK )
+    status = FILE_ERR_WRITECLOSE;
+  if( (file_dfs_errno=f_close(&file_write)) != FR_OK && status >= 0 )
+    status = FILE_ERR_WRITECLOSE;
+
+  file_write_is_open = 0;
+  file_write_is_atomic = 0;
+  file_write_error = 0;
+
+  char path[FILE_ATOMIC_PATH_MAX];
+  s32 path_status = FILE_AtomicPath(path, file_write_atomic_target, ".TMP");
+  if( path_status < 0 )
+    return path_status;
+
+  if( status < 0 ) {
+    FILE_UnlinkIfExists(path);
+    return status;
+  }
+
+  char backup_path[FILE_ATOMIC_PATH_MAX];
+  if( (path_status=FILE_AtomicPath(backup_path, file_write_atomic_target, ".BAK")) < 0 ) {
+    FILE_UnlinkIfExists(path);
+    return path_status;
+  }
+
+  if( (status=FILE_UnlinkIfExists(backup_path)) < 0 ) {
+    FILE_UnlinkIfExists(path);
+    return status;
+  }
+
+  s32 target_exists = FILE_PathExists(file_write_atomic_target);
+  if( target_exists < 0 ) {
+    FILE_UnlinkIfExists(path);
+    return target_exists;
+  }
+
+  if( target_exists &&
+      (file_dfs_errno=f_rename(file_write_atomic_target, backup_path)) != FR_OK ) {
+    FILE_UnlinkIfExists(path);
+    return FILE_ERR_RENAME;
+  }
+
+  if( (file_dfs_errno=f_rename(path, file_write_atomic_target)) != FR_OK ) {
+    if( target_exists )
+      f_rename(backup_path, file_write_atomic_target);
+    return FILE_ERR_RENAME;
+  }
+
+  if( target_exists )
+    FILE_UnlinkIfExists(backup_path); // a stale backup is safe and recoverable
+
+  return 0;
 }
 
 
@@ -713,7 +924,8 @@ s32 FILE_WriteSeek(u32 offset)
 #if DEBUG_VERBOSE_LEVEL >= 2
     DEBUG_MSG("[FILE_ReadSeek] ERROR: seek to offset %u failed (FatFs status: %d)\n", offset, file_dfs_errno);
 #endif
-    return FILE_ERR_SEEK;
+    file_write_error = FILE_ERR_SEEK;
+    return file_write_error;
   }
   return 0; // no error
 }
@@ -749,21 +961,25 @@ u32 FILE_WriteGetCurrentPosition(void)
 s32 FILE_WriteBuffer(u8 *buffer, u32 len)
 {
   // exit if volume not available
-  if( !volume_available )
-    return FILE_ERR_NO_VOLUME;
+  if( !volume_available ) {
+    file_write_error = FILE_ERR_NO_VOLUME;
+    return file_write_error;
+  }
 
   UINT successcount;
   if( (file_dfs_errno=f_write(&file_write, buffer, len, &successcount)) != FR_OK ) {
 #if DEBUG_VERBOSE_LEVEL >= 3
     DEBUG_MSG("[FILE] Failed to write buffer, status: %u\n", file_dfs_errno);
 #endif
-    return FILE_ERR_WRITE;
+    file_write_error = FILE_ERR_WRITE;
+    return file_write_error;
   }
   if( successcount != len ) {
 #if DEBUG_VERBOSE_LEVEL >= 3
     DEBUG_MSG("[FILE] Wrong successcount while writing buffer (count: %d)\n", successcount);
 #endif
-    return FILE_ERR_WRITECOUNT;
+    file_write_error = FILE_ERR_WRITECOUNT;
+    return file_write_error;
   }
 
   return 0; // no error
@@ -948,7 +1164,11 @@ s32 FILE_FileExists(char *filepath)
   if( !filepath || !filepath[0] )
     return 0; // empty file name - handle like if it doesn't exist
 
-  if( f_open(&file_read, filepath, FA_OPEN_EXISTING | FA_READ) != FR_OK )
+  file_dfs_errno = f_open(&file_read, filepath, FA_OPEN_EXISTING | FA_READ);
+  if( (file_dfs_errno == FR_NO_FILE || file_dfs_errno == FR_NO_PATH) &&
+      FILE_RecoverAtomicBackup(filepath) > 0 )
+    file_dfs_errno = f_open(&file_read, filepath, FA_OPEN_EXISTING | FA_READ);
+  if( file_dfs_errno != FR_OK )
     return 0; // file doesn't exist
   //f_close(&file_read); // never close read files to avoid "invalid object"
   return 1; // file exists
@@ -1864,6 +2084,8 @@ s32 FILE_SendErrorMessage(s32 error_status)
   case FILE_ERR_MKDIR: DEBUG_MSG("[SDCARD_ERROR:%d] FILE_MakeDir() failed\n", error_status); break;
   case FILE_ERR_INVALID_SESSION_NAME: DEBUG_MSG("[SDCARD_ERROR:%d] FILE_LoadSessionName()\n", error_status); break;
   case FILE_ERR_UPDATE_FREE: DEBUG_MSG("[SDCARD_ERROR:%d] FILE_UpdateFreeBytes()\n", error_status); break;
+  case FILE_ERR_RENAME: DEBUG_MSG("[SDCARD_ERROR:%d] transactional file rename failed\n", error_status); break;
+  case FILE_ERR_PATH_TOO_LONG: DEBUG_MSG("[SDCARD_ERROR:%d] path is too long for a transactional write\n", error_status); break;
 
   default:
     // remaining errors just print the number

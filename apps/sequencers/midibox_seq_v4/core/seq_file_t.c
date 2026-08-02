@@ -881,11 +881,10 @@ s32 SEQ_FILE_T_Write(char *filepath, u8 track)
 #endif
 
   s32 status = 0;
-  if( (status=FILE_WriteOpen(filepath, 1)) < 0 ) {
+  if( (status=FILE_WriteOpenAtomic(filepath)) < 0 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
     DEBUG_MSG("[SEQ_FILE_T] Failed to open/create track preset file, status: %d\n", status);
 #endif
-    FILE_WriteClose(); // important to free memory given by malloc
     return status;
   }
 
@@ -893,7 +892,7 @@ s32 SEQ_FILE_T_Write(char *filepath, u8 track)
   status |= SEQ_FILE_T_Write_Hlp(1, track);
 
   // close file
-  status |= FILE_WriteClose();
+  status |= FILE_WriteCloseAtomic();
 
 
 #if DEBUG_VERBOSE_LEVEL >= 2
