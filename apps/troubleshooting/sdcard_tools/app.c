@@ -558,7 +558,7 @@ void SDCARD_Copy(char* source, char* dest)
 }
 
 
-void SDCARD_Benchmark(num_sectors)
+void SDCARD_Benchmark(u32 num_sectors)
 {
 
   FRESULT res;
@@ -670,7 +670,7 @@ void SDCARD_Benchmark(num_sectors)
 /////////////////////////////////////////////////////////////////////////////
 // Parser
 /////////////////////////////////////////////////////////////////////////////
-void APP_TERMINAL_Parse(mios32_midi_port_t port, u8 byte)
+s32 APP_TERMINAL_Parse(mios32_midi_port_t port, char byte)
 {
   // temporary change debug port (will be restored at the end of this function)
   mios32_midi_port_t prev_debug_port = MIOS32_MIDI_DebugPortGet();
@@ -762,5 +762,5 @@ void APP_TERMINAL_Parse(mios32_midi_port_t port, u8 byte)
   // restore debug port
   MIOS32_MIDI_DebugPortSet(prev_debug_port);
 
-  return;
+  return 0;
 }
