@@ -31,6 +31,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 void ENGINE_init(void);
+u16 ENGINE_trigger(u8 trigger);
 void ENGINE_setEngine(u8 e);
 void ENGINE_setEngineFlags(u16 f);
 void ENGINE_setPitchbend(u8 osc, s16 pb);
@@ -44,6 +45,8 @@ void ENGINE_noteOn(u8 note, u8 vel, u8 steal);
 void ENGINE_setDelayTime(u16 time);
 void ENGINE_setDelayFeedback(u16 feedback);
 void ENGINE_setDelayDownsample(u8 downsample);
+void ENGINE_setChorusTime(u16 time);
+void ENGINE_setChorusFeedback(u16 feedback);
 
 void ENGINE_setOverdrive(u16 od);
 void ENGINE_setXOR(u16 xor);

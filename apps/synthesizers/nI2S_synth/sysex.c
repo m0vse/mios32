@@ -20,6 +20,10 @@
 
 #include "defs.h"
 #include "engine.h"
+#include "drum.h"
+#include "envelope.h"
+#include "filter.h"
+#include "lfo.h"
 #include "app.h"
 #include "sysex.h"
 

@@ -23,6 +23,7 @@
 
 #include "defs.h"
 #include "engine.h"
+#include "envelope.h"
 #include "lfo.h"
 #include "filter.h"
 #include "drum.h"

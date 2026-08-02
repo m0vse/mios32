@@ -15,6 +15,8 @@
 #include <mios32.h>
 #include "drum.h"
 #include "engine.h"
+#include "envelope.h"
+#include "lfo.h"
 #include "tables.h"
 #include "defs.h"
 
