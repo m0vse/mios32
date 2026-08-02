@@ -106,6 +106,11 @@ extern void APP_SendDebugMessage(char *format, ...)
 
 // only used by idle task
 #define MIOS32_MINIMAL_STACK_SIZE           384
+#if defined(MIOS32_FAMILY_LPC17xx)
+// The measured idle-task high-water mark used 112 of 384 bytes. Keep more
+// than one additional measured stack footprint as margin.
+# define MIOS32_APP_BACKGROUND_STACK_SIZE   256
+#endif
 
 
 // Keep TinyUSB's event queue and mutexes, plus the FreeRTOS idle task, out of
