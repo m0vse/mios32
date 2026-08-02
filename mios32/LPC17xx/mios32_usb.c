@@ -30,6 +30,7 @@
 #include <string.h>
 #if defined(MIOS32_USB_USE_TINYUSB)
 #include <tusb.h>
+#include <device/dcd.h>
 #else
 #include <usbapi.h>
 #endif
@@ -945,6 +946,8 @@ s32 MIOS32_USB_Init(u32 mode)
       xTaskGetCurrentTaskHandle() != tinyusb_task_handle )
     return -5;
 
+  const u8 inherited_usb_connection = !tusb_inited() && MIOS32_USB_IsInitialized();
+
   // Runtime replacement of TinyUSB's class hooks is not supported. Mass
   // storage remains on the legacy stack until it is migrated separately.
   if( mode == 2 )
@@ -969,6 +972,14 @@ s32 MIOS32_USB_Init(u32 mode)
   LPC_SC->PCONP |= (1UL << 31);
   LPC_USB->USBClkCtrl = 0x1a;
   while( (LPC_USB->USBClkSt & 0x1a) != 0x1a );
+
+  // A legacy bootloader leaves the controller connected when it branches to
+  // the application. TinyUSB has no corresponding software state after the
+  // application's C runtime starts, so force a clean host re-enumeration.
+  if( inherited_usb_connection ) {
+    dcd_disconnect(0);
+    MIOS32_DELAY_Wait_uS(20000);
+  }
 
   const tusb_rhport_init_t rhport_init = {
     .role = TUSB_ROLE_DEVICE,

@@ -26,6 +26,10 @@
 
 #include <sbl_iap.h>
 
+#if defined(MIOS32_USB_USE_TINYUSB)
+#include <tusb.h>
+#endif
+
 // this module can be optionally disabled in a local mios32_config.h file (included from mios32.h)
 #if !defined(MIOS32_DONT_USE_SYS)
 
@@ -194,6 +198,16 @@ s32 MIOS32_SYS_Init(u32 mode)
 /////////////////////////////////////////////////////////////////////////////
 s32 MIOS32_SYS_Reset(void)
 {
+#if defined(MIOS32_USB_USE_TINYUSB)
+  // The legacy bootloader uses a different USB stack and endpoint map. Give
+  // the host a real disconnect before the core-only reset so that it releases
+  // the TinyUSB application endpoints and enumerates the bootloader cleanly.
+  if( tusb_inited() ) {
+    tud_disconnect();
+    MIOS32_DELAY_Wait_uS(20000);
+  }
+#endif
+
   // disable all RTOS tasks
 #ifndef MIOS32_DONT_USE_FREERTOS
   portENTER_CRITICAL(); // port specific FreeRTOS function to disable tasks (nested)
