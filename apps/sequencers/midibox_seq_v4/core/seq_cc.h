@@ -254,6 +254,7 @@ typedef struct {
 
   u8       robotize_note:4;    // robotize note range
   u8       robotize_oct:3;    // robotize octave range
+  u8       robotize_active:1; // Is robotize activated?
   u8       robotize_vel;    // robotize velocity range
   u8       robotize_len;    // robotize length range
   u8       robotize_probability:5;    // overal robotize probability
@@ -268,7 +269,6 @@ typedef struct {
   u8       robotize_echo_probability:5;    // robotize length probability
   u8       robotize_duplicate_probability:5;    // robotize length probability
 
-  u8		robotize_active; // Is robotize activated?
   u8		robotize_mask1; // robotize step mask...  Applies robotize on selected steps of a measure.  16 bits representing 16 steps, divided into two variables.
   u8		robotize_mask2; // robotize step mask...  Applies robotize on selected steps of a measure.  16 bits representing 16 steps, divided into two variables.
   

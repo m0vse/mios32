@@ -144,7 +144,11 @@ s32 SEQ_TRG_NumStepsGet(u8 track)
 /////////////////////////////////////////////////////////////////////////////
 s32 SEQ_TRG_AssignmentGet(u8 track, u8 trg_num)
 {
-  return (seq_cc_trk[track].trg_assignments.ALL >> (trg_num*4)) & 0xf;
+  if( trg_num >= SEQ_TRG_ASG_NUM )
+    return 0;
+
+  u8 assignments = seq_cc_trk[track].trg_assignments.ALL[trg_num / 2];
+  return (assignments >> ((trg_num & 1) * 4)) & 0xf;
 }
 
 
@@ -389,20 +393,15 @@ char *SEQ_TRG_TypeStr(u8 trg_num)
 /////////////////////////////////////////////////////////////////////////////
 char *SEQ_TRG_AssignedTypeStr(u8 track, u8 trg_layer)
 {
-  unsigned long long trg_assignments = seq_cc_trk[track].trg_assignments.ALL;
-  unsigned long long pattern = trg_layer+1;
-  unsigned long long mask = 0xf;
   int assigned = -1;
   int num = 0;
 
   int i;
   for(i=0; i<SEQ_TRG_ASG_NUM; ++i) {
-    if( (trg_assignments & mask) == pattern ) {
+    if( SEQ_TRG_AssignmentGet(track, i) == (trg_layer + 1) ) {
       assigned = i;
       ++num;
     }
-    mask <<= 4ULL;
-    pattern <<= 4ULL;
   }
 
   if( !num )

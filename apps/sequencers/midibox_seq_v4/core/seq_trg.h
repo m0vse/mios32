@@ -35,19 +35,17 @@
 /////////////////////////////////////////////////////////////////////////////
 
 typedef union {
+  u8 ALL[(SEQ_TRG_ASG_NUM + 1) / 2];
   struct {
-    unsigned long long ALL;
-  };
-  struct {
-    unsigned long long gate:4;
-    unsigned long long accent:4;
-    unsigned long long roll:4;
-    unsigned long long glide:4;
-    unsigned long long skip:4;
-    unsigned long long random_gate:4;
-    unsigned long long random_value:4;
-    unsigned long long no_fx:4;
-    unsigned long long roll_gate:4;
+    u8 gate:4;
+    u8 accent:4;
+    u8 roll:4;
+    u8 glide:4;
+    u8 skip:4;
+    u8 random_gate:4;
+    u8 random_value:4;
+    u8 no_fx:4;
+    u8 roll_gate:4;
   };
 } seq_trg_assignments_t;
 
