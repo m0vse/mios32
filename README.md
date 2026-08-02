@@ -1,5 +1,8 @@
 # MIOS32 modernization fork
 
+[![Firmware](https://github.com/m0vse/mios32/actions/workflows/firmware.yml/badge.svg)](https://github.com/m0vse/mios32/actions/workflows/firmware.yml)
+[![MIOS Studio](https://github.com/m0vse/mios32/actions/workflows/mios-studio.yml/badge.svg)](https://github.com/m0vse/mios32/actions/workflows/mios-studio.yml)
+
 This repository contains the MIOS32 platform and the MIDIbox applications built
 on it. This fork is modernizing that codebase so that it remains practical to
 build, maintain, and run with current embedded and desktop toolchains.
@@ -87,6 +90,17 @@ primary embedded entry points, while MIOS Studio now also has a CMake/Visual
 Studio 2022 build in [`tools/mios_studio/`](tools/mios_studio/). Until the
 documentation is consolidated, consult the README and makefile alongside the
 specific application or tool you are building.
+
+GitHub Actions discovers every embedded application Makefile and builds only
+the affected applications for normal changes. Changes to shared MIOS32 code,
+drivers, modules, FreeRTOS, or build infrastructure expand that check to the
+complete application set on LPC17xx, STM32F1, and STM32F4 where supported.
+MIOS Studio is built with JUCE on Windows, Linux, and macOS.
+
+Successful main-branch builds of release applications produce independently
+versioned GitHub Releases. Tags include the application name, for example
+`midibox_seq_v4-v4.099` and `mios_studio-v2.4.10`; tutorials and tests are
+continuously built without creating end-user releases.
 
 Embedded changes should be checked for both STM32 and LPC17xx where applicable.
 For MIDIbox SEQ V4, compile/link success should be followed by hardware checks
