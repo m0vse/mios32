@@ -210,6 +210,26 @@ s32 SEQ_MIDIMP_ReadFile(char *path)
     DEBUG_MSG("[SEQ_MIDIMP_ReadFile] opened '%s' of length %u\n", path, midifile_len);
 #endif
 
+    // Reserve the complete parser table before modifying destination tracks.
+    // The allocation is retained and reused by subsequent imports/playback.
+    status = MID_PARSER_TrackStorageEnsure();
+    if( status < 0 ) {
+      midifile_path[0] = 0;
+      FILE_ReadClose(&midifile_fi);
+      MUTEX_SDCARD_GIVE;
+      if( status == MID_PARSER_ERR_NO_MEMORY )
+        SEQ_UI_Msg(SEQ_UI_MSG_USER, 3000, "MIDI parser memory", "not available!");
+      return status;
+    }
+
+    // Validate and index the MIDI file before modifying destination tracks.
+    status = MID_PARSER_Read();
+    if( status < 0 ) {
+      FILE_ReadClose(&midifile_fi);
+      MUTEX_SDCARD_GIVE;
+      return status;
+    }
+
     // initialize all mbseq tracks which should be overwritten
     // TODO: currently no dedicated track can be imported
     u8 track;
@@ -278,9 +298,6 @@ s32 SEQ_MIDIMP_ReadFile(char *path)
     track_offset = 0;
     first_track_with_events = -1;
 
-    // read midifile
-    MID_PARSER_Read();
-
     // fetch all events
     u32 tick;
     s32 fetch_status;
@@ -299,7 +316,12 @@ s32 SEQ_MIDIMP_ReadFile(char *path)
     track_offset = (first_track_with_events >= 0) ? first_track_with_events : 0;
 
     // read midifile
-    MID_PARSER_Read();
+    status = MID_PARSER_Read();
+    if( status < 0 ) {
+      FILE_ReadClose(&midifile_fi);
+      MUTEX_SDCARD_GIVE;
+      return status;
+    }
 
     // fetch all events
     for(tick=0, fetch_status=1; tick < max_ticks && fetch_status > 0; ++tick)

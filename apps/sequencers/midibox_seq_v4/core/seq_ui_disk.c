@@ -16,6 +16,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 #include <mios32.h>
+#include <mid_parser.h>
 #include <string.h>
 
 #include "tasks.h"
@@ -1017,6 +1018,8 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 	      MUTEX_MIDIOUT_GIVE;
 	      if( status >= 0 )
 		SEQ_UI_Msg(SEQ_UI_MSG_USER, 1000, "Playing:", SEQ_MIDPLY_PathGet());
+	      else if( status == MID_PARSER_ERR_NO_MEMORY )
+		SEQ_UI_Msg(SEQ_UI_MSG_USER, 3000, "MIDI parser memory", "not available!");
 	      else
 		SEQ_UI_SDCardErrMsg(2000, status);
 	    }
@@ -1057,6 +1060,8 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 
 	    if( status >= 0 )
 	      SEQ_UI_Msg(SEQ_UI_MSG_USER, 1000, "Imported:", path);
+	    else if( status == MID_PARSER_ERR_NO_MEMORY )
+	      SEQ_UI_Msg(SEQ_UI_MSG_USER, 3000, "MIDI parser memory", "not available!");
 	    else
 	      SEQ_UI_SDCardErrMsg(2000, status);
 	  }

@@ -65,7 +65,11 @@ static u16 midifile_format;
 static u16 midifile_ppqn;
 
 static u8 midi_tracks_num;
+#if MID_PARSER_USE_MALLOC
+static midi_track_t *midi_tracks;
+#else
 static midi_track_t midi_tracks[MID_PARSER_MAX_TRACKS];
+#endif
 
 static u8 meta_buffer[MID_PARSER_META_BUFFER_SIZE];
 
@@ -127,6 +131,22 @@ s32 MID_PARSER_FileIsValid(void)
 /////////////////////////////////////////////////////////////////////////////
 // Opens a .mid file and parses for available header/track chunks
 /////////////////////////////////////////////////////////////////////////////
+s32 MID_PARSER_TrackStorageEnsure(void)
+{
+#if MID_PARSER_USE_MALLOC
+  if( midi_tracks == NULL ) {
+    midi_tracks = pvPortMalloc(sizeof(*midi_tracks) * MID_PARSER_MAX_TRACKS);
+    if( midi_tracks == NULL ) {
+      DEBUG_MSG("[MID_PARSER] unable to allocate %u-byte track table\n",
+                (unsigned)(sizeof(*midi_tracks) * MID_PARSER_MAX_TRACKS));
+      return MID_PARSER_ERR_NO_MEMORY;
+    }
+  }
+#endif
+
+  return 0;
+}
+
 s32 MID_PARSER_Read(void)
 {
   u8 chunk_type[4];
@@ -139,6 +159,10 @@ s32 MID_PARSER_Read(void)
       mid_parser_eof_callback == NULL ||
       mid_parser_seek_callback == NULL )
     return -1; // missing callback functions
+
+  s32 storage_status = MID_PARSER_TrackStorageEnsure();
+  if( storage_status < 0 )
+    return storage_status;
 
 #if DEBUG_VERBOSE_LEVEL >= 1
   DEBUG_MSG("[MID_PARSER] reading file\n\r");

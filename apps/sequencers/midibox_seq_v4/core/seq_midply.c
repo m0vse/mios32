@@ -277,12 +277,17 @@ s32 SEQ_MIDPLY_ReadFile(char *path)
 #endif
 
     // read midifile
-    MID_PARSER_Read();
-
-    // reset sequencer
-    loop_range = 0;
-    loop_offset = 0;
-    SEQ_MIDPLY_Reset();
+    status = MID_PARSER_Read();
+    if( status < 0 ) {
+      midifile_path[0] = 0;
+      if( status == MID_PARSER_ERR_NO_MEMORY )
+        SEQ_UI_Msg(SEQ_UI_MSG_USER, 3000, "MIDI parser memory", "not available!");
+    } else {
+      // reset sequencer
+      loop_range = 0;
+      loop_offset = 0;
+      SEQ_MIDPLY_Reset();
+    }
   }
 
   MUTEX_MIDIOUT_GIVE;

@@ -130,6 +130,7 @@ extern void APP_SendDebugMessage(char *format, ...)
 #if defined(MIOS32_FAMILY_LPC17xx) && defined(MIOS32_USB_USE_TINYUSB)
 # define configSUPPORT_STATIC_ALLOCATION 1
 # define MBSEQ_LAZY_CLIPBOARD 1
+# define MID_PARSER_USE_MALLOC 1
 #endif
 
 

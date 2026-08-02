@@ -27,6 +27,8 @@
 #define MID_PARSER_META_BUFFER_SIZE 80
 #endif
 
+#define MID_PARSER_ERR_NO_MEMORY -2
+
 
 /////////////////////////////////////////////////////////////////////////////
 // Global Types
@@ -43,6 +45,7 @@ extern s32 MID_PARSER_InstallEventCallbacks(void *mid_parser_playevent, void *mi
 
 extern s32 MID_PARSER_FileIsValid(void);
 
+extern s32 MID_PARSER_TrackStorageEnsure(void);
 extern s32 MID_PARSER_Read(void);
 extern s32 MID_PARSER_FetchEvents(u32 tick_offset, u32 num_ticks);
 extern s32 MID_PARSER_RestartSong(void);
