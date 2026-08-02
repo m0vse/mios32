@@ -87,10 +87,12 @@
 /////////////////////////////////////////////////////////////////////////////
 u8 app_din_testmode;
 
+#ifndef MBSEQV4L
 static volatile u8 tar_backup_result_pending;
 static volatile s32 tar_backup_result;
 static volatile u8 tar_backup_fatfs_error;
 static volatile u8 tar_backup_result_valid;
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -129,8 +131,10 @@ void APP_Init(void)
 
   // disable DIN test mode by default
   app_din_testmode = 0;
+#ifndef MBSEQV4L
   tar_backup_result_pending = 0;
   tar_backup_result_valid = 0;
+#endif
 
 #ifdef MBSEQV4L
   // MBSEQV4L: set default port to 0xc0: multiple outputs
@@ -190,7 +194,9 @@ void APP_Init(void)
 
   // initial load of filesystem
   SEQ_FILE_Init(0);
+#ifndef MBSEQV4L
   FILE_TarProgressCallback_Init(SEQ_UI_TarBackupProgress);
+#endif
 
 #if defined(SEQ_USE_MOD)
   SEQ_Mod_Init(0);
@@ -237,6 +243,7 @@ void APP_Background(void)
 /////////////////////////////////////////////////////////////////////////////
 // Queue a whole-card backup without making the MIDI terminal execute it.
 /////////////////////////////////////////////////////////////////////////////
+#ifndef MBSEQV4L
 s32 APP_TarBackupStart(void)
 {
   if( seq_ui_tar_backup_req )
@@ -269,6 +276,7 @@ s32 APP_TarBackupLastResultGet(s32 *result)
     *result = tar_backup_result;
   return 1;
 }
+#endif
 
 
 #ifndef MIOS32_FAMILY_EMULATION
@@ -636,6 +644,7 @@ void SEQ_TASK_Period1mS(void)
 void SEQ_TASK_Period1mS_LowPrio(void)
 {
 #if MEASURE_IDLE_CTR == 0
+#ifndef MBSEQV4L
   if( tar_backup_result_pending ) {
     s32 status = tar_backup_result;
     u8 fatfs_error = tar_backup_fatfs_error;
@@ -654,6 +663,7 @@ void SEQ_TASK_Period1mS_LowPrio(void)
       DEBUG_MSG("SD card TAR backup completed successfully.\n");
     }
   }
+#endif
 
   // call LCD Handler
   SEQ_UI_LCD_Handler();
@@ -713,8 +723,10 @@ void SEQ_TASK_Period1S(void)
 
   // A dedicated worker owns the SD card during TAR creation.  Do not let this
   // periodic LCD/UI task block indefinitely behind it on the SD mutex.
+#ifndef MBSEQV4L
   if( seq_ui_tar_backup_req )
     return;
+#endif
 
   // check if SD Card connected
   MUTEX_SDCARD_TAKE;
@@ -933,6 +945,7 @@ void SEQ_TASK_Period1S(void)
 // while the SD mutex is held; completion UI and console output are deferred to
 // the normal low-priority task.
 /////////////////////////////////////////////////////////////////////////////
+#ifndef MBSEQV4L
 void SEQ_TASK_TarBackup(void)
 {
   MUTEX_SDCARD_TAKE;
@@ -946,6 +959,7 @@ void SEQ_TASK_TarBackup(void)
   seq_ui_tar_backup_req = 0;
   tar_backup_result_pending = 1;
 }
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////

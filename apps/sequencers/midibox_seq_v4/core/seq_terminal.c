@@ -82,6 +82,12 @@ extern void vPortMallocDebugInfo(void);
 
 #define STRING_MAX 100 // recommended size for file transfers via FILE_BrowserHandler()
 
+#ifndef MBSEQV4L
+#define SEQ_TERMINAL_TAR_BACKUP_ACTIVE() (seq_ui_tar_backup_req)
+#else
+#define SEQ_TERMINAL_TAR_BACKUP_ACTIVE() 0
+#endif
+
 
 /////////////////////////////////////////////////////////////////////////////
 // Local variables
@@ -709,7 +715,7 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
       SEQ_UI_Button_Stop(0);
       out("Sequencer stopped...");
     } else if( strcmp(parameter, "store") == 0 || (strcmp(parameter, "save") == 0 && strlen(brkt) == 0) ) {
-      if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
+      if( seq_ui_backup_req || SEQ_TERMINAL_TAR_BACKUP_ACTIVE() || seq_ui_format_req ) {
 	out("Ongoing session creation - please wait!");
       } else if( strlen(brkt) ) {
 	out("ERROR: use 'save' if you want to store the session under a new name!");
@@ -718,7 +724,7 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
 	out("Storing complete session on SD Card: /SESSIONS/%s\n", seq_file_session_name);
       }
     } else if( strcmp(parameter, "new") == 0 || strcmp(parameter, "saveas") == 0 || strcmp(parameter, "save") == 0 ) {
-      if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
+      if( seq_ui_backup_req || SEQ_TERMINAL_TAR_BACKUP_ACTIVE() || seq_ui_format_req ) {
 	out("Ongoing session creation - please wait!");
       } else {
 	MUTEX_SDCARD_TAKE;
@@ -769,7 +775,7 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
 	MUTEX_SDCARD_GIVE;
       }
     } else if( strcmp(parameter, "open") == 0 || strcmp(parameter, "load") == 0 ) {
-      if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
+      if( seq_ui_backup_req || SEQ_TERMINAL_TAR_BACKUP_ACTIVE() || seq_ui_format_req ) {
 	out("Ongoing session creation - please wait!");
       } else {
 	MUTEX_SDCARD_TAKE;
@@ -810,7 +816,7 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
 	MUTEX_SDCARD_GIVE;
       }
     } else if( strcmp(parameter, "delete") == 0 ) {
-      if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
+      if( seq_ui_backup_req || SEQ_TERMINAL_TAR_BACKUP_ACTIVE() || seq_ui_format_req ) {
 	out("Ongoing session creation - please wait!");
       } else {
 	MUTEX_SDCARD_TAKE;
@@ -837,6 +843,7 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
 	}
 	MUTEX_SDCARD_GIVE;
       }
+#ifndef MBSEQV4L
     } else if( strcmp(parameter, "backup") == 0 ) {
       if( seq_ui_tar_backup_req ) {
 	out("SD card TAR backup: %d%% %s", seq_ui_tar_backup_percentage,
@@ -869,12 +876,13 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
 	  out("No SD card TAR backup is currently running.");
 	}
       }
+#endif
     } else if( strcmp(parameter, "dbg_record") == 0 ) {
       SEQ_RECORD_DebugActiveNotes();
     } else if( strcmp(parameter, "session") == 0 ) {
       out("Current session: %s", seq_file_session_name);
     } else if( strcmp(parameter, "sessions") == 0 ) {
-      if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
+      if( seq_ui_backup_req || SEQ_TERMINAL_TAR_BACKUP_ACTIVE() || seq_ui_format_req ) {
 	out("Ongoing session creation - please wait!");
       } else {
 	MUTEX_SDCARD_TAKE;
@@ -904,7 +912,7 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
 	MUTEX_SDCARD_GIVE;
       }
     } else if( strcmp(parameter, "restore") == 0 ) {
-      if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
+      if( seq_ui_backup_req || SEQ_TERMINAL_TAR_BACKUP_ACTIVE() || seq_ui_format_req ) {
 	out("Ongoing session creation - please wait!");
       } else if( strlen(brkt) ) {
 	out("ERROR: use 'open' if you want to load a specific session!");
@@ -991,8 +999,10 @@ s32 SEQ_TERMINAL_PrintHelp(void *_output_function)
   out("  saveas <name>:  saves the current session under a new name");
   out("  new <name>:     creates a new session");
   out("  delete <name>:  deletes a session");
+#ifndef MBSEQV4L
   out("  backup:         creates a .tar file of the entire SD card");
   out("  backup_status:  reports TAR backup progress without starting one");
+#endif
   out("  session:        prints the current session name");
   out("  sessions:       prints all available sessions");
   out("  dbg_record:     prints active notes which are recorded");

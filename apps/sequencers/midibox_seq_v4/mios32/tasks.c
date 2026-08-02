@@ -60,6 +60,7 @@ SemaphoreHandle_t xJ16Semaphore;
 #define PRIORITY_TASK_MIDI		 ( tskIDLE_PRIORITY + 4 )
 #define PRIORITY_TASK_PERIOD1MS		 ( tskIDLE_PRIORITY + 2 )
 #define PRIORITY_TASK_PERIOD1MS_LOW_PRIO ( tskIDLE_PRIORITY + 2 )
+#ifndef MBSEQV4L
 #define PRIORITY_TASK_TAR_BACKUP          ( tskIDLE_PRIORITY + 1 )
 
 // xTaskCreate() allocates the TCB and stack separately.  Refuse to start a
@@ -67,6 +68,7 @@ SemaphoreHandle_t xJ16Semaphore;
 // reserve.  This avoids invoking the application's fatal malloc hook.
 #define TAR_BACKUP_TASK_ALLOCATION_OVERHEAD 256
 #define TAR_BACKUP_TASK_MIN_HEAP_RESERVE    512
+#endif
 
 // priority of lwIP task defined in lwip_task.c (-> using 3)
 
@@ -77,7 +79,9 @@ SemaphoreHandle_t xJ16Semaphore;
 static void TASK_MIDI(void *pvParameters);
 static void TASK_Period1mS(void *pvParameters);
 static void TASK_Period1mS_LowPrio(void *pvParameters);
+#ifndef MBSEQV4L
 static void TASK_TarBackup(void *pvParameters);
+#endif
 static void TASKS_WatchdogCheck(void);
 static void TASKS_WatchdogHardwareInit(void);
 static void TASKS_WatchdogHardwareFeed(void);
@@ -94,7 +98,9 @@ static volatile u32 watchdog_missing_mask;
 static volatile TickType_t watchdog_suspend_until;
 static volatile u8 watchdog_suspend_depth;
 static u8 watchdog_enabled;
+#ifndef MBSEQV4L
 static TaskHandle_t tar_backup_task;
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -102,6 +108,7 @@ static TaskHandle_t tar_backup_task;
 // of the permanent task set because LPC17 has limited heap.  FreeRTOS reclaims
 // its stack and TCB through the idle task after it deletes itself.
 /////////////////////////////////////////////////////////////////////////////
+#ifndef MBSEQV4L
 s32 TASKS_TarBackupStart(void)
 {
   if( tar_backup_task != NULL )
@@ -137,6 +144,7 @@ static void TASK_TarBackup(void *pvParameters)
   taskEXIT_CRITICAL();
   vTaskDelete(NULL);
 }
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////
