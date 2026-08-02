@@ -1,0 +1,176 @@
+name: Firmware
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "apps/**"
+      - "bin/**"
+      - "bootloader/**"
+      - "drivers/**"
+      - "etc/**"
+      - "FreeRTOS/**"
+      - "include/**"
+      - "mios32/**"
+      - "modules/**"
+      - "programming_models/**"
+      - "source_me_*"
+      - ".github/ci/firmware*"
+      - ".github/ci/release.py"
+      - ".github/workflows/firmware.yml"
+  pull_request:
+    paths:
+      - "apps/**"
+      - "bin/**"
+      - "bootloader/**"
+      - "drivers/**"
+      - "etc/**"
+      - "FreeRTOS/**"
+      - "include/**"
+      - "mios32/**"
+      - "modules/**"
+      - "programming_models/**"
+      - "source_me_*"
+      - ".github/ci/firmware*"
+      - ".github/ci/release.py"
+      - ".github/workflows/firmware.yml"
+  workflow_dispatch:
+    inputs:
+      build_all:
+        description: Build every discovered firmware application
+        required: true
+        type: boolean
+        default: true
+      publish:
+        description: Publish application-scoped releases after successful builds
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firmware-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  select:
+    name: Select applications
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.select.outputs.apps }}
+      app_count: ${{ steps.select.outputs.app_count }}
+      has_apps: ${{ steps.select.outputs.has_apps }}
+      release_matrix: ${{ steps.select.outputs.release_matrix }}
+      has_releases: ${{ steps.select.outputs.has_releases }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: select
+        name: Resolve changed applications
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          FORCE_ALL: ${{ github.event_name == 'workflow_dispatch' && inputs.build_all || false }}
+        run: |
+          args=()
+          if [[ "$FORCE_ALL" == "true" ]]; then
+            args+=(--all)
+          fi
+          python3 .github/ci/firmware.py select \
+            --base "$BASE_SHA" \
+            --head "$GITHUB_SHA" \
+            "${args[@]}"
+
+  build:
+    name: ${{ matrix.platform }} (${{ needs.select.outputs.app_count }} selected)
+    needs: select
+    if: needs.select.outputs.has_apps == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [lpc17, stm32, stm32f4]
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Arm GNU Toolchain 15.2.Rel1
+        uses: carlosperate/arm-none-eabi-gcc-action@v1.12.3
+        with:
+          release: 15.2.Rel1
+      - name: Show toolchain version
+        run: arm-none-eabi-gcc --version
+      - name: Build selected applications
+        env:
+          MIOS32_CI_APPS: ${{ needs.select.outputs.apps }}
+        run: python3 .github/ci/firmware.py build --platform "${{ matrix.platform }}"
+      - name: Upload firmware artifacts
+        if: always() && hashFiles('dist/firmware/**') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: firmware-${{ matrix.platform }}
+          path: dist/firmware
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Release ${{ matrix.id }}
+    needs: [select, build]
+    if: >-
+      needs.select.outputs.has_releases == 'true' &&
+      ((github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+       (github.event_name == 'workflow_dispatch' && inputs.publish))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.select.outputs.release_matrix) }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Download firmware artifacts
+        uses: actions/download-artifact@v7
+        with:
+          pattern: firmware-*
+          path: dist/firmware
+          merge-multiple: true
+      - name: Calculate application version
+        id: version
+        shell: bash
+        run: |
+          git fetch --tags --force
+          version="$(python3 .github/ci/release.py next-version \
+            --app '${{ matrix.id }}' \
+            --base '${{ matrix.base_version }}' \
+            --commit "$GITHUB_SHA")"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=${{ matrix.id }}-v$version" >> "$GITHUB_OUTPUT"
+      - name: Package release
+        shell: bash
+        run: |
+          python3 .github/ci/release.py package-firmware \
+            --app '${{ matrix.id }}' \
+            --version '${{ steps.version.outputs.version }}' \
+            --commit "$GITHUB_SHA"
+      - name: Create or update GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          APP_ID: ${{ matrix.id }}
+        run: |
+          archive="dist/releases/${APP_ID}-v${VERSION}.zip"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$archive" --clobber
+          else
+            gh release create "$TAG" "$archive" \
+              --target "$GITHUB_SHA" \
+              --title "${APP_ID} v${VERSION}" \
+              --notes "Automated ${APP_ID} release from commit ${GITHUB_SHA}."
+          fi
