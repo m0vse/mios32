@@ -40,7 +40,7 @@ void APP_Init(void){
     
     //Create a queue for the VGM events our MIDI events spawn
     qsource = VGM_SourceQueue_Create();
-    qhead = VGM_Head_Create(qsource);
+    qhead = VGM_Head_Create(qsource, 0x1000, 0x1000, 0);
     qhead->playing = 1;
     
     //Send test patch to initialize voice 1
