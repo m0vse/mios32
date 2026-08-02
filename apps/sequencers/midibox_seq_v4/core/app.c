@@ -90,6 +90,7 @@ u8 app_din_testmode;
 static volatile u8 tar_backup_result_pending;
 static volatile s32 tar_backup_result;
 static volatile u8 tar_backup_fatfs_error;
+static volatile u8 tar_backup_result_valid;
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -129,6 +130,7 @@ void APP_Init(void)
   // disable DIN test mode by default
   app_din_testmode = 0;
   tar_backup_result_pending = 0;
+  tar_backup_result_valid = 0;
 
 #ifdef MBSEQV4L
   // MBSEQV4L: set default port to 0xc0: multiple outputs
@@ -242,6 +244,7 @@ s32 APP_TarBackupStart(void)
 
   seq_ui_tar_backup_percentage = 0;
   seq_ui_tar_backup_filename[0] = 0;
+  tar_backup_result_valid = 0;
   seq_ui_tar_backup_req = 1;
 
 #ifndef MIOS32_FAMILY_EMULATION
@@ -254,6 +257,17 @@ s32 APP_TarBackupStart(void)
   SEQ_TASK_TarBackup();
   return 0;
 #endif
+}
+
+
+s32 APP_TarBackupLastResultGet(s32 *result)
+{
+  if( !tar_backup_result_valid )
+    return 0;
+
+  if( result != NULL )
+    *result = tar_backup_result;
+  return 1;
 }
 
 
@@ -928,6 +942,7 @@ void SEQ_TASK_TarBackup(void)
 
   tar_backup_result = status;
   tar_backup_fatfs_error = fatfs_error;
+  tar_backup_result_valid = 1;
   seq_ui_tar_backup_req = 0;
   tar_backup_result_pending = 1;
 }

@@ -854,6 +854,21 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
 	else
 	  out("ERROR: failed to create SD card TAR backup task (%d).", status);
       }
+    } else if( strcmp(parameter, "backup_status") == 0 ) {
+      if( seq_ui_tar_backup_req ) {
+	out("SD card TAR backup: %d%% %s", seq_ui_tar_backup_percentage,
+	    seq_ui_tar_backup_filename[0] ? seq_ui_tar_backup_filename : "preparing");
+      } else {
+	s32 result;
+	if( APP_TarBackupLastResultGet(&result) ) {
+	  if( result < 0 )
+	    out("Last SD card TAR backup failed with status %d.", result);
+	  else
+	    out("Last SD card TAR backup completed successfully.");
+	} else {
+	  out("No SD card TAR backup is currently running.");
+	}
+      }
     } else if( strcmp(parameter, "dbg_record") == 0 ) {
       SEQ_RECORD_DebugActiveNotes();
     } else if( strcmp(parameter, "session") == 0 ) {
@@ -977,6 +992,7 @@ s32 SEQ_TERMINAL_PrintHelp(void *_output_function)
   out("  new <name>:     creates a new session");
   out("  delete <name>:  deletes a session");
   out("  backup:         creates a .tar file of the entire SD card");
+  out("  backup_status:  reports TAR backup progress without starting one");
   out("  session:        prints the current session name");
   out("  sessions:       prints all available sessions");
   out("  dbg_record:     prints active notes which are recorded");
