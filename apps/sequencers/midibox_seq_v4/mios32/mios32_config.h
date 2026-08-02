@@ -71,7 +71,11 @@ extern void APP_SendDebugMessage(char *format, ...)
 # define PERIOD1MS_TASK_STACK_SIZE         2100
 #else
 # define MIOS32_TASK_HOOKS_STACK_SIZE      1000
-# define LWIP_TASK_STACK_SIZE              1000
+# if defined(MIOS32_FAMILY_LPC17xx)
+#  define LWIP_TASK_STACK_SIZE             1400
+# else
+#  define LWIP_TASK_STACK_SIZE             1000
+# endif
 # define MIOS32_TASK_MIDI_HOOKS_STACK_SIZE 1400
 # define MIDI_TASK_STACK_SIZE              1400
 # define PERIOD1MS_TASK_STACK_SIZE         1400
