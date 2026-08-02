@@ -474,6 +474,7 @@ error:
 
   if( status < 0 && remove_partial ) {
     s32 remove_status = FILE_Remove(path);
+    (void)remove_status;
 #if DEBUG_VERBOSE_LEVEL >= 1
     if( remove_status < 0 )
       DEBUG_MSG("[SEQ_MIDEXP_WriteFile] Failed to remove partial file %s, status: %d\n", path, remove_status);
