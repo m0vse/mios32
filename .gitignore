@@ -57,3 +57,8 @@ CMakeLists.txt
 !tools/mios_studio/CMakeLists.txt
 cmake-build-debug
 tools/mios_studio/Builds/VisualStudio2022*/
+
+# Local dependency checkouts and generated build trees
+.deps/
+*_build/
+__pycache__/

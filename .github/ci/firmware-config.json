@@ -1,0 +1,123 @@
+{
+  "platforms": {
+    "lpc17": {
+      "board": "MBHP_CORE_LPC17",
+      "family": "LPC17xx",
+      "processor": "LPC1769"
+    },
+    "stm32": {
+      "board": "MBHP_CORE_STM32",
+      "family": "STM32F10x",
+      "processor": "STM32F103RE"
+    },
+    "stm32f4": {
+      "board": "MBHP_CORE_STM32F4",
+      "family": "STM32F4xx",
+      "processor": "STM32F407VG"
+    }
+  },
+  "platform_overrides": {
+    "apps/controllers/midibox_kb_v1": ["lpc17", "stm32f4"],
+    "apps/processing/midibox_cv_v2": ["lpc17", "stm32f4"],
+    "apps/synthesizers/midibox_fm_v2_1": ["stm32f4"],
+    "apps/synthesizers/midibox_genesis_tracker": ["stm32f4"],
+    "apps/synthesizers/midibox_quad_genesis": ["stm32f4"],
+    "apps/synthesizers/midibox_vgmplayer": ["stm32f4"],
+    "apps/troubleshooting/mbhp_core_stm32_module": ["stm32"]
+  },
+  "excluded_apps": {
+    "apps/sequencers/vX32/build/vXjuce": "Desktop MIOSJUCE target; it does not use the embedded common.mk build"
+  },
+  "release_apps": [
+    {
+      "id": "midibox_kb_v1",
+      "path": "apps/controllers/midibox_kb_v1",
+      "base_version": "1.017",
+      "assets": ["README.txt", "CHANGELOG.txt"]
+    },
+    {
+      "id": "midibox_lc_v2",
+      "path": "apps/controllers/midibox_lc_v2",
+      "base_version": "2.000",
+      "assets": ["README.txt"]
+    },
+    {
+      "id": "midibox_ng_v1",
+      "path": "apps/controllers/midibox_ng_v1",
+      "base_version": "1.037",
+      "assets": ["README.txt", "CHANGELOG.txt", "cfg", "touchosc"]
+    },
+    {
+      "id": "midio128_v3",
+      "path": "apps/controllers/midio128_v3",
+      "base_version": "3.021",
+      "assets": ["README.txt", "CHANGELOG.txt"]
+    },
+    {
+      "id": "usb_mass_storage_device",
+      "path": "apps/misc/usb_mass_storage_device",
+      "base_version": "1.0.0",
+      "assets": ["README.txt"]
+    },
+    {
+      "id": "usb_midi_2x2",
+      "path": "apps/misc/usb_midi_2x2",
+      "base_version": "1.010",
+      "assets": ["README.txt"]
+    },
+    {
+      "id": "usb_midi_4x4",
+      "path": "apps/misc/usb_midi_4x4",
+      "base_version": "1.010",
+      "assets": ["README.txt"]
+    },
+    {
+      "id": "midibox_cv_v2",
+      "path": "apps/processing/midibox_cv_v2",
+      "base_version": "2.000",
+      "assets": ["README.txt", "CHANGELOG.txt"]
+    },
+    {
+      "id": "midibox_seq_v4",
+      "path": "apps/sequencers/midibox_seq_v4",
+      "base_version": "4.099",
+      "assets": ["README.txt", "CHANGELOG.txt", "hwcfg"]
+    },
+    {
+      "id": "midibox_seq_v4_lite",
+      "path": "apps/sequencers/midibox_seq_v4_lite",
+      "base_version": "4.092",
+      "assets": ["README.txt", "CHANGELOG.txt", "hwcfg"]
+    },
+    {
+      "id": "midibox_fm_v2_1",
+      "path": "apps/synthesizers/midibox_fm_v2_1",
+      "base_version": "2.1.0",
+      "assets": ["README.txt", "CHANGELOG.txt", "cfg", "touchosc"]
+    },
+    {
+      "id": "ain_jitter_mon",
+      "path": "apps/troubleshooting/ain_jitter_mon",
+      "base_version": "1.0.0",
+      "assets": ["README.txt"]
+    },
+    {
+      "id": "ainser_jitter_mon",
+      "path": "apps/troubleshooting/ainser_jitter_mon",
+      "base_version": "1.002",
+      "assets": ["README.txt"]
+    },
+    {
+      "id": "iic_midi",
+      "path": "apps/troubleshooting/iic_midi",
+      "base_version": "1.002",
+      "assets": ["README.txt"]
+    },
+    {
+      "id": "mbhp_core_stm32_module",
+      "path": "apps/troubleshooting/mbhp_core_stm32_module",
+      "base_version": "1.0.0",
+      "assets": ["README.txt"]
+    }
+  ]
+}
