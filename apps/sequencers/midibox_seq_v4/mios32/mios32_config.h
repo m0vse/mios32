@@ -104,6 +104,10 @@ extern void APP_SendDebugMessage(char *format, ...)
 #endif
 #define PERIOD1MS_LOWPRIO_TASK_STACK_SIZE  1400
 
+// Created only while a whole-card TAR backup is running.  Keeping this task
+// separate prevents slow SD card I/O from blocking USB/MIDI and the LCD task.
+#define TAR_BACKUP_TASK_STACK_SIZE          1408
+
 // The lwIP software heap does not require the LPC17 AHB bank used by USB DMA.
 // Keeping it in main SRAM makes the otherwise fragmented AHB capacity usable
 // by the FreeRTOS heap instead.

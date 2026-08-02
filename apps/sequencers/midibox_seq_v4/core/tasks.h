@@ -111,6 +111,10 @@ extern "C" {
 extern s32 TASKS_Init(u32 mode);
 extern u32 TASKS_ResetSourceGet(void);
 
+#ifndef MIOS32_FAMILY_EMULATION
+extern s32 TASKS_TarBackupStart(void);
+#endif
+
 #define TASKS_WATCHDOG_HEARTBEAT_HOOKS       0
 #define TASKS_WATCHDOG_HEARTBEAT_MIDI_HOOKS  1
 #define TASKS_WATCHDOG_HEARTBEAT_MIDI        2
@@ -128,6 +132,7 @@ extern void SEQ_TASK_MIDI(void);
 extern void SEQ_TASK_Period1mS(void);
 extern void SEQ_TASK_Period1mS_LowPrio(void);
 extern void SEQ_TASK_Period1S(void);
+extern void SEQ_TASK_TarBackup(void);
 
 
 /////////////////////////////////////////////////////////////////////////////

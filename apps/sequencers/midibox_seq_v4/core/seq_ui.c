@@ -106,6 +106,7 @@ u8 seq_ui_backup_req;
 u8 seq_ui_tar_backup_req;
 volatile u8 seq_ui_tar_backup_percentage;
 char seq_ui_tar_backup_filename[13];
+static volatile u8 seq_ui_tar_backup_display_dirty;
 u8 seq_ui_format_req;
 u8 seq_ui_saveall_req;
 
@@ -243,6 +244,7 @@ s32 SEQ_UI_Init(u32 mode)
   seq_ui_tar_backup_req = 0;
   seq_ui_tar_backup_percentage = 0;
   seq_ui_tar_backup_filename[0] = 0;
+  seq_ui_tar_backup_display_dirty = 1;
   seq_ui_format_req = 0;
   seq_ui_saveall_req = 0;
 
@@ -3027,17 +3029,17 @@ void SEQ_UI_TarBackupProgress(const char *filename, u32 copied, u32 total)
   if( percentage > 100 )
     percentage = 100;
 
-  u8 redraw = strncmp(seq_ui_tar_backup_filename, basename, sizeof(seq_ui_tar_backup_filename)) != 0 ||
-              (percentage / 5) != (seq_ui_tar_backup_percentage / 5) || percentage == 100;
+  u8 redraw = strncmp(seq_ui_tar_backup_filename, basename,
+                      sizeof(seq_ui_tar_backup_filename)) != 0 ||
+              (percentage / 5) != (seq_ui_tar_backup_percentage / 5) ||
+              percentage == 100;
 
   strncpy(seq_ui_tar_backup_filename, basename, sizeof(seq_ui_tar_backup_filename)-1);
   seq_ui_tar_backup_filename[sizeof(seq_ui_tar_backup_filename)-1] = 0;
   seq_ui_tar_backup_percentage = percentage;
 
-  if( redraw && seq_ui_tar_backup_req ) {
-    SEQ_UI_TarBackupDisplay();
-    SEQ_UI_LCD_Update();
-  }
+  if( redraw )
+    seq_ui_tar_backup_display_dirty = 1;
 }
 
 
@@ -3050,10 +3052,14 @@ s32 SEQ_UI_LCD_Handler(void)
   static u8 boot_animation_wait_ctr = 0;
   static u8 boot_animation_lcd_pos = 0;
   static u8 screen_saver_was_active = 0;
+  static u8 tar_backup_display_active = 0;
 
   // special handling in remote client mode
   if( seq_midi_sysex_remote_active_mode == SEQ_MIDI_SYSEX_REMOTE_MODE_CLIENT )
     return SEQ_UI_LCD_Update();
+
+  if( !seq_ui_tar_backup_req )
+    tar_backup_display_active = 0;
 
   if( seq_ui_display_init_req ) {
     seq_ui_display_init_req = 0; // clear request
@@ -3091,7 +3097,11 @@ s32 SEQ_UI_LCD_Handler(void)
       }
     }
   } else if( seq_ui_tar_backup_req ) {
-    SEQ_UI_TarBackupDisplay();
+    if( !tar_backup_display_active || seq_ui_tar_backup_display_dirty ) {
+      seq_ui_tar_backup_display_dirty = 0;
+      tar_backup_display_active = 1;
+      SEQ_UI_TarBackupDisplay();
+    }
   } else if( seq_ui_backup_req || seq_ui_format_req ) {
     SEQ_LCD_Clear();
     SEQ_LCD_CursorSet(0, 0);

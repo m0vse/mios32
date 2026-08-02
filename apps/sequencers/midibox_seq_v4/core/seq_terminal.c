@@ -844,10 +844,15 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
       } else if( seq_ui_backup_req || seq_ui_format_req ) {
 	out("Ongoing SD card operation - please wait!");
       } else {
-	seq_ui_tar_backup_percentage = 0;
-	seq_ui_tar_backup_filename[0] = 0;
-	seq_ui_tar_backup_req = 1;
-	out("SD card TAR backup queued; USB and network services will remain active.");
+	s32 status = APP_TarBackupStart();
+	if( status == 0 )
+	  out("SD card TAR backup started; USB and network services will remain active.");
+	else if( status > 0 )
+	  out("SD card TAR backup is already running.");
+	else if( status == -1 )
+	  out("ERROR: insufficient free heap to start SD card TAR backup (%d).", status);
+	else
+	  out("ERROR: failed to create SD card TAR backup task (%d).", status);
       }
     } else if( strcmp(parameter, "dbg_record") == 0 ) {
       SEQ_RECORD_DebugActiveNotes();
@@ -1302,7 +1307,8 @@ s32 SEQ_TERMINAL_PrintMemoryInfo(void *_output_function)
 static void SEQ_TERMINAL_PrintTaskStacks(void (*out)(char *format, ...))
 {
   static const char * const task_names[] = {
-    "Hooks", "MIDI_Hooks", "MIDI", "Period1mS", "Period1mS_LP", "lwIP"
+    "Hooks", "MIDI_Hooks", "MIDI", "Period1mS", "Period1mS_LP", "lwIP",
+    "SD_TAR"
   };
   const u32 warning_bytes = 128;
 

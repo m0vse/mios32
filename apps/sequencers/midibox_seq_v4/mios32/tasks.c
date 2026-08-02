@@ -60,6 +60,13 @@ SemaphoreHandle_t xJ16Semaphore;
 #define PRIORITY_TASK_MIDI		 ( tskIDLE_PRIORITY + 4 )
 #define PRIORITY_TASK_PERIOD1MS		 ( tskIDLE_PRIORITY + 2 )
 #define PRIORITY_TASK_PERIOD1MS_LOW_PRIO ( tskIDLE_PRIORITY + 2 )
+#define PRIORITY_TASK_TAR_BACKUP          ( tskIDLE_PRIORITY + 1 )
+
+// xTaskCreate() allocates the TCB and stack separately.  Refuse to start a
+// backup unless both allocations fit while retaining a useful emergency
+// reserve.  This avoids invoking the application's fatal malloc hook.
+#define TAR_BACKUP_TASK_ALLOCATION_OVERHEAD 256
+#define TAR_BACKUP_TASK_MIN_HEAP_RESERVE    512
 
 // priority of lwIP task defined in lwip_task.c (-> using 3)
 
@@ -70,6 +77,7 @@ SemaphoreHandle_t xJ16Semaphore;
 static void TASK_MIDI(void *pvParameters);
 static void TASK_Period1mS(void *pvParameters);
 static void TASK_Period1mS_LowPrio(void *pvParameters);
+static void TASK_TarBackup(void *pvParameters);
 static void TASKS_WatchdogCheck(void);
 static void TASKS_WatchdogHardwareInit(void);
 static void TASKS_WatchdogHardwareFeed(void);
@@ -86,6 +94,49 @@ static volatile u32 watchdog_missing_mask;
 static volatile TickType_t watchdog_suspend_until;
 static volatile u8 watchdog_suspend_depth;
 static u8 watchdog_enabled;
+static TaskHandle_t tar_backup_task;
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Start an on-demand, low-priority TAR worker.  It is deliberately not part
+// of the permanent task set because LPC17 has limited heap.  FreeRTOS reclaims
+// its stack and TCB through the idle task after it deletes itself.
+/////////////////////////////////////////////////////////////////////////////
+s32 TASKS_TarBackupStart(void)
+{
+  if( tar_backup_task != NULL )
+    return 1;
+
+  HeapStats_t heap_stats;
+  vPortGetHeapStats(&heap_stats);
+
+  const size_t task_allocation = TAR_BACKUP_TASK_STACK_SIZE +
+                                 TAR_BACKUP_TASK_ALLOCATION_OVERHEAD;
+  if( heap_stats.xSizeOfLargestFreeBlockInBytes < task_allocation ||
+      heap_stats.xAvailableHeapSpaceInBytes <
+        (task_allocation + TAR_BACKUP_TASK_MIN_HEAP_RESERVE) )
+    return -1;
+
+  if( xTaskCreate(TASK_TarBackup, "SD_TAR", TAR_BACKUP_TASK_STACK_SIZE/4,
+                  NULL, PRIORITY_TASK_TAR_BACKUP,
+                  &tar_backup_task) != pdPASS ) {
+    tar_backup_task = NULL;
+    return -2;
+  }
+
+  return 0;
+}
+
+
+static void TASK_TarBackup(void *pvParameters)
+{
+  SEQ_TASK_TarBackup();
+
+  taskENTER_CRITICAL();
+  tar_backup_task = NULL;
+  taskEXIT_CRITICAL();
+  vTaskDelete(NULL);
+}
 
 
 /////////////////////////////////////////////////////////////////////////////

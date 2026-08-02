@@ -87,6 +87,10 @@
 /////////////////////////////////////////////////////////////////////////////
 u8 app_din_testmode;
 
+static volatile u8 tar_backup_result_pending;
+static volatile s32 tar_backup_result;
+static volatile u8 tar_backup_fatfs_error;
+
 
 /////////////////////////////////////////////////////////////////////////////
 // Local prototypes
@@ -124,6 +128,7 @@ void APP_Init(void)
 
   // disable DIN test mode by default
   app_din_testmode = 0;
+  tar_backup_result_pending = 0;
 
 #ifdef MBSEQV4L
   // MBSEQV4L: set default port to 0xc0: multiple outputs
@@ -223,6 +228,31 @@ void APP_Background(void)
 
 #if defined(SEQ_USE_MOD)
     SEQ_Mod_Idle();
+#endif
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Queue a whole-card backup without making the MIDI terminal execute it.
+/////////////////////////////////////////////////////////////////////////////
+s32 APP_TarBackupStart(void)
+{
+  if( seq_ui_tar_backup_req )
+    return 1;
+
+  seq_ui_tar_backup_percentage = 0;
+  seq_ui_tar_backup_filename[0] = 0;
+  seq_ui_tar_backup_req = 1;
+
+#ifndef MIOS32_FAMILY_EMULATION
+  s32 status = TASKS_TarBackupStart();
+  if( status != 0 )
+    seq_ui_tar_backup_req = 0;
+  return status;
+#else
+  // Desktop builds do not use the FreeRTOS task implementation.
+  SEQ_TASK_TarBackup();
+  return 0;
 #endif
 }
 
@@ -592,6 +622,25 @@ void SEQ_TASK_Period1mS(void)
 void SEQ_TASK_Period1mS_LowPrio(void)
 {
 #if MEASURE_IDLE_CTR == 0
+  if( tar_backup_result_pending ) {
+    s32 status = tar_backup_result;
+    u8 fatfs_error = tar_backup_fatfs_error;
+    tar_backup_result_pending = 0;
+
+    if( status < 0 ) {
+#ifndef MBSEQV4L
+      SEQ_UI_SDCardErrMsg(2000, status);
+#endif
+      DEBUG_MSG("ERROR: SD card TAR backup failed: %d (FatFs: D%3d)\n",
+                status, fatfs_error);
+    } else {
+#ifndef MBSEQV4L
+      SEQ_UI_Msg(SEQ_UI_MSG_USER, 2000, "SD backup created", "successfully!");
+#endif
+      DEBUG_MSG("SD card TAR backup completed successfully.\n");
+    }
+  }
+
   // call LCD Handler
   SEQ_UI_LCD_Handler();
 
@@ -647,6 +696,11 @@ void SEQ_TASK_Period1S(void)
     if( wait_boot_ctr )
       return;
   }
+
+  // A dedicated worker owns the SD card during TAR creation.  Do not let this
+  // periodic LCD/UI task block indefinitely behind it on the SD mutex.
+  if( seq_ui_tar_backup_req )
+    return;
 
   // check if SD Card connected
   MUTEX_SDCARD_TAKE;
@@ -770,30 +824,6 @@ void SEQ_TASK_Period1S(void)
     seq_ui_format_req = 0;
   }
 
-  // Run whole-card TAR backups from this low-priority worker. The terminal
-  // previously performed the complete archive inside a global critical
-  // section, disabling USB, Ethernet, display updates and task scheduling.
-  if( seq_ui_tar_backup_req ) {
-    DEBUG_MSG("Starting SD card TAR backup...\n");
-    TASKS_WatchdogSuspend(TASKS_WATCHDOG_LONG_OPERATION_MS);
-    status = FILE_BackupDiskAutoName(3);
-    TASKS_WatchdogResume();
-
-    if( status < 0 ) {
-#ifndef MBSEQV4L
-      SEQ_UI_SDCardErrMsg(2000, status);
-#endif
-      DEBUG_MSG("ERROR: SD card TAR backup failed: %d (FatFs: D%3d)\n", status, file_dfs_errno);
-    } else {
-#ifndef MBSEQV4L
-      SEQ_UI_Msg(SEQ_UI_MSG_USER, 2000, "SD backup created", "successfully!");
-#endif
-      DEBUG_MSG("SD card TAR backup completed successfully.\n");
-    }
-
-    seq_ui_tar_backup_req = 0;
-  }
-
   // check for backup request
   // this is running with low priority, so that LCD is updated in parallel!
   if( seq_ui_backup_req ) {
@@ -881,6 +911,25 @@ void SEQ_TASK_Period1S(void)
   SEQ_LCD_LOGO_ScreenSaver_Period1S();
 #endif
 #endif
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Whole-card TAR worker.  Filesystem work is the only operation performed
+// while the SD mutex is held; completion UI and console output are deferred to
+// the normal low-priority task.
+/////////////////////////////////////////////////////////////////////////////
+void SEQ_TASK_TarBackup(void)
+{
+  MUTEX_SDCARD_TAKE;
+  s32 status = FILE_BackupDiskAutoName(3);
+  u8 fatfs_error = file_dfs_errno;
+  MUTEX_SDCARD_GIVE;
+
+  tar_backup_result = status;
+  tar_backup_fatfs_error = fatfs_error;
+  seq_ui_tar_backup_req = 0;
+  tar_backup_result_pending = 1;
 }
 
 
