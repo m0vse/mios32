@@ -1143,7 +1143,7 @@ s32 SyEng_LoadProgram(char* filepath, synprogram_t* prog){
     return ret;
 }
 
-inline u8 TurnProgPathIntoVGMPath(char* tempbuf, char* filenamestart, u8 v){
+static inline u8 TurnProgPathIntoVGMPath(char* tempbuf, char* filenamestart, u8 v){
     u8 sl = strlen(vgmtypelabels[v]);
     memcpy(filenamestart, vgmtypelabels[v], sl);
     char* filenameend = filenamestart + sl;

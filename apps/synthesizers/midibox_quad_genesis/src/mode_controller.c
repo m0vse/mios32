@@ -210,30 +210,30 @@ static u8 stagestate;
 static u8 stageorigstate;
 static u8 editstate;
 
-inline u8 GetEncoderSendValue(u8 e, s8 v){
+static inline u8 GetEncoderSendValue(u8 e, s8 v){
     return 127 * (s32)v / (encoder_opts[e].nvalues - 1);
 }
 
-inline void NoteOnOff(u8 note){
+static inline void NoteOnOff(u8 note){
     if(note > 127) return;
     MIOS32_MIDI_SendNoteOn(USB0, 0, note, 127);
     MIOS32_MIDI_SendNoteOn(USB0, 0, note, 0);
 }
 
-inline void SendEncoder(u8 enc, u8 val){
+static inline void SendEncoder(u8 enc, u8 val){
     if(enc > FP_E_COUNT) return;
     if(val >= 128) return;
     MIOS32_MIDI_SendNoteOn(USB0, 0, enc, val);
 }
 
-inline void SendColor(u8 colorbank, u8 color){
+static inline void SendColor(u8 colorbank, u8 color){
     if(colorbank >= 8) return;
     if(color >= 12) return;
     NoteOnOff(MIDI_BANKSEL_START+(colorbank>>1));
     NoteOnOff(MIDI_OVERRIDE_START+((colorbank&1)*12)+color);
 }
 
-inline void SendMutex(u8 m){
+static inline void SendMutex(u8 m){
     u8 i;
     for(i=0; i<14; ++i){
         NoteOnOff(((m == i) ? MIDI_SUBSON : MIDI_SUBSOFF) + i);
