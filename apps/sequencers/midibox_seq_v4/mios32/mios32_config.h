@@ -19,10 +19,13 @@
 // The boot message which is print during startup and returned on a SysEx query
 #define MIOS32_LCD_BOOT_MSG_DELAY 0 // we delay the boot and print a message inside the app
 //                                <---------------------->
+#ifndef MIOS32_RELEASE_VERSION
+#define MIOS32_RELEASE_VERSION "4.100"
+#endif
 #ifdef MBSEQV4P
-#define MIOS32_LCD_BOOT_MSG_LINE1 "MIDIbox SEQ V4+.099"
+#define MIOS32_LCD_BOOT_MSG_LINE1 "MIDIbox SEQ+ V" MIOS32_RELEASE_VERSION
 #else
-#define MIOS32_LCD_BOOT_MSG_LINE1 "MIDIbox SEQ V4.099"
+#define MIOS32_LCD_BOOT_MSG_LINE1 "MIDIbox SEQ V" MIOS32_RELEASE_VERSION
 #endif
 #define MIOS32_LCD_BOOT_MSG_LINE2 "(C) 2026 T. Klose"
 

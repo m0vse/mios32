@@ -11,7 +11,10 @@
 #define _MIOS32_CONFIG_H
 
 // The boot message which is print during startup and returned on a SysEx query
-#define MIOS32_LCD_BOOT_MSG_LINE1 "AINSER JitterMon V1.002"
+#ifndef MIOS32_RELEASE_VERSION
+#define MIOS32_RELEASE_VERSION "1.003"
+#endif
+#define MIOS32_LCD_BOOT_MSG_LINE1 "AINSER JitterMon V" MIOS32_RELEASE_VERSION
 #define MIOS32_LCD_BOOT_MSG_LINE2 "(C) 2014 T.Klose"
 
 // enable two AINSER modules

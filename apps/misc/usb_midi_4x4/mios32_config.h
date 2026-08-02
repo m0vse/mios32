@@ -11,7 +11,10 @@
 #define _MIOS32_CONFIG_H
 
 // The boot message which is print during startup and returned on a SysEx query
-#define MIOS32_LCD_BOOT_MSG_LINE1 "USB MIDI 4x4 V1.010"
+#ifndef MIOS32_RELEASE_VERSION
+#define MIOS32_RELEASE_VERSION "1.011"
+#endif
+#define MIOS32_LCD_BOOT_MSG_LINE1 "USB MIDI 4x4 V" MIOS32_RELEASE_VERSION
 #define MIOS32_LCD_BOOT_MSG_LINE2 "(C) 2014 T.Klose"
 
 // Following settings allow to customize the USB device descriptor

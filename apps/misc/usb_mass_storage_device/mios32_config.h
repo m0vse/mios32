@@ -11,7 +11,10 @@
 #define _MIOS32_CONFIG_H
 
 // The boot message which is print during startup and returned on a SysEx query
-#define MIOS32_LCD_BOOT_MSG_LINE1 "Mass Storage Device"
+#ifndef MIOS32_RELEASE_VERSION
+#define MIOS32_RELEASE_VERSION "1.008"
+#endif
+#define MIOS32_LCD_BOOT_MSG_LINE1 "Mass Storage V" MIOS32_RELEASE_VERSION
 #define MIOS32_LCD_BOOT_MSG_LINE2 "(C) 2009 T.Klose"
 
 #endif /* _MIOS32_CONFIG_H */
