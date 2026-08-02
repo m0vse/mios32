@@ -16,6 +16,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 #include <mios32.h>
+#include <stdio.h>
 #include <string.h>
 #include <blm.h>
 #include <seq_midi_out.h>
@@ -455,12 +456,12 @@ void SEQ_UI_Msg_InsLayer(char *line2)
   u8 visible_track = SEQ_UI_VisibleTrackGet();
   u8 event_mode = SEQ_CC_Get(visible_track, SEQ_CC_MIDI_EVENT_MODE);
 
-  char name[6];
+  char name[7];
   if( event_mode == SEQ_EVENT_MODE_Drum ) {
     memcpy(name, seq_core_trk[visible_track].name + ui_selected_instrument*5, 5);
     name[5] = 0;
   } else {
-    sprintf(name, "INS%d ", ui_selected_instrument+1);
+    snprintf(name, sizeof(name), "INS%d ", ui_selected_instrument+1);
   }
 
   sprintf(buffer, "Instrument G%dT%d %s", 1 + (visible_track / 4), 1 + (visible_track % 4), name);
@@ -492,7 +493,7 @@ void SEQ_UI_Msg_Layer(char *line2)
 void SEQ_UI_Msg_MixerMap(char *line2)
 {
   char buffer[20];
-  sprintf(buffer, "Mixer Map #%d", SEQ_MIXER_NumGet()+1);
+  snprintf(buffer, sizeof(buffer), "Mixer Map #%ld", (long)SEQ_MIXER_NumGet()+1);
   SEQ_UI_Msg(SEQ_UI_MSG_USER, 1000, buffer, line2);
 }
 
@@ -4314,7 +4315,8 @@ s32 SEQ_UI_SDCardErrMsg(u16 delay, s32 status)
 
   // print on LCD
   char str[21];
-  sprintf(str, "E%3d (FatFs: D%3d)", -status, file_dfs_errno < 1000 ? file_dfs_errno : 999);
+  snprintf(str, sizeof(str), "E%3ld (FatFs: D%3lu)",
+           (long)-status, (unsigned long)(file_dfs_errno < 1000 ? file_dfs_errno : 999));
   return SEQ_UI_Msg(SEQ_UI_MSG_SDCARD, delay, "!! SD Card Error !!!", str);
 }
 
@@ -4325,7 +4327,7 @@ s32 SEQ_UI_SDCardErrMsg(u16 delay, s32 status)
 s32 SEQ_UI_MIDILearnMessage(seq_ui_msg_type_t msg_type, u8 on_off)
 {
   if( on_off ) {
-    char tmp[20];
+    char tmp[21];
 
     u8 learn_chn = 0;
     mios32_midi_port_t learn_port = 0;
@@ -4340,11 +4342,11 @@ s32 SEQ_UI_MIDILearnMessage(seq_ui_msg_type_t msg_type, u8 on_off)
     }
 
     if( learn_chn == 0 ) {
-      sprintf(tmp, "disable (config in REC page!)");
+      strcpy(tmp, "disabled (see REC)");
     } else if( learn_chn > 16 ) {
-      sprintf(tmp, "Port: %s  Chn All", SEQ_MIDI_PORT_InNameGet(SEQ_MIDI_PORT_InIxGet(learn_port)));
+      snprintf(tmp, sizeof(tmp), "Port: %s  Chn All", SEQ_MIDI_PORT_InNameGet(SEQ_MIDI_PORT_InIxGet(learn_port)));
     } else {
-      sprintf(tmp, "Port: %s  Chn #%2d", SEQ_MIDI_PORT_InNameGet(SEQ_MIDI_PORT_InIxGet(learn_port)), learn_chn);
+      snprintf(tmp, sizeof(tmp), "Port: %s  Chn #%2d", SEQ_MIDI_PORT_InNameGet(SEQ_MIDI_PORT_InIxGet(learn_port)), learn_chn);
     }
     SEQ_UI_Msg(msg_type, 1000, "MIDI Learn active:", tmp);
   } else {
