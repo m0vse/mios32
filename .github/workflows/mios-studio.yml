@@ -1,0 +1,229 @@
+name: MIOS Studio
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "tools/mios_studio/**"
+      - "bin/**"
+      - "bootloader/**"
+      - "drivers/**"
+      - "etc/**"
+      - "FreeRTOS/**"
+      - "include/**"
+      - "mios32/**"
+      - "modules/**"
+      - "programming_models/**"
+      - "source_me_*"
+      - ".github/ci/release.py"
+      - ".github/workflows/mios-studio.yml"
+  pull_request:
+    paths:
+      - "tools/mios_studio/**"
+      - "bin/**"
+      - "bootloader/**"
+      - "drivers/**"
+      - "etc/**"
+      - "FreeRTOS/**"
+      - "include/**"
+      - "mios32/**"
+      - "modules/**"
+      - "programming_models/**"
+      - "source_me_*"
+      - ".github/ci/release.py"
+      - ".github/workflows/mios-studio.yml"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a mios_studio release after all platform builds pass
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mios-studio-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      publish: ${{ steps.version.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: version
+        name: Calculate build version
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          REQUEST_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && inputs.publish || false }}
+        run: |
+          git fetch --tags --force
+          base_version="$(sed -n 's/^set(MIOS_STUDIO_BASE_VERSION "\([0-9.]*\)")/\1/p' tools/mios_studio/CMakeLists.txt)"
+          version="$(python3 .github/ci/release.py next-version \
+            --app mios_studio \
+            --base "$base_version" \
+            --commit "$GITHUB_SHA")"
+
+          publish=false
+          if [[ "$REQUEST_PUBLISH" == "true" ]]; then
+            publish=true
+          elif [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == "refs/heads/master" ]]; then
+            changed="$(git diff --name-only "$BASE_SHA" "$GITHUB_SHA")"
+            if grep -Eq '^(tools/mios_studio/|bin/|bootloader/|drivers/|etc/|FreeRTOS/|include/|mios32/|modules/|programming_models/|source_me_)' <<<"$changed"; then
+              publish=true
+            fi
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=mios_studio-v$version" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.name }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: Windows x64
+            artifact: windows-x64
+          - os: ubuntu-latest
+            name: Linux x64
+            artifact: linux-x64
+          - os: macos-latest
+            name: macOS universal
+            artifact: macos
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check out JUCE 9.0.0
+        uses: actions/checkout@v6
+        with:
+          repository: juce-framework/JUCE
+          ref: 9.0.0
+          path: .deps/JUCE
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev libjack-jackd2-dev ladspa-sdk \
+            libfontconfig1-dev libfreetype-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev \
+            libxinerama-dev libxrandr-dev libxrender-dev libxi-dev
+      - name: Configure Windows build
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          cmake -S tools/mios_studio -B build/mios-studio -A x64 `
+            "-DJUCE_PATH=$env:GITHUB_WORKSPACE/.deps/JUCE" `
+            "-DMIOS_STUDIO_VERSION_OVERRIDE=$env:VERSION"
+      - name: Configure Unix build
+        if: runner.os != 'Windows'
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          platform_args=()
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            platform_args+=(
+              '-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64'
+              '-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0'
+            )
+          fi
+          cmake -S tools/mios_studio -B build/mios-studio -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DJUCE_PATH="$GITHUB_WORKSPACE/.deps/JUCE" \
+            -DMIOS_STUDIO_VERSION_OVERRIDE="$VERSION" \
+            "${platform_args[@]}"
+      - name: Build MIOS Studio
+        run: cmake --build build/mios-studio --config Release --parallel
+      - name: Package Windows build
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          $taskExe = Get-ChildItem build/mios-studio -Recurse -File -Filter 'MIOS Studio.exe' | Select-Object -First 1
+          if (-not $taskExe) { throw 'MIOS Studio.exe was not produced' }
+          New-Item -ItemType Directory -Force dist/package | Out-Null
+          Copy-Item -LiteralPath $taskExe.FullName -Destination 'dist/package/MIOS Studio.exe'
+          Copy-Item -LiteralPath tools/mios_studio/README.txt -Destination dist/package/README.txt
+          Compress-Archive -Path dist/package/* -DestinationPath "dist/MIOS_Studio-v$env:VERSION-windows-x64.zip"
+      - name: Package Linux build
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          executable="$(find build/mios-studio -type f -name 'MIOS Studio' -perm -u+x | head -n 1)"
+          test -n "$executable"
+          mkdir -p dist/package
+          cp "$executable" 'dist/package/MIOS Studio'
+          cp tools/mios_studio/README.txt dist/package/README.txt
+          tar -C dist/package -czf "dist/MIOS_Studio-v${VERSION}-linux-x64.tar.gz" .
+      - name: Package macOS build
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          app="$(find build/mios-studio -type d -name 'MIOS Studio.app' | head -n 1)"
+          test -n "$app"
+          codesign --force --deep --sign - "$app"
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent "$app" "dist/MIOS_Studio-v${VERSION}-macos.zip"
+      - name: Upload MIOS Studio package
+        uses: actions/upload-artifact@v7
+        with:
+          name: mios-studio-${{ matrix.artifact }}
+          path: dist/MIOS_Studio-v*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Release MIOS Studio
+    needs: [prepare, build]
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Download platform packages
+        uses: actions/download-artifact@v7
+        with:
+          pattern: mios-studio-*
+          path: dist
+          merge-multiple: true
+      - name: Create or update GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/MIOS_Studio-v* --clobber
+          else
+            gh release create "$TAG" dist/MIOS_Studio-v* \
+              --target "$GITHUB_SHA" \
+              --title "MIOS Studio v${VERSION}" \
+              --notes "Automated cross-platform MIOS Studio release from commit ${GITHUB_SHA}."
+          fi
