@@ -16,13 +16,14 @@
       "processor": "STM32F407VG"
     }
   },
+  "release_catalog_url": "https://ucapps.de/mios32_download.html",
+  "release_platforms": ["lpc17", "stm32", "stm32f4"],
   "platform_overrides": {
     "apps/examples/com_console": ["stm32"],
     "apps/examples/cv_autotune": ["stm32"],
     "apps/examples/dmx": ["stm32"],
     "apps/examples/dmx/test": ["stm32"],
     "apps/examples/microvga": ["stm32"],
-    "apps/controllers/midibox_kb_v1": ["lpc17", "stm32f4"],
     "apps/mios32_test/app_lcd/st7637": ["stm32"],
     "apps/mios32_test/bs_rw_check": ["stm32"],
     "apps/misc/rgb_led_controller": ["stm32"],
@@ -49,28 +50,10 @@
   },
   "release_apps": [
     {
-      "id": "blm_scalar",
-      "path": "apps/controllers/blm_scalar",
-      "base_version": "1.0.0",
-      "assets": ["README.txt"]
-    },
-    {
       "id": "midibox_kb_v1",
       "path": "apps/controllers/midibox_kb_v1",
       "base_version": "1.017",
       "assets": ["README.txt", "CHANGELOG.txt"]
-    },
-    {
-      "id": "midibox_lc_v2",
-      "path": "apps/controllers/midibox_lc_v2",
-      "base_version": "2.000",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "midibox_mm_v3",
-      "path": "apps/controllers/midibox_mm_v3",
-      "base_version": "3.0.0",
-      "assets": ["README.txt"]
     },
     {
       "id": "midibox_ng_v1",
@@ -85,21 +68,9 @@
       "assets": ["README.txt", "CHANGELOG.txt"]
     },
     {
-      "id": "mbsid_can_osc_proxy",
-      "path": "apps/misc/mbsid_can_osc_proxy",
-      "base_version": "1.0.0",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "rgb_led_controller",
-      "path": "apps/misc/rgb_led_controller",
-      "base_version": "1.0.0",
-      "assets": ["README.txt"]
-    },
-    {
       "id": "usb_mass_storage_device",
       "path": "apps/misc/usb_mass_storage_device",
-      "base_version": "1.0.0",
+      "base_version": "1.007",
       "assets": ["README.txt"]
     },
     {
@@ -115,24 +86,6 @@
       "assets": ["README.txt"]
     },
     {
-      "id": "usb_osc_midi_proxy",
-      "path": "apps/misc/usb_osc_midi_proxy",
-      "base_version": "1.0.0",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "midi_force_to_scale",
-      "path": "apps/processing/midi_force_to_scale",
-      "base_version": "1.0.0",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "midibox_cv_v2",
-      "path": "apps/processing/midibox_cv_v2",
-      "base_version": "2.000",
-      "assets": ["README.txt", "CHANGELOG.txt"]
-    },
-    {
       "id": "midibox_seq_v4",
       "path": "apps/sequencers/midibox_seq_v4",
       "base_version": "4.099",
@@ -145,84 +98,6 @@
       "assets": ["README.txt", "CHANGELOG.txt", "hwcfg"]
     },
     {
-      "id": "loopa",
-      "path": "apps/sequencers/LoopA",
-      "base_version": "2.06",
-      "assets": ["README.md"]
-    },
-    {
-      "id": "mb909",
-      "path": "apps/sequencers/MB909",
-      "base_version": "1.0.0",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "vx32",
-      "path": "apps/sequencers/vX32/build/mios32",
-      "base_version": "1.0.0",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "goom",
-      "path": "apps/synthesizers/goom",
-      "base_version": "1.0.0",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "midibox_fm_v2_1",
-      "path": "apps/synthesizers/midibox_fm_v2_1",
-      "base_version": "2.1.0",
-      "assets": ["README.txt", "CHANGELOG.txt", "cfg", "touchosc"]
-    },
-    {
-      "id": "midibox_genesis_tracker",
-      "path": "apps/synthesizers/midibox_genesis_tracker",
-      "base_version": "1.0.0",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "midibox_quad_genesis",
-      "path": "apps/synthesizers/midibox_quad_genesis",
-      "base_version": "1.0.0",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "midibox_sid_v3",
-      "path": "apps/synthesizers/midibox_sid_v3",
-      "base_version": "3.0.0",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "midibox_sj_v2",
-      "path": "apps/synthesizers/midibox_sj_v2",
-      "base_version": "2.0.0",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "midibox_vgmplayer",
-      "path": "apps/synthesizers/midibox_vgmplayer",
-      "base_version": "1.0.0",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "ni2s_synth",
-      "path": "apps/synthesizers/nI2S_synth",
-      "base_version": "0.0.3",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "sd_card_sample_player",
-      "path": "apps/synthesizers/SD card sample player",
-      "base_version": "1.0.0",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "ain_jitter_mon",
-      "path": "apps/troubleshooting/ain_jitter_mon",
-      "base_version": "1.0.0",
-      "assets": ["README.txt"]
-    },
-    {
       "id": "ainser_jitter_mon",
       "path": "apps/troubleshooting/ainser_jitter_mon",
       "base_version": "1.002",
@@ -232,12 +107,6 @@
       "id": "iic_midi",
       "path": "apps/troubleshooting/iic_midi",
       "base_version": "1.002",
-      "assets": ["README.txt"]
-    },
-    {
-      "id": "mbhp_core_stm32_module",
-      "path": "apps/troubleshooting/mbhp_core_stm32_module",
-      "base_version": "1.0.0",
       "assets": ["README.txt"]
     }
   ]

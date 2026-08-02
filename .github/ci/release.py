@@ -92,9 +92,7 @@ def copy_release_assets(source: Path, patterns: list[str], destination: Path) ->
 def command_package_firmware(args: argparse.Namespace) -> int:
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     release_app = next(app for app in config["release_apps"] if app["id"] == args.app)
-    platforms = config.get("platform_overrides", {}).get(
-        release_app["path"], list(config["platforms"])
-    )
+    platforms = config["release_platforms"]
     dist = (ROOT / args.dist).resolve()
     output = (ROOT / args.output).resolve()
     output.mkdir(parents=True, exist_ok=True)
