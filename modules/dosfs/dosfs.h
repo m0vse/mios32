@@ -383,7 +383,8 @@ uint32_t DFS_Close(PFILEINFO fileinfo);
 void DFS_CachingEnabledSet(uint8_t enable);
 
 // TK: added 2008-18-12
-// missing pendant to DFS_CanonicalToDir
+uint8_t *DFS_CanonicalToDir(uint8_t *dest, uint8_t *src);
+// matching conversion from DOS directory format
 char *DFS_DirToCanonical(char *dest, char *src);
 
 
