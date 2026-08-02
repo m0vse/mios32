@@ -37,7 +37,7 @@ on:
   workflow_dispatch:
     inputs:
       build_all:
-        description: Build every discovered firmware application
+        description: Build every official catalogue firmware application
         required: true
         type: boolean
         default: true

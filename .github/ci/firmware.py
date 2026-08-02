@@ -150,7 +150,15 @@ def write_github_output(values: dict[str, str]) -> None:
 
 def command_select(args: argparse.Namespace) -> int:
     config = load_config()
-    apps = discover_apps(config)
+    discovered = discover_apps(config)
+    catalog_paths = {app["path"] for app in config["release_apps"]}
+    apps = [app for app in discovered if app["path"] in catalog_paths]
+    discovered_paths = {app["path"] for app in apps}
+    missing = sorted(catalog_paths - discovered_paths)
+    if missing:
+        raise ValueError(
+            "Official release applications are not buildable: " + ", ".join(missing)
+        )
     changed = git_changed_files(args.base, args.head)
     selected, release_apps, reason = select_apps(config, apps, changed, args.all)
     version_by_path = {}
