@@ -34,6 +34,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 #include <mios32.h>
+#include <stdio.h>
 #include <stdarg.h>
 #include "tasks.h"
 
@@ -380,11 +381,13 @@ s32 SEQ_LCD_PrintString(const char *str)
 /////////////////////////////////////////////////////////////////////////////
 s32 SEQ_LCD_PrintFormattedString(const char *format, ...)
 {
-  char buffer[LCD_MAX_COLUMNS]; // TODO: tmp!!! Provide a streamed COM method later!
+  char buffer[LCD_MAX_COLUMNS + 1]; // TODO: tmp!!! Provide a streamed COM method later!
   va_list args;
 
   va_start(args, format);
-  vsprintf((char *)buffer, format, args);
+  vsnprintf(buffer, sizeof(buffer), format, args);
+  va_end(args);
+
   return SEQ_LCD_PrintString(buffer);
 }
 
@@ -645,7 +648,7 @@ s32 SEQ_LCD_PrintRootValue(u8 root_value)
     "Glb ", " C  ", " C# ", " D  ", " D# ", " E  ", " F  ", " F# ", " G  ", " G# ", " A  ", " A# ", " B  "
   };
 
-  return SEQ_LCD_PrintFormattedString((char *)keys_str[root_value % 13]);
+  return SEQ_LCD_PrintString((char *)keys_str[root_value % 13]);
 }
 
 
