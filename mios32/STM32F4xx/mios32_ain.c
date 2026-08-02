@@ -580,13 +580,22 @@ void DMA2_Stream0_IRQHandler(void)
     u8 mux_value = mux_selection_order[mux_ctr];
 
 #if MIOS32_AIN_MUX_PINS >= 1
-    MIOS32_AIN_MUX0_PORT->BSRR = (mux_value & (1 << 0)) ? MIOS32_AIN_MUX0_PIN : (MIOS32_AIN_MUX0_PIN<<16);
+    if( mux_value & (1 << 0) )
+      MIOS32_AIN_MUX0_PORT->BSRRL = MIOS32_AIN_MUX0_PIN;
+    else
+      MIOS32_AIN_MUX0_PORT->BSRRH = MIOS32_AIN_MUX0_PIN;
 #endif
 #if MIOS32_AIN_MUX_PINS >= 2
-    MIOS32_AIN_MUX1_PORT->BSRR = (mux_value & (1 << 1)) ? MIOS32_AIN_MUX1_PIN : (MIOS32_AIN_MUX1_PIN<<16);
+    if( mux_value & (1 << 1) )
+      MIOS32_AIN_MUX1_PORT->BSRRL = MIOS32_AIN_MUX1_PIN;
+    else
+      MIOS32_AIN_MUX1_PORT->BSRRH = MIOS32_AIN_MUX1_PIN;
 #endif
 #if MIOS32_AIN_MUX_PINS >= 3
-    MIOS32_AIN_MUX2_PORT->BSRR = (mux_value & (1 << 2)) ? MIOS32_AIN_MUX2_PIN : (MIOS32_AIN_MUX2_PIN<<16);
+    if( mux_value & (1 << 2) )
+      MIOS32_AIN_MUX2_PORT->BSRRL = MIOS32_AIN_MUX2_PIN;
+    else
+      MIOS32_AIN_MUX2_PORT->BSRRH = MIOS32_AIN_MUX2_PIN;
 #endif
 
     // TODO: check with MBHP_CORE_STM32 board, if we need a "settle" time before
