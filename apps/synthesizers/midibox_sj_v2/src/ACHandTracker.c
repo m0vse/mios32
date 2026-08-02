@@ -13,7 +13,7 @@
 #include <mios32.h>
 #include "app.h"
 #include "ACHandTracker.h"
-#include "IIC_Speakjet.h"
+#include "IIC_SpeakJet.h"
 
 
 #if KII_AIN_ENABLED
@@ -563,4 +563,3 @@ void ACHandTracker_AIN_NotifyChange(unsigned char pin, unsigned int pin_value) {
 
 
 #endif /* KII_AIN_ENABLED */
-

@@ -8,6 +8,7 @@
  */
 
 #include "ACToolbox.h"
+#include <jsw_rand.h>
 
 
 
@@ -51,7 +52,6 @@ unsigned char ACMath_Random(void) {
 unsigned char ACMath_RandomInRange(unsigned char rmax) {
   return ACMath_Random() % (rmax+1);
 }
-
 
 
 
