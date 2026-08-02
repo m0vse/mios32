@@ -43,7 +43,7 @@ LIBS =
 LD_FILE   = 	$(MIOS32_PATH)/etc/ld/$(FAMILY)/$(PROCESSOR).ld
 PROJECT   = 	project
 
-DEBUG     =	-g -Werror
+DEBUG     =	-g
 OPTIMIZE  =	-Os -fno-strict-aliasing
 
 CFLAGS =	$(DEBUG) $(OPTIMIZE)

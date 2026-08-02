@@ -21,6 +21,10 @@
 // USB settings
 #define MIOS32_USB_PRODUCT_STR  "MIDIbox Lights v1"
 
+// The driver sources include this configuration without including app.h.
+extern void APP_MutexSPI0Take(void);
+extern void APP_MutexSPI0Give(void);
+
 // bit mask to enable channels
 //
 // Pin mapping on MBHP_CORE_STM32 module:

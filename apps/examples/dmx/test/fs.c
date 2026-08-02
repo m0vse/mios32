@@ -264,12 +264,12 @@ char *FS_FindNext(char *filename)
   }
 
   u8 take_next;
-  u8 *search_file[13];
+  u8 search_file[13];
   if( filename == NULL ) {
     take_next = 1;
   } else {
     take_next = 0;
-    DFS_CanonicalToDir(search_file, filename);
+    DFS_CanonicalToDir(search_file, (u8 *)filename);
   }
 
   while( !DFS_GetNext(&vi, &di, &de) ) {

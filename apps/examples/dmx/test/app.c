@@ -36,6 +36,9 @@
 #include <timer.h>
 #include "dhcpc.h"
 #include "osc_client.h"
+#include "uip_task.h"
+
+extern void telnetd_init(void);
 
 // Mutex for controlling access to SDCARD/ENC28J60
 xSemaphoreHandle xSPI0Semaphore;	
@@ -45,20 +48,11 @@ xSemaphoreHandle xSPI0Semaphore;
 static UW_Window	FaderForm;
 static UW_Window	SubmasterForm;
 static UW_Window	ConfigForm;
-static UW_Window    LabelName,LabelHome,LabelMob,LabelEmail;
-static UW_Window	EditName,EditHome,EditMob,EditEmail;
-static UW_Window	BtnOk,BtnCancel;
-
-
-static UW_Window	LightsBtn,LightsLabel;
 static UW_Window	Faders[26];
 static UW_Window	Submasters[26];
-static const char IconCaption[]="   MIDIbox Lights";
 static const char FaderCaption[]="   Faders View";
 static const char SubmasterCaption[]="Submaster View";
 static const char ConfigCaption[]="SSSSSTTTTT";
-static char LabelCaption[] = "Hello UWindows!";
-static char BtnCaption[]= "Show/Hide";
 
 static void TASK_CHASE(void *pvParameters);
 const char Labels[]="AccountName:Home:Mob:Email:MaleSingleOkCancel";
@@ -68,7 +62,6 @@ u8 sub[24];
 u8 mastera, masterb;
 u8 current_state;
 u8 uip_configured=0;
-static struct timer periodic_timer,arp_timer;
 
 // Initialize all views
 void Views_Init(void)
@@ -206,7 +199,7 @@ void Check_Submasters(void)
 void APP_Background(void)
 {
 	u32 g;
-	u8 temp_mastera, temp_masterb;
+	u8 temp_mastera = mastera, temp_masterb = masterb;
 	
 	// endless loop
 	while( 1 )
