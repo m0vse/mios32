@@ -1,3 +1,6 @@
+#ifndef RGB_LED_CONTROLLER_EXTERNALHEADERS_H
+#define RGB_LED_CONTROLLER_EXTERNALHEADERS_H
+
 //fixes
 
 #define PCB_BUG_SRIO_EXCHANGED
@@ -109,3 +112,4 @@ typedef enum {
 #define KNOEPFLI_CMD_FLASHALL						0x0c	//Flash all LEDs					|0xff		|0xff	|
 #define	KNOEPFLI_CMD_SETBRIGHTNESSALL		0x0d	//Set the overall brightn.|0xff		|0xff	|Brightn|*/
 
+#endif /* RGB_LED_CONTROLLER_EXTERNALHEADERS_H */
