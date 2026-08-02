@@ -5,33 +5,9 @@ on:
     branches: [master]
     paths:
       - "tools/mios_studio/**"
-      - "bin/**"
-      - "bootloader/**"
-      - "drivers/**"
-      - "etc/**"
-      - "FreeRTOS/**"
-      - "include/**"
-      - "mios32/**"
-      - "modules/**"
-      - "programming_models/**"
-      - "source_me_*"
-      - ".github/ci/release.py"
-      - ".github/workflows/mios-studio.yml"
   pull_request:
     paths:
       - "tools/mios_studio/**"
-      - "bin/**"
-      - "bootloader/**"
-      - "drivers/**"
-      - "etc/**"
-      - "FreeRTOS/**"
-      - "include/**"
-      - "mios32/**"
-      - "modules/**"
-      - "programming_models/**"
-      - "source_me_*"
-      - ".github/ci/release.py"
-      - ".github/workflows/mios-studio.yml"
   workflow_dispatch:
     inputs:
       publish:
