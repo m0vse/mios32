@@ -116,9 +116,33 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  analyze_mbseq:
+    name: Analyze MIDIbox SEQ V4
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Arm GNU Toolchain 15.2.Rel1
+        uses: carlosperate/arm-none-eabi-gcc-action@v1.12.3
+        with:
+          release: 15.2.Rel1
+      - name: Run GCC safety analysis
+        env:
+          MIOS32_EXTRA_CFLAGS: >-
+            -Wformat=2 -Wformat-overflow=2 -Wformat-truncation=2
+            -Wstringop-overflow=2 -Werror=format-security
+            -Werror=format-overflow -Werror=format-truncation
+            -Werror=stringop-overflow -fanalyzer
+            -Werror=analyzer-use-after-free -Werror=analyzer-double-free
+            -Werror=analyzer-null-dereference
+            -Werror=analyzer-out-of-bounds
+        run: >-
+          python3 .github/ci/firmware.py build --platform lpc17
+          --app midibox_seq_v4 --dist dist/analysis
+
   release:
     name: Release ${{ matrix.id }}
-    needs: [select, build]
+    needs: [select, build, analyze_mbseq]
     if: >-
       needs.select.outputs.has_releases == 'true' &&
       ((github.event_name == 'push' && github.ref == 'refs/heads/master') ||

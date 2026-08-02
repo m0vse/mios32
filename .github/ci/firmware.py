@@ -251,7 +251,15 @@ def append_summary(lines: list[str]) -> None:
 
 def command_build(args: argparse.Namespace) -> int:
     config = load_config()
-    selected = json.loads(os.environ.get("MIOS32_CI_APPS", "[]"))
+    if args.app:
+        requested = set(args.app)
+        selected = [app for app in discover_apps(config) if app["id"] in requested]
+        found = {app["id"] for app in selected}
+        missing = requested - found
+        if missing:
+            raise RuntimeError(f"Unknown firmware application(s): {', '.join(sorted(missing))}")
+    else:
+        selected = json.loads(os.environ.get("MIOS32_CI_APPS", "[]"))
     selected = [app for app in selected if args.platform in app["platforms"]]
     base_env = platform_environment(config, args.platform)
     make = shutil.which("make")
@@ -345,11 +353,20 @@ def make_parser() -> argparse.ArgumentParser:
     build = subparsers.add_parser("build")
     build.add_argument("--platform", required=True, choices=("lpc17", "stm32", "stm32f4"))
     build.add_argument("--dist", default="dist/firmware")
+    build.add_argument("--app", action="append", default=[])
     build.set_defaults(handler=command_build)
     return parser
 
 
 def main() -> int:
+    # Toolchains occasionally emit byte sequences which decode to characters
+    # that the Windows console code page cannot represent.  Keep the streamed
+    # build log flowing instead of aborting an otherwise valid build.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(errors="replace")
+
     args = make_parser().parse_args()
     return args.handler(args)
 

@@ -64,6 +64,10 @@ AFLAGS += $(A_DEFINES) $(A_INCLUDE) -Wa,-adhlns=$(<:.s=.lst)
 # define C flags
 CFLAGS += $(C_DEFINES) $(C_INCLUDE) -Wall -Wno-format -Wno-switch -Wno-strict-aliasing
 
+# Optional diagnostics used by CI analysis builds.  Keeping this separate from
+# application CFLAGS ensures release binaries retain their established flags.
+CFLAGS += $(MIOS32_EXTRA_CFLAGS)
+
 # CI release builds inject the independently calculated application version so
 # the firmware's boot/SysEx identity matches its archive and tag.
 ifneq ($(strip $(MIOS32_RELEASE_VERSION)),)
