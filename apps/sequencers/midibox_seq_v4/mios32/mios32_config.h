@@ -200,6 +200,14 @@ extern void APP_SendDebugMessage(char *format, ...)
 # define MIOS32_UART_NUM 4
 #endif
 
+// At 31.25 kbaud a 32-byte ring covers more than 10 ms of continuous MIDI
+// traffic. The 1 ms MIDI service task normally drains about three bytes per
+// UART in that interval, leaving ample burst margin on LPC17.
+#if defined(MIOS32_FAMILY_LPC17xx)
+# define MIOS32_UART_RX_BUFFER_SIZE 32
+# define MIOS32_UART_TX_BUFFER_SIZE 32
+#endif
+
 
 // configure IIC_MIDI
 #define MIOS32_IIC_MIDI_NUM 4
