@@ -14,11 +14,47 @@
 
 #include "LogBox.h"
 
+class LogBoxRowComponent : public Component
+{
+public:
+    explicit LogBoxRowComponent(LogBox& ownerToUse)
+        : owner(ownerToUse), row(-1)
+    {
+        setInterceptsMouseClicks(true, false);
+    }
+
+    void setRow(int rowToUse)
+    {
+        row = rowToUse;
+    }
+
+    void mouseDown(const MouseEvent& e) override
+    {
+        owner.beginRowSelection(row, e);
+    }
+
+    void mouseDrag(const MouseEvent& e) override
+    {
+        owner.dragRowSelection(e);
+    }
+
+    void mouseUp(const MouseEvent&) override
+    {
+        owner.endRowSelection();
+    }
+
+private:
+    LogBox& owner;
+    int row;
+};
+
 
 //==============================================================================
 LogBox::LogBox(const String &componentName)
     : ListBox(componentName, 0)
     , maxRowWidth(0)
+    , dragSelectionAnchor(-1)
+    , dragSelectionAdditive(false)
 #if JUCE_MAJOR_VERSION==1 && JUCE_MINOR_VERSION<51
 #if defined(JUCE_WIN32)
     , logEntryFont(Typeface::defaultTypefaceNameMono, 10.0, 0)
@@ -73,6 +109,77 @@ void LogBox::paintListBoxItem(int rowNumber,
     g.drawText(p.second,
                5, 0, width, height,
                Justification::centredLeft, true);
+}
+
+Component* LogBox::refreshComponentForRow(int rowNumber, bool,
+                                          Component* existingComponentToUpdate)
+{
+    LogBoxRowComponent* rowComponent =
+        static_cast<LogBoxRowComponent*>(existingComponentToUpdate);
+
+    if( rowComponent == nullptr )
+        rowComponent = new LogBoxRowComponent(*this);
+
+    rowComponent->setRow(rowNumber);
+    return rowComponent;
+}
+
+void LogBox::beginRowSelection(int row, const MouseEvent& e)
+{
+    if( row < 0 || row >= getNumRows() )
+        return;
+
+    grabKeyboardFocus();
+
+    if( e.mods.isPopupMenu() ) {
+        if( !isRowSelected(row) )
+            selectRow(row);
+        listBoxItemClicked(row, e);
+        endRowSelection();
+        return;
+    }
+
+    if( !e.mods.isLeftButtonDown() )
+        return;
+
+    const int previousAnchor = getLastRowSelected();
+    dragSelectionAnchor = e.mods.isShiftDown() && previousAnchor >= 0
+        ? previousAnchor : row;
+    dragSelectionAdditive = e.mods.isCommandDown();
+    dragSelectionBase = dragSelectionAdditive ? getSelectedRows() : SparseSet<int>();
+
+    selectRowsBasedOnModifierKeys(row, e.mods, false);
+}
+
+void LogBox::dragRowSelection(const MouseEvent& e)
+{
+    if( dragSelectionAnchor < 0 || !e.mods.isLeftButtonDown() )
+        return;
+
+    const MouseEvent relativeEvent = e.getEventRelativeTo(this);
+    int row = getRowContainingPosition(relativeEvent.x, relativeEvent.y);
+    if( row < 0 ) {
+        if( relativeEvent.y < 0 )
+            row = 0;
+        else if( relativeEvent.y >= getHeight() )
+            row = getNumRows() - 1;
+    }
+
+    if( row < 0 || row >= getNumRows() )
+        return;
+
+    SparseSet<int> selection = dragSelectionBase;
+    selection.addRange(Range<int>(jmin(dragSelectionAnchor, row),
+                                  jmax(dragSelectionAnchor, row) + 1));
+    setSelectedRows(selection);
+    scrollToEnsureRowIsOnscreen(row);
+}
+
+void LogBox::endRowSelection()
+{
+    dragSelectionAnchor = -1;
+    dragSelectionAdditive = false;
+    dragSelectionBase.clear();
 }
 
 //==============================================================================

@@ -19,6 +19,8 @@
 
 #include <utility>
 
+class LogBoxRowComponent;
+
 class LogBox
     : public ListBox
     , public ListBoxModel
@@ -32,6 +34,8 @@ public:
     //==============================================================================
     int getNumRows();
     void paintListBoxItem(int rowNumber, Graphics& g, int width, int height, bool rowIsSelected);
+    Component* refreshComponentForRow(int rowNumber, bool isRowSelected,
+                                      Component* existingComponentToUpdate);
 
     //==============================================================================
     void paintOverChildren(Graphics& g);
@@ -52,11 +56,20 @@ public:
     void performPopupMenuAction(const int menuItemId);
 
 protected:
+    friend class LogBoxRowComponent;
+
+    void beginRowSelection(int row, const MouseEvent& e);
+    void dragRowSelection(const MouseEvent& e);
+    void endRowSelection();
+
     Font logEntryFont;
 
     Array<std::pair<Colour, String> > logEntries;
 
     int maxRowWidth;
+    int dragSelectionAnchor;
+    bool dragSelectionAdditive;
+    SparseSet<int> dragSelectionBase;
 
     //==============================================================================
     // (prevent copy constructor and operator= being generated..)
