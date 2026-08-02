@@ -93,6 +93,14 @@ extern void APP_SendDebugMessage(char *format, ...)
 #define MIOS32_MINIMAL_STACK_SIZE           384
 
 
+// Keep TinyUSB's event queue and mutexes, plus the FreeRTOS idle task, out of
+// the runtime heap. Their backing storage is known at link time and FatFS tiny
+// mode provides sufficient main SRAM for it on LPC17.
+#if defined(MIOS32_FAMILY_LPC17xx) && defined(MIOS32_USB_USE_TINYUSB)
+# define configSUPPORT_STATIC_ALLOCATION 1
+#endif
+
+
 // P.S.: in order to check if the stack size is sufficient, store a preset pattern in Event->Presets page
 // Sequencer could crash with hardfault on a buffer overrun
 

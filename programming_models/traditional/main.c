@@ -389,18 +389,19 @@ void vApplicationMallocFailedHook(void)
 
 // default:
 #ifndef MIOS32_APP_BACKGROUND_STACK_SIZE
-#define MIOS32_APP_BACKGROUND_SIZE ((MIOS32_MINIMAL_STACK_SIZE)/4)
-#warning "MIOS32_APP_BACKGROUND_SIZE hasn't been defined in mios32_config.h --- using default MIOS32_MINIMAL_STACK_SIZE"
+#define MIOS32_APP_BACKGROUND_STACK_SIZE MIOS32_MINIMAL_STACK_SIZE
 #endif
+#define MIOS32_APP_BACKGROUND_STACK_DEPTH \
+  (MIOS32_APP_BACKGROUND_STACK_SIZE / sizeof(StackType_t))
 
 static StaticTask_t xIdleTaskTCBBuffer;
-static StackType_t xIdleStack[MIOS32_APP_BACKGROUND_SIZE];
+static StackType_t xIdleStack[MIOS32_APP_BACKGROUND_STACK_DEPTH];
  
 void vApplicationGetIdleTaskMemory(StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize)
 {
   *ppxIdleTaskTCBBuffer = &xIdleTaskTCBBuffer;
   *ppxIdleTaskStackBuffer = &xIdleStack[0];
-  *pulIdleTaskStackSize = MIOS32_APP_BACKGROUND_SIZE;
+  *pulIdleTaskStackSize = MIOS32_APP_BACKGROUND_STACK_DEPTH;
 }
 #endif
 
