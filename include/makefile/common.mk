@@ -100,6 +100,18 @@ CPPFLAGS += $(CFLAGS) -fno-rtti -fno-exceptions -Wno-write-strings
 # - https://mcuoneclipse.com/2015/08/21/gnu-static-stack-usage-analysis/
 CFLAGS += -fstack-usage
 
+# Some legacy applications include a module make fragment explicitly even when
+# their selected LCD driver has already included it.  Keep the first occurrence
+# so each translation unit is compiled and linked exactly once without changing
+# the application's intended object order.
+unique_sources = $(if $1,$(firstword $1) $(call unique_sources,$(filter-out $(firstword $1),$1)))
+THUMB_SOURCE := $(call unique_sources,$(THUMB_SOURCE))
+THUMB_CPP_SOURCE := $(call unique_sources,$(THUMB_CPP_SOURCE))
+THUMB_AS_SOURCE := $(call unique_sources,$(THUMB_AS_SOURCE))
+ARM_SOURCE := $(call unique_sources,$(ARM_SOURCE))
+ARM_CPP_SOURCE := $(call unique_sources,$(ARM_CPP_SOURCE))
+ARM_AS_SOURCE := $(call unique_sources,$(ARM_AS_SOURCE))
+
 # convert .c/.s -> .o
 THUMB_OBJS = $(THUMB_SOURCE:.c=.o)
 THUMB_CPP_OBJS = $(THUMB_CPP_SOURCE:.cpp=.o)
