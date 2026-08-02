@@ -709,7 +709,7 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
       SEQ_UI_Button_Stop(0);
       out("Sequencer stopped...");
     } else if( strcmp(parameter, "store") == 0 || (strcmp(parameter, "save") == 0 && strlen(brkt) == 0) ) {
-      if( seq_ui_backup_req || seq_ui_format_req ) {
+      if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
 	out("Ongoing session creation - please wait!");
       } else if( strlen(brkt) ) {
 	out("ERROR: use 'save' if you want to store the session under a new name!");
@@ -718,7 +718,7 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
 	out("Storing complete session on SD Card: /SESSIONS/%s\n", seq_file_session_name);
       }
     } else if( strcmp(parameter, "new") == 0 || strcmp(parameter, "saveas") == 0 || strcmp(parameter, "save") == 0 ) {
-      if( seq_ui_backup_req || seq_ui_format_req ) {
+      if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
 	out("Ongoing session creation - please wait!");
       } else {
 	MUTEX_SDCARD_TAKE;
@@ -769,7 +769,7 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
 	MUTEX_SDCARD_GIVE;
       }
     } else if( strcmp(parameter, "open") == 0 || strcmp(parameter, "load") == 0 ) {
-      if( seq_ui_backup_req || seq_ui_format_req ) {
+      if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
 	out("Ongoing session creation - please wait!");
       } else {
 	MUTEX_SDCARD_TAKE;
@@ -810,7 +810,7 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
 	MUTEX_SDCARD_GIVE;
       }
     } else if( strcmp(parameter, "delete") == 0 ) {
-      if( seq_ui_backup_req || seq_ui_format_req ) {
+      if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
 	out("Ongoing session creation - please wait!");
       } else {
 	MUTEX_SDCARD_TAKE;
@@ -838,22 +838,18 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
 	MUTEX_SDCARD_GIVE;
       }
     } else if( strcmp(parameter, "backup") == 0 ) {
-      if( seq_ui_backup_req || seq_ui_format_req ) {
+      if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
 	out("Ongoing session creation - please wait!");
       } else {
-	MUTEX_SDCARD_TAKE;
-	portENTER_CRITICAL();
-	u8 max_depth = 3;
-	FILE_BackupDiskAutoName(max_depth);
-	portEXIT_CRITICAL();
-	MUTEX_SDCARD_GIVE;
+	seq_ui_tar_backup_req = 1;
+	out("SD card TAR backup queued; USB and network services will remain active.");
       }
     } else if( strcmp(parameter, "dbg_record") == 0 ) {
       SEQ_RECORD_DebugActiveNotes();
     } else if( strcmp(parameter, "session") == 0 ) {
       out("Current session: %s", seq_file_session_name);
     } else if( strcmp(parameter, "sessions") == 0 ) {
-      if( seq_ui_backup_req || seq_ui_format_req ) {
+      if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
 	out("Ongoing session creation - please wait!");
       } else {
 	MUTEX_SDCARD_TAKE;
@@ -883,7 +879,7 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
 	MUTEX_SDCARD_GIVE;
       }
     } else if( strcmp(parameter, "restore") == 0 ) {
-      if( seq_ui_backup_req || seq_ui_format_req ) {
+      if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
 	out("Ongoing session creation - please wait!");
       } else if( strlen(brkt) ) {
 	out("ERROR: use 'open' if you want to load a specific session!");

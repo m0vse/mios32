@@ -769,6 +769,30 @@ void SEQ_TASK_Period1S(void)
     seq_ui_format_req = 0;
   }
 
+  // Run whole-card TAR backups from this low-priority worker. The terminal
+  // previously performed the complete archive inside a global critical
+  // section, disabling USB, Ethernet, display updates and task scheduling.
+  if( seq_ui_tar_backup_req ) {
+    DEBUG_MSG("Starting SD card TAR backup...\n");
+    TASKS_WatchdogSuspend(TASKS_WATCHDOG_LONG_OPERATION_MS);
+    status = FILE_BackupDiskAutoName(3);
+    TASKS_WatchdogResume();
+
+    if( status < 0 ) {
+#ifndef MBSEQV4L
+      SEQ_UI_SDCardErrMsg(2000, status);
+#endif
+      DEBUG_MSG("ERROR: SD card TAR backup failed: %d (FatFs: D%3d)\n", status, file_dfs_errno);
+    } else {
+#ifndef MBSEQV4L
+      SEQ_UI_Msg(SEQ_UI_MSG_USER, 2000, "SD backup created", "successfully!");
+#endif
+      DEBUG_MSG("SD card TAR backup completed successfully.\n");
+    }
+
+    seq_ui_tar_backup_req = 0;
+  }
+
   // check for backup request
   // this is running with low priority, so that LCD is updated in parallel!
   if( seq_ui_backup_req ) {

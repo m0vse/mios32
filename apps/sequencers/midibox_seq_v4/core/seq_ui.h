@@ -533,6 +533,7 @@ extern u8 ui_quicksel_loop_length[UI_QUICKSEL_NUM_PRESETS];
 extern u8 ui_quicksel_loop_loop[UI_QUICKSEL_NUM_PRESETS];
 
 extern u8 seq_ui_backup_req;
+extern u8 seq_ui_tar_backup_req;
 extern u8 seq_ui_format_req;
 extern u8 seq_ui_saveall_req;
 

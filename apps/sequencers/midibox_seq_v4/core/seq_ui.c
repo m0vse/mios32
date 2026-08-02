@@ -103,6 +103,7 @@ u8 ui_song_edit_pos;
 u8 ui_store_file_required;
 
 u8 seq_ui_backup_req;
+u8 seq_ui_tar_backup_req;
 u8 seq_ui_format_req;
 u8 seq_ui_saveall_req;
 
@@ -236,6 +237,7 @@ s32 SEQ_UI_Init(u32 mode)
 
   // misc
   seq_ui_backup_req = 0;
+  seq_ui_tar_backup_req = 0;
   seq_ui_format_req = 0;
   seq_ui_saveall_req = 0;
 
@@ -2470,7 +2472,7 @@ s32 SEQ_UI_Button_Handler(u32 pin, u32 pin_value)
     return -1;
 
   // ignore during a backup or format is created
-  if( seq_ui_backup_req || seq_ui_format_req )
+  if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req )
     return -1;
 
   // ensure that selections are matching with track constraints
@@ -2699,7 +2701,7 @@ s32 SEQ_UI_BLM_Button_Handler(u32 row, u32 pin, u32 pin_value)
     return -1;
 
   // ignore during a backup or format is created
-  if( seq_ui_backup_req || seq_ui_format_req )
+  if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req )
     return -1;
 
   if( row >= SEQ_CORE_NUM_TRACKS_PER_GROUP )
@@ -2742,7 +2744,7 @@ s32 SEQ_UI_Encoder_Handler(u32 encoder, s32 incrementer)
     return -1;
 
   // ignore during a backup or format is created
-  if( seq_ui_backup_req || seq_ui_format_req )
+  if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req )
     return -1;
 
   if( encoder >= SEQ_HWCFG_NUM_ENCODERS )
@@ -3047,19 +3049,21 @@ s32 SEQ_UI_LCD_Handler(void)
 	SEQ_LCD_LOGO_Print(40, boot_animation_lcd_pos++);
       }
     }
-  } else if( seq_ui_backup_req || seq_ui_format_req ) {
+  } else if( seq_ui_backup_req || seq_ui_tar_backup_req || seq_ui_format_req ) {
     SEQ_LCD_Clear();
     SEQ_LCD_CursorSet(0, 0);
     //                     <-------------------------------------->
     //                     0123456789012345678901234567890123456789
     if( seq_ui_backup_req )
       SEQ_LCD_PrintString("Copy Files - please wait!!!");
+    else if( seq_ui_tar_backup_req )
+      SEQ_LCD_PrintString("SD Backup - please wait!!!");
     else if( seq_ui_format_req )
       SEQ_LCD_PrintString("Creating Files - please wait!!!");
     else
       SEQ_LCD_PrintString("Don't know what I'm doing! :-/");
 
-    if( seq_file_backup_notification != NULL ) {
+    if( seq_ui_backup_req && seq_file_backup_notification != NULL ) {
       int i;
 
       SEQ_LCD_CursorSet(0, 1);
