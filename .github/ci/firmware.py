@@ -218,7 +218,7 @@ def command_build(args: argparse.Namespace) -> int:
     config = load_config()
     selected = json.loads(os.environ.get("MIOS32_CI_APPS", "[]"))
     selected = [app for app in selected if args.platform in app["platforms"]]
-    env = platform_environment(config, args.platform)
+    base_env = platform_environment(config, args.platform)
     make = shutil.which("make")
     if not make:
         raise RuntimeError("GNU make is not available")
@@ -230,6 +230,10 @@ def command_build(args: argparse.Namespace) -> int:
     print(f"Building {len(selected)} applications for {args.platform} with serial GNU make.")
     for index, app in enumerate(selected, start=1):
         directory = ROOT / app["path"]
+        env = base_env.copy()
+        env["MIOS32_LCD"] = config.get("lcd_overrides", {}).get(
+            app["path"], base_env["MIOS32_LCD"]
+        )
         print(f"\n[{index}/{len(selected)}] {app['path']} ({args.platform})")
         subprocess.run([make, "cleanall"], cwd=directory, env=env, check=False,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
