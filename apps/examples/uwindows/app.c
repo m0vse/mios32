@@ -17,7 +17,7 @@
 
 #include <mios32.h>
 #include "app.h"
-#include <uwindows.h>
+#include <UWindows.h>
 
 static UW_Window	HelloIcon;
 static UW_Window	HelloForm;

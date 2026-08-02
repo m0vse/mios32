@@ -30,7 +30,7 @@
 #include "dmx.h"
 #include "fs.h"
 #include <glcd_font.h>
-#include <uwindows.h>
+#include <UWindows.h>
 #include <uip.h>
 #include <uip_arp.h>
 #include <timer.h>
