@@ -1738,13 +1738,15 @@ s32 FILE_CreateTar(char *filename, char *src_path, u8 exclude_tar_files, u8 max_
 
   // finalize file by adding two dummy all-zero blocks
   {
-    u8 dummy[512];
-    memset(dummy, 0, 512);
+    // FILE_CreateTar() already owns the module scratch buffer.  Reusing it
+    // avoids putting another full sector on the caller's task stack.
+    memset(tmp_buffer, 0, sizeof(tmp_buffer));
 
     int i;
     for(i=0; i<2; ++i) {
-      UINT successcount;  
-      if( (file_dfs_errno=f_write(&file_write, &dummy, 512, &successcount)) != FR_OK || successcount != 512 ) {
+      UINT successcount;
+      if( (file_dfs_errno=f_write(&file_write, tmp_buffer, sizeof(tmp_buffer), &successcount)) != FR_OK ||
+          successcount != sizeof(tmp_buffer) ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
 	DEBUG_MSG("[FILE_CreateTar] Failed to write sector at position 0x%08x, status: %u\n", file_write.fptr, file_dfs_errno);
 #endif
@@ -1770,7 +1772,7 @@ static s32 FILE_CreateTarHeader(char *filename, char *src_path, u8 is_dir, u32 f
 #endif
 
   {
-    size_t len = sizeof(header);
+    size_t len = sizeof(*header);
     memset(header, 0, len);
   }
 
