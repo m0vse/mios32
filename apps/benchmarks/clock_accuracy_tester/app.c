@@ -46,7 +46,7 @@ typedef struct {
 static s32 DelayInit(delay_t* d, u8 including_min_max);
 static s32 DelayUpdate(delay_t* d, u32 timestamp);
 
-static s32 CONSOLE_Parse(mios32_midi_port_t port, u8 byte);
+static s32 CONSOLE_Parse(mios32_midi_port_t port, char byte);
 
 static s32 NOTIFY_MIDI_Rx(mios32_midi_port_t port, u8 byte);
 
@@ -200,7 +200,7 @@ void APP_AIN_NotifyChange(u32 pin, u32 pin_value)
 /////////////////////////////////////////////////////////////////////////////
 // Parser
 /////////////////////////////////////////////////////////////////////////////
-s32 CONSOLE_Parse(mios32_midi_port_t port, u8 byte)
+s32 CONSOLE_Parse(mios32_midi_port_t port, char byte)
 {
   // temporary change debug port (will be restored at the end of this function)
   mios32_midi_port_t prev_debug_port = MIOS32_MIDI_DebugPortGet();
