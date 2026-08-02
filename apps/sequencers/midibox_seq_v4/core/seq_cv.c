@@ -742,7 +742,7 @@ s32 SEQ_CV_SRIO_Finish(void)
   if( dout_trigger_width_ms > 0 ) {
     u8 width = (dout_trigger_width_ms < SEQ_CV_DOUT_TRIGGER_WIDTH_MS_MAX) ? dout_trigger_width_ms : SEQ_CV_DOUT_TRIGGER_WIDTH_MS_MAX;
 
-    memcpy(&dout_trigger_pipeline[0][0], &dout_trigger_pipeline[1][0], SEQ_HWCFG_NUM_SR_DOUT_GATES*(width-1));
+    memmove(&dout_trigger_pipeline[0][0], &dout_trigger_pipeline[1][0], SEQ_HWCFG_NUM_SR_DOUT_GATES*(width-1));
     memset(&dout_trigger_pipeline[width-1][0], 0, SEQ_HWCFG_NUM_SR_DOUT_GATES);
   }
 
@@ -757,7 +757,7 @@ s32 SEQ_CV_SRIO_Finish(void)
 /////////////////////////////////////////////////////////////////////////////
 s32 SEQ_CV_SendPackage(u8 cv_port, mios32_midi_package_t package)
 {
-  if( cv_port > (SEQ_CV_NUM/8) )
+  if( cv_port >= (SEQ_CV_NUM/8) )
     return 0; // event not taken
 
   // Note Off -> Note On with velocity 0
@@ -819,28 +819,28 @@ s32 SEQ_CV_SendPackage(u8 cv_port, mios32_midi_package_t package)
 	u16 velocity_cv = cv_notestack_items[aout_chn_note][0].tag << 9;
 
 	// change voltages
-	AOUT_PinSlewRateEnableSet(aout_chn_note, ((cv_notestack[aout_chn_note].len >= 2) && (sus_key_mask & (1 << aout_chn_note))) ? 1 : 0);
+	AOUT_PinSlewRateEnableSet(aout_chn_note, ((cv_notestack[aout_chn_note].len >= 2) && (sus_key_mask & ((u32)1 << aout_chn_note))) ? 1 : 0);
 	AOUT_PinSet(aout_chn_note, note_cv);
 	if( aout_chn_vel >= 0 )
 	  AOUT_PinSet(aout_chn_vel, velocity_cv);
 
 	// set gate pins
-	if( gate_pin_normal >= 0 )
-	  gates |= (1 << gate_pin_normal);
+	if( gate_pin_normal >= 0 && gate_pin_normal < SEQ_CV_NUM )
+	  gates |= ((u32)1 << gate_pin_normal);
 
-	if( gate_pin_velocity_gt100 >= 0 ) {
+	if( gate_pin_velocity_gt100 >= 0 && gate_pin_velocity_gt100 < SEQ_CV_NUM ) {
 	  if( package.velocity > 100 )
-	    gates |= (1 << gate_pin_velocity_gt100);
+	    gates |= ((u32)1 << gate_pin_velocity_gt100);
 	  else
-	    gates &= ~(1 << gate_pin_velocity_gt100);
+	    gates &= ~((u32)1 << gate_pin_velocity_gt100);
 	}
       } else {
 	// clear gate pins
-	if( gate_pin_normal >= 0 )
-	  gates &= ~(1 << gate_pin_normal);
+	if( gate_pin_normal >= 0 && gate_pin_normal < SEQ_CV_NUM )
+	  gates &= ~((u32)1 << gate_pin_normal);
 
-	if( gate_pin_velocity_gt100 >= 0 )
-	  gates &= ~(1 << gate_pin_velocity_gt100);
+	if( gate_pin_velocity_gt100 >= 0 && gate_pin_velocity_gt100 < SEQ_CV_NUM )
+	  gates &= ~((u32)1 << gate_pin_velocity_gt100);
       }
     }
   } else if( package.event == CC ) {
@@ -856,15 +856,14 @@ s32 SEQ_CV_SendPackage(u8 cv_port, mios32_midi_package_t package)
       gate_pin = aout_chn;
     }
 
-    // aout_chn could be >= 8, but this doesn't matter... AOUT_PinSet() checks for number of available channels
-    // this could be useful for future extensions (e.g. higher number of AOUT Channels)
-    if( aout_chn >= 0 ) {
-      AOUT_PinSlewRateEnableSet(aout_chn, 1);
-      AOUT_PinSet(aout_chn, package.value << 9);
-    }
+    if( aout_chn < 0 || aout_chn >= SEQ_CV_NUM )
+      return 0; // event not taken
+
+    AOUT_PinSlewRateEnableSet(aout_chn, 1);
+    AOUT_PinSet(aout_chn, package.value << 9);
 
     // Gate is always set (useful for controlling pitch of an analog synth where gate is connected as well)
-    gates |= (1 << gate_pin);
+    gates |= ((u32)1 << gate_pin);
 #if 0
     // not here - all pins are updated at once after AOUT_Update() (see SEQ_TASK_MIDI() in app.c)
     MIOS32_BOARD_J5_PinSet(gate_pin, 1);
