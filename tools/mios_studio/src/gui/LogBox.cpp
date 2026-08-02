@@ -241,6 +241,7 @@ void LogBox::paintOverChildren(Graphics& g)
 //==============================================================================
 void LogBox::clear(void)
 {
+    deselectAllRows();
     logEntries.clear();
     setMinimumContentWidth(maxRowWidth = 1);
 
@@ -267,6 +268,16 @@ void LogBox::addEntry(const Colour &colour, const String &textLine)
 
 
 //==============================================================================
+bool LogBox::hasSelection(void) const
+{
+    return getNumSelectedRows() > 0;
+}
+
+bool LogBox::hasEntries(void) const
+{
+    return !logEntries.isEmpty();
+}
+
 void LogBox::copy(void)
 {
     String selectedText;
@@ -291,12 +302,57 @@ void LogBox::copy(void)
 
 void LogBox::cut(void)
 {
-    for(int row=0; row<getNumRows(); ++row)
+    copy();
+    deleteSelection();
+}
+
+void LogBox::deleteSelection(void)
+{
+    for(int row=getNumRows()-1; row>=0; --row)
         if( isRowSelected(row) )
             logEntries.remove(row);
 
+    deselectAllRows();
+    updateAfterRemoval();
+}
+
+void LogBox::selectAll(void)
+{
+    if( getNumRows() > 0 )
+        selectRangeOfRows(0, getNumRows()-1);
+}
+
+void LogBox::updateAfterRemoval()
+{
+    maxRowWidth = 1;
+    for( const auto& entry : logEntries )
+        maxRowWidth = jmax(maxRowWidth,
+                           30 + GlyphArrangement::getStringWidthInt(logEntryFont, entry.second));
+
+    setMinimumContentWidth(maxRowWidth);
+    updateContent();
     repaint(); // note: sometimes not updated without repaint()
     setVerticalPosition(2.0); // has to be done after updateContent()!
+}
+
+bool LogBox::keyPressed(const KeyPress& key)
+{
+    if( key == KeyPress('c', ModifierKeys::commandModifier, 0) ) {
+        copy();
+        return true;
+    }
+
+    if( key == KeyPress('x', ModifierKeys::commandModifier, 0) ) {
+        cut();
+        return true;
+    }
+
+    return ListBox::keyPressed(key);
+}
+
+void LogBox::deleteKeyPressed(int)
+{
+    deleteSelection();
 }
 
 //==============================================================================
@@ -328,11 +384,15 @@ const int baseMenuItemId = 0x7fff0000;
 
 void LogBox::addPopupMenuItems(PopupMenu& m, const MouseEvent*)
 {
-    m.addItem(baseMenuItemId + 1, TRANS("cut"), true);
-    m.addItem(baseMenuItemId + 2, TRANS("copy"), true);
+    const bool selected = hasSelection();
+    const bool populated = hasEntries();
+
+    m.addItem(baseMenuItemId + 1, TRANS("Cut"), selected);
+    m.addItem(baseMenuItemId + 2, TRANS("Copy"), selected);
+    m.addItem(baseMenuItemId + 3, TRANS("Delete"), selected);
     m.addSeparator();
-    m.addItem(baseMenuItemId + 3, TRANS("select all"), true);
-    m.addItem(baseMenuItemId + 4, TRANS("delete all"), true);
+    m.addItem(baseMenuItemId + 4, TRANS("Select All"), populated);
+    m.addItem(baseMenuItemId + 5, TRANS("Clear"), populated);
 }
 
 void LogBox::performPopupMenuAction(const int menuItemId)
@@ -340,7 +400,6 @@ void LogBox::performPopupMenuAction(const int menuItemId)
     switch (menuItemId)
     {
     case baseMenuItemId + 1:
-        copy();
         cut();
         break;
 
@@ -349,11 +408,14 @@ void LogBox::performPopupMenuAction(const int menuItemId)
         break;
 
     case baseMenuItemId + 3:
-        for(int row=0; row<getNumRows(); ++row)
-            selectRow(row, false, false);
+        deleteSelection();
         break;
 
     case baseMenuItemId + 4:
+        selectAll();
+        break;
+
+    case baseMenuItemId + 5:
         clear();
         break;
 

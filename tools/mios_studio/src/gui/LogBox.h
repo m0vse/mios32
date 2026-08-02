@@ -45,8 +45,15 @@ public:
     void addEntry(const Colour &colour, const String &textLine);
 
     //==============================================================================
+    bool hasSelection(void) const;
+    bool hasEntries(void) const;
     void copy(void);
     void cut(void);
+    void deleteSelection(void);
+    void selectAll(void);
+
+    bool keyPressed(const KeyPress& key);
+    void deleteKeyPressed(int lastRowSelected);
 
     //==============================================================================
     void mouseDown(const MouseEvent& e);
@@ -61,6 +68,7 @@ protected:
     void beginRowSelection(int row, const MouseEvent& e);
     void dragRowSelection(const MouseEvent& e);
     void endRowSelection();
+    void updateAfterRemoval();
 
     Font logEntryFont;
 

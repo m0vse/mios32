@@ -49,6 +49,19 @@ MidiDeviceInfo findMidiDevice(const Array<MidiDeviceInfo>& devices,
 
     return MidiDeviceInfo();
 }
+
+Component* findEditTarget()
+{
+    for( Component* component = Component::getCurrentlyFocusedComponent();
+         component != nullptr;
+         component = component->getParentComponent() ) {
+        if( dynamic_cast<TextEditor*>(component) != nullptr ||
+            dynamic_cast<LogBox*>(component) != nullptr )
+            return component;
+    }
+
+    return nullptr;
+}
 }
 
 //==============================================================================
@@ -1019,7 +1032,7 @@ String MiosStudio::getMidiOutput(void)
 //==============================================================================
 StringArray MiosStudio::getMenuBarNames()
 {
-    const char* const names[] = { "Application", "Tools", "Help", 0 };
+    const char* const names[] = { "Application", "Edit", "Tools", "Help", 0 };
 
     return StringArray ((const char**) names);
 }
@@ -1039,6 +1052,14 @@ PopupMenu MiosStudio::getMenuForIndex(int topLevelMenuIndex, const String& menuN
         menu.addSeparator();
         menu.addCommandItem(commandManager, StandardApplicationCommandIDs::quit);
     } else if( topLevelMenuIndex == 1 ) {
+        // "Edit" menu
+        menu.addCommandItem(commandManager, StandardApplicationCommandIDs::cut);
+        menu.addCommandItem(commandManager, StandardApplicationCommandIDs::copy);
+        menu.addCommandItem(commandManager, StandardApplicationCommandIDs::paste);
+        menu.addCommandItem(commandManager, StandardApplicationCommandIDs::del);
+        menu.addSeparator();
+        menu.addCommandItem(commandManager, StandardApplicationCommandIDs::selectAll);
+    } else if( topLevelMenuIndex == 2 ) {
         // "Tools" menu
         menu.addCommandItem(commandManager, showSysexTool);
         menu.addCommandItem(commandManager, showSysexLibrarian);
@@ -1047,7 +1068,7 @@ PopupMenu MiosStudio::getMenuForIndex(int topLevelMenuIndex, const String& menuN
         menu.addCommandItem(commandManager, showMbCvTool);
         menu.addCommandItem(commandManager, showMbhpMfTool);
         menu.addCommandItem(commandManager, showMiosFileBrowser);
-    } else if( topLevelMenuIndex == 2 ) {
+    } else if( topLevelMenuIndex == 3 ) {
         // "Help" menu
         menu.addCommandItem(commandManager, showMiosStudioPage);
         menu.addCommandItem(commandManager, showTroubleshootingPage);
@@ -1088,6 +1109,11 @@ void MiosStudio::getAllCommands(Array <CommandID>& commands)
                               enableTerminal,
                               enableKeyboard,
                               rescanDevices,
+                              StandardApplicationCommandIDs::cut,
+                              StandardApplicationCommandIDs::copy,
+                              StandardApplicationCommandIDs::paste,
+                              StandardApplicationCommandIDs::del,
+                              StandardApplicationCommandIDs::selectAll,
                               showMiosStudioPage,
                               showTroubleshootingPage
     };
@@ -1100,10 +1126,59 @@ void MiosStudio::getAllCommands(Array <CommandID>& commands)
 void MiosStudio::getCommandInfo(const CommandID commandID, ApplicationCommandInfo& result)
 {
     const String applicationCategory (T("Application"));
+    const String editCategory(T("Edit"));
     const String toolsCategory(T("Tools"));
     const String helpCategory (T("Help"));
 
     switch( commandID ) {
+    case StandardApplicationCommandIDs::cut: {
+        Component* target = findEditTarget();
+        TextEditor* editor = dynamic_cast<TextEditor*>(target);
+        LogBox* log = dynamic_cast<LogBox*>(target);
+        result.setInfo(T("Cut"), T("Cuts the selection to the clipboard"), editCategory, 0);
+        result.setActive((editor && !editor->isReadOnly() && !editor->getHighlightedRegion().isEmpty()) ||
+                         (log && log->hasSelection()));
+        result.addDefaultKeypress('X', ModifierKeys::commandModifier);
+    } break;
+
+    case StandardApplicationCommandIDs::copy: {
+        Component* target = findEditTarget();
+        TextEditor* editor = dynamic_cast<TextEditor*>(target);
+        LogBox* log = dynamic_cast<LogBox*>(target);
+        result.setInfo(T("Copy"), T("Copies the selection to the clipboard"), editCategory, 0);
+        result.setActive((editor && !editor->getHighlightedRegion().isEmpty()) ||
+                         (log && log->hasSelection()));
+        result.addDefaultKeypress('C', ModifierKeys::commandModifier);
+    } break;
+
+    case StandardApplicationCommandIDs::paste: {
+        TextEditor* editor = dynamic_cast<TextEditor*>(findEditTarget());
+        result.setInfo(T("Paste"), T("Pastes text from the clipboard"), editCategory, 0);
+        result.setActive(editor && !editor->isReadOnly() &&
+                         SystemClipboard::getTextFromClipboard().isNotEmpty());
+        result.addDefaultKeypress('V', ModifierKeys::commandModifier);
+    } break;
+
+    case StandardApplicationCommandIDs::del: {
+        Component* target = findEditTarget();
+        TextEditor* editor = dynamic_cast<TextEditor*>(target);
+        LogBox* log = dynamic_cast<LogBox*>(target);
+        result.setInfo(T("Delete"), T("Deletes the selection"), editCategory, 0);
+        result.setActive((editor && !editor->isReadOnly() && !editor->getHighlightedRegion().isEmpty()) ||
+                         (log && log->hasSelection()));
+        result.addDefaultKeypress(KeyPress::deleteKey, ModifierKeys::noModifiers);
+    } break;
+
+    case StandardApplicationCommandIDs::selectAll: {
+        Component* target = findEditTarget();
+        TextEditor* editor = dynamic_cast<TextEditor*>(target);
+        LogBox* log = dynamic_cast<LogBox*>(target);
+        result.setInfo(T("Select All"), T("Selects all available content"), editCategory, 0);
+        result.setActive((editor && editor->getTotalNumChars() > 0) ||
+                         (log && log->hasEntries()));
+        result.addDefaultKeypress('A', ModifierKeys::commandModifier);
+    } break;
+
     case enableMonitors:
         result.setInfo(T("Show MIDI Monitors"), T("Enables/disables the MIDI IN/OUT Monitors"), applicationCategory, 0);
         result.setTicked(verticalDividerBarMonitors->isVisible());
@@ -1191,6 +1266,49 @@ void MiosStudio::getCommandInfo(const CommandID commandID, ApplicationCommandInf
 bool MiosStudio::perform(const InvocationInfo& info)
 {
     switch( info.commandID ) {
+    case StandardApplicationCommandIDs::cut:
+        if( TextEditor* editor = dynamic_cast<TextEditor*>(findEditTarget()) )
+            editor->cut();
+        else if( LogBox* log = dynamic_cast<LogBox*>(findEditTarget()) )
+            log->cut();
+        else
+            return false;
+        break;
+
+    case StandardApplicationCommandIDs::copy:
+        if( TextEditor* editor = dynamic_cast<TextEditor*>(findEditTarget()) )
+            editor->copy();
+        else if( LogBox* log = dynamic_cast<LogBox*>(findEditTarget()) )
+            log->copy();
+        else
+            return false;
+        break;
+
+    case StandardApplicationCommandIDs::paste:
+        if( TextEditor* editor = dynamic_cast<TextEditor*>(findEditTarget()) )
+            editor->paste();
+        else
+            return false;
+        break;
+
+    case StandardApplicationCommandIDs::del:
+        if( TextEditor* editor = dynamic_cast<TextEditor*>(findEditTarget()) )
+            editor->insertTextAtCaret(String());
+        else if( LogBox* log = dynamic_cast<LogBox*>(findEditTarget()) )
+            log->deleteSelection();
+        else
+            return false;
+        break;
+
+    case StandardApplicationCommandIDs::selectAll:
+        if( TextEditor* editor = dynamic_cast<TextEditor*>(findEditTarget()) )
+            editor->selectAll();
+        else if( LogBox* log = dynamic_cast<LogBox*>(findEditTarget()) )
+            log->selectAll();
+        else
+            return false;
+        break;
+
     case enableMonitors:
         if( verticalDividerBarMonitors->isVisible() ) {
             midiInMonitor->setVisible(false);
