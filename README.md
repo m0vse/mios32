@@ -97,10 +97,13 @@ drivers, modules, FreeRTOS, or build infrastructure expand that check to the
 complete application set on LPC17xx, STM32F1, and STM32F4 where supported.
 MIOS Studio is built with JUCE on Windows, Linux, and macOS.
 
-Successful main-branch builds of release applications produce independently
-versioned GitHub Releases. Tags include the application name, for example
-`midibox_seq_v4-v4.099` and `mios_studio-v2.4.10`; tutorials and tests are
-continuously built without creating end-user releases.
+Successful main-branch builds of applications in the official
+[MIOS32 download catalogue](https://ucapps.de/mios32_download.html) produce
+independently versioned GitHub Releases. Each firmware archive contains LPC17,
+STM32F1, and STM32F4 images, and the calculated release version is embedded in
+the firmware boot/SysEx identity. Tags include the application name, for
+example `midibox_seq_v4-v4.100` and `mios_studio-v2.4.13`; other applications,
+tutorials, and tests are continuously built without creating end-user releases.
 
 Embedded changes should be checked for both STM32 and LPC17xx where applicable.
 For MIDIbox SEQ V4, compile/link success should be followed by hardware checks

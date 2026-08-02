@@ -14,6 +14,8 @@ import subprocess
 import sys
 from typing import Iterable
 
+from release import next_version
+
 
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = Path(__file__).with_name("firmware-config.json")
@@ -44,7 +46,20 @@ CI_FORCE_ALL_PREFIXES = (
 
 
 def load_config() -> dict:
-    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    release_platforms = set(config["release_platforms"])
+    known_platforms = set(config["platforms"])
+    if release_platforms != known_platforms:
+        raise ValueError("release_platforms must contain every configured platform")
+    for app in config["release_apps"]:
+        supported = set(
+            config.get("platform_overrides", {}).get(app["path"], known_platforms)
+        )
+        if supported != release_platforms:
+            raise ValueError(
+                f"Release application {app['id']} must build for every release platform"
+            )
+    return config
 
 
 def app_id(path: str) -> str:
@@ -138,14 +153,26 @@ def command_select(args: argparse.Namespace) -> int:
     apps = discover_apps(config)
     changed = git_changed_files(args.base, args.head)
     selected, release_apps, reason = select_apps(config, apps, changed, args.all)
+    version_by_path = {}
+    versioned_releases = []
+    for app in release_apps:
+        version = next_version(app["id"], app["base_version"], args.head)
+        version_by_path[app["path"]] = version
+        versioned_releases.append({**app, "version": version})
+    selected = [
+        {**app, "release_version": version_by_path[app["path"]]}
+        if app["path"] in version_by_path
+        else app
+        for app in selected
+    ]
     values = {
         "apps": json.dumps(selected, separators=(",", ":")),
         "app_count": str(len(selected)),
         "has_apps": str(bool(selected)).lower(),
         "release_matrix": json.dumps(
-            {"include": release_apps}, separators=(",", ":")
+            {"include": versioned_releases}, separators=(",", ":")
         ),
-        "has_releases": str(bool(release_apps)).lower(),
+        "has_releases": str(bool(versioned_releases)).lower(),
         "reason": reason,
     }
     write_github_output(values)
@@ -234,6 +261,8 @@ def command_build(args: argparse.Namespace) -> int:
         env["MIOS32_LCD"] = config.get("lcd_overrides", {}).get(
             app["path"], base_env["MIOS32_LCD"]
         )
+        if app.get("release_version"):
+            env["MIOS32_RELEASE_VERSION"] = app["release_version"]
         print(f"\n[{index}/{len(selected)}] {app['path']} ({args.platform})")
         subprocess.run([make, "cleanall"], cwd=directory, env=env, check=False,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

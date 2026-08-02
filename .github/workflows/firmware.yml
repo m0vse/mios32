@@ -75,6 +75,7 @@ jobs:
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           FORCE_ALL: ${{ github.event_name == 'workflow_dispatch' && inputs.build_all || false }}
         run: |
+          git fetch --tags --force
           args=()
           if [[ "$FORCE_ALL" == "true" ]]; then
             args+=(--all)
@@ -143,11 +144,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          git fetch --tags --force
-          version="$(python3 .github/ci/release.py next-version \
-            --app '${{ matrix.id }}' \
-            --base '${{ matrix.base_version }}' \
-            --commit "$GITHUB_SHA")"
+          version='${{ matrix.version }}'
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=${{ matrix.id }}-v$version" >> "$GITHUB_OUTPUT"
       - name: Package release

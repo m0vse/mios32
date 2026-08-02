@@ -64,6 +64,12 @@ AFLAGS += $(A_DEFINES) $(A_INCLUDE) -Wa,-adhlns=$(<:.s=.lst)
 # define C flags
 CFLAGS += $(C_DEFINES) $(C_INCLUDE) -Wall -Wno-format -Wno-switch -Wno-strict-aliasing
 
+# CI release builds inject the independently calculated application version so
+# the firmware's boot/SysEx identity matches its archive and tag.
+ifneq ($(strip $(MIOS32_RELEASE_VERSION)),)
+CFLAGS += -DMIOS32_RELEASE_VERSION=\"$(MIOS32_RELEASE_VERSION)\"
+endif
+
 # GCC 15 defaults to GNU C23, where bool is a language keyword.  The legacy
 # STM32F1 device headers still provide their own bool typedef, so keep embedded
 # C sources on the stable GNU C11 baseline unless an application opts in to a
