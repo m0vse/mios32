@@ -325,7 +325,7 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 						 } else {
 #ifndef MIOS32_FAMILY_EMULATION
 							 // delay our task for ableton get a breath before change the pattern line
-							 vTaskDelay(50);
+							 vTaskDelay(pdMS_TO_TICKS(50U));
 #endif
 							 // send slot play envet to ableton: cc (111 + track) with value 127 to channel 16
 							 MIOS32_MIDI_SendCC(ableton_port, 15, (111 + track), 127);
@@ -632,7 +632,7 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 						
 #ifndef MIOS32_FAMILY_EMULATION
 							// delay our task for ableton get a breath before change the pattern line
-							vTaskDelay(50);
+							vTaskDelay(pdMS_TO_TICKS(50U));
 #endif
 
 							// clip triggering
@@ -645,7 +645,7 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
               	} else {
 #ifndef MIOS32_FAMILY_EMULATION
 									// delay our task for ableton get a breath before change the pattern line
-									vTaskDelay(50);									
+									vTaskDelay(pdMS_TO_TICKS(50U));
 #endif
 									// send clip slot play envet to ableton cc (111 + track) with value 127 to channel 16
                 	MIOS32_MIDI_SendCC(ableton_port, 15, (111 + track), 127);

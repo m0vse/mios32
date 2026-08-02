@@ -173,7 +173,11 @@ void APP_Init(void)
 #endif
 
   // start tasks (differs between MIOS32 and MacOS)
-  TASKS_Init(0);
+  s32 tasks_status = TASKS_Init(0);
+  if( tasks_status < 0 ) {
+    MIOS32_MIDI_SendDebugMessage("[TASKS_Init] failed with status %d\n", tasks_status);
+    return;
+  }
 
   // install MIDI Rx/Tx callback functions
   MIOS32_MIDI_DirectRxCallback_Init(&NOTIFY_MIDI_Rx);

@@ -44,8 +44,8 @@ extern "C" {
 # define MUTEX_SDCARD_GIVE { TASKS_SDCardSemaphoreGive(); }
 #else
   extern SemaphoreHandle_t xSDCardSemaphore;
-# define MUTEX_SDCARD_TAKE { while( xSemaphoreTakeRecursive(xSDCardSemaphore, pdMS_TO_TICKS(1U)) != pdTRUE ); }
-# define MUTEX_SDCARD_GIVE { xSemaphoreGiveRecursive(xSDCardSemaphore); }
+# define MUTEX_SDCARD_TAKE { if( xSDCardSemaphore ) while( xSemaphoreTakeRecursive(xSDCardSemaphore, portMAX_DELAY) != pdTRUE ); }
+# define MUTEX_SDCARD_GIVE { if( xSDCardSemaphore ) xSemaphoreGiveRecursive(xSDCardSemaphore); }
 #endif
 
 
@@ -55,8 +55,8 @@ extern "C" {
 # define MUTEX_J16_GIVE { }
 #else
   extern SemaphoreHandle_t xJ16Semaphore;
-# define MUTEX_J16_TAKE { while( xSemaphoreTakeRecursive(xJ16Semaphore, pdMS_TO_TICKS(1U)) != pdTRUE ); }
-# define MUTEX_J16_GIVE { xSemaphoreGiveRecursive(xJ16Semaphore); }
+# define MUTEX_J16_TAKE { if( xJ16Semaphore ) while( xSemaphoreTakeRecursive(xJ16Semaphore, portMAX_DELAY) != pdTRUE ); }
+# define MUTEX_J16_GIVE { if( xJ16Semaphore ) xSemaphoreGiveRecursive(xJ16Semaphore); }
 #endif
 
 
@@ -68,8 +68,8 @@ extern "C" {
 # define MUTEX_MIDIIN_GIVE { TASKS_MIDIINSemaphoreGive(); }
 #else
   extern SemaphoreHandle_t xMIDIINSemaphore;
-# define MUTEX_MIDIIN_TAKE { while( xSemaphoreTakeRecursive(xMIDIINSemaphore, pdMS_TO_TICKS(1U)) != pdTRUE ); }
-# define MUTEX_MIDIIN_GIVE { xSemaphoreGiveRecursive(xMIDIINSemaphore); }
+# define MUTEX_MIDIIN_TAKE { if( xMIDIINSemaphore ) while( xSemaphoreTakeRecursive(xMIDIINSemaphore, portMAX_DELAY) != pdTRUE ); }
+# define MUTEX_MIDIIN_GIVE { if( xMIDIINSemaphore ) xSemaphoreGiveRecursive(xMIDIINSemaphore); }
 #endif
 
 
@@ -81,7 +81,7 @@ extern "C" {
 # define MUTEX_MIDIOUT_GIVE { TASKS_MIDIOUTSemaphoreGive(); }
 #else
   extern SemaphoreHandle_t xMIDIOUTSemaphore;
-# define MUTEX_MIDIOUT_TAKE { if( xMIDIOUTSemaphore ) while( xSemaphoreTakeRecursive(xMIDIOUTSemaphore, pdMS_TO_TICKS(1U)) != pdTRUE ); }
+# define MUTEX_MIDIOUT_TAKE { if( xMIDIOUTSemaphore ) while( xSemaphoreTakeRecursive(xMIDIOUTSemaphore, portMAX_DELAY) != pdTRUE ); }
 # define MUTEX_MIDIOUT_GIVE { if( xMIDIOUTSemaphore ) xSemaphoreGiveRecursive(xMIDIOUTSemaphore); }
 #endif
 
@@ -94,8 +94,8 @@ extern "C" {
 # define MUTEX_LCD_GIVE { TASKS_LCDSemaphoreGive(); }
 #else
   extern SemaphoreHandle_t xLCDSemaphore;
-# define MUTEX_LCD_TAKE { while( xSemaphoreTakeRecursive(xLCDSemaphore, pdMS_TO_TICKS(1U)) != pdTRUE ); }
-# define MUTEX_LCD_GIVE { xSemaphoreGiveRecursive(xLCDSemaphore); }
+# define MUTEX_LCD_TAKE { if( xLCDSemaphore ) while( xSemaphoreTakeRecursive(xLCDSemaphore, portMAX_DELAY) != pdTRUE ); }
+# define MUTEX_LCD_GIVE { if( xLCDSemaphore ) xSemaphoreGiveRecursive(xLCDSemaphore); }
 #endif
 
 /////////////////////////////////////////////////////////////////////////////
