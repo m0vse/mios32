@@ -19,6 +19,8 @@
 
 #include <mios32.h>
 
+#include <stdint.h>
+
 #include "seq_midi_out.h"
 #include "seq_bpm.h"
 
@@ -65,6 +67,11 @@ static seq_midi_out_queue_item_t *SEQ_MIDI_OUT_SlotMalloc(void);
 static void SEQ_MIDI_OUT_SlotFree(seq_midi_out_queue_item_t *item);
 static seq_midi_out_queue_item_t *SEQ_MIDI_OUT_ItemNextGet(const seq_midi_out_queue_item_t *item);
 static void SEQ_MIDI_OUT_ItemNextSet(seq_midi_out_queue_item_t *item, seq_midi_out_queue_item_t *next);
+#if SEQ_MIDI_OUT_MALLOC_METHOD >= 0 && SEQ_MIDI_OUT_MALLOC_METHOD <= 3
+static seq_midi_out_queue_item_t *SEQ_MIDI_OUT_ItemFromIndex(u32 index);
+static s32 SEQ_MIDI_OUT_ItemIndex(const seq_midi_out_queue_item_t *item);
+static s32 SEQ_MIDI_OUT_PoolGrow(void);
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -99,6 +106,17 @@ static seq_midi_out_queue_item_t *midi_queue;
 # error "Compact scheduler links support fewer than 65535 events"
 #endif
 
+#if SEQ_MIDI_OUT_POOL_CHUNK_EVENTS < 1 || SEQ_MIDI_OUT_POOL_CHUNK_EVENTS > SEQ_MIDI_OUT_MAX_EVENTS
+# error "SEQ_MIDI_OUT_POOL_CHUNK_EVENTS must be in the range 1..SEQ_MIDI_OUT_MAX_EVENTS"
+#endif
+
+#if (SEQ_MIDI_OUT_MAX_EVENTS % SEQ_MIDI_OUT_POOL_CHUNK_EVENTS) != 0
+# error "SEQ_MIDI_OUT_POOL_CHUNK_EVENTS must divide SEQ_MIDI_OUT_MAX_EVENTS"
+#endif
+
+#define SEQ_MIDI_OUT_POOL_NUM_CHUNKS \
+  (SEQ_MIDI_OUT_MAX_EVENTS / SEQ_MIDI_OUT_POOL_CHUNK_EVENTS)
+
 // determine flag array width and mask
 #if SEQ_MIDI_OUT_MALLOC_METHOD == 0
 # define SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH 1
@@ -118,9 +136,11 @@ static seq_midi_out_queue_item_t *midi_queue;
   static u32 alloc_flags[SEQ_MIDI_OUT_MAX_EVENTS/32];
 #endif
 
-// Note: we could easily provide an option for static heap allocation as well
-static seq_midi_out_queue_item_t *alloc_heap;
-static u16 *alloc_links;
+// Each entry points to one allocation containing event payloads followed by
+// compact u16 links. Allocated chunks are retained until FreeHeap(), avoiding
+// the fragmentation caused by per-event allocation.
+static seq_midi_out_queue_item_t *alloc_heap[SEQ_MIDI_OUT_POOL_NUM_CHUNKS];
+static u32 alloc_num_chunks;
 static u32 alloc_pos;
 #endif
 
@@ -151,8 +171,16 @@ static seq_midi_out_queue_item_t *SEQ_MIDI_OUT_ItemNextGet(const seq_midi_out_qu
 #if SEQ_MIDI_OUT_MALLOC_METHOD == 4 || SEQ_MIDI_OUT_MALLOC_METHOD == 5
   return item->next;
 #else
-  u16 next = alloc_links[item - alloc_heap];
-  return next == 0xffff ? NULL : &alloc_heap[next];
+  s32 index = SEQ_MIDI_OUT_ItemIndex(item);
+  if( index < 0 )
+    return NULL;
+
+  u32 chunk = (u32)index / SEQ_MIDI_OUT_POOL_CHUNK_EVENTS;
+  u32 offset = (u32)index % SEQ_MIDI_OUT_POOL_CHUNK_EVENTS;
+  u16 *links = (u16 *)((u8 *)alloc_heap[chunk] +
+			       sizeof(seq_midi_out_queue_item_t) * SEQ_MIDI_OUT_POOL_CHUNK_EVENTS);
+  u16 next = links[offset];
+  return next == 0xffff ? NULL : SEQ_MIDI_OUT_ItemFromIndex(next);
 #endif
 }
 
@@ -163,9 +191,116 @@ static void SEQ_MIDI_OUT_ItemNextSet(seq_midi_out_queue_item_t *item,
 #if SEQ_MIDI_OUT_MALLOC_METHOD == 4 || SEQ_MIDI_OUT_MALLOC_METHOD == 5
   item->next = next;
 #else
-  alloc_links[item - alloc_heap] = next == NULL ? 0xffff : (u16)(next - alloc_heap);
+  s32 index = SEQ_MIDI_OUT_ItemIndex(item);
+  if( index < 0 )
+    return;
+
+  u32 chunk = (u32)index / SEQ_MIDI_OUT_POOL_CHUNK_EVENTS;
+  u32 offset = (u32)index % SEQ_MIDI_OUT_POOL_CHUNK_EVENTS;
+  u16 *links = (u16 *)((u8 *)alloc_heap[chunk] +
+			       sizeof(seq_midi_out_queue_item_t) * SEQ_MIDI_OUT_POOL_CHUNK_EVENTS);
+  s32 next_index = next == NULL ? -1 : SEQ_MIDI_OUT_ItemIndex(next);
+  links[offset] = next_index < 0 ? 0xffff : (u16)next_index;
 #endif
 }
+
+
+#if SEQ_MIDI_OUT_MALLOC_METHOD >= 0 && SEQ_MIDI_OUT_MALLOC_METHOD <= 3
+/////////////////////////////////////////////////////////////////////////////
+// Translate between compact global pool indices and chunk-local pointers.
+/////////////////////////////////////////////////////////////////////////////
+static seq_midi_out_queue_item_t *SEQ_MIDI_OUT_ItemFromIndex(u32 index)
+{
+  if( index >= SEQ_MIDI_OUT_MAX_EVENTS )
+    return NULL;
+
+  u32 chunk = index / SEQ_MIDI_OUT_POOL_CHUNK_EVENTS;
+  if( chunk >= alloc_num_chunks || alloc_heap[chunk] == NULL )
+    return NULL;
+
+  return &alloc_heap[chunk][index % SEQ_MIDI_OUT_POOL_CHUNK_EVENTS];
+}
+
+
+static s32 SEQ_MIDI_OUT_ItemIndex(const seq_midi_out_queue_item_t *item)
+{
+  uintptr_t address = (uintptr_t)item;
+  u32 chunk;
+
+  for(chunk=0; chunk<alloc_num_chunks; ++chunk) {
+    uintptr_t begin = (uintptr_t)alloc_heap[chunk];
+    uintptr_t end = begin +
+      sizeof(seq_midi_out_queue_item_t) * SEQ_MIDI_OUT_POOL_CHUNK_EVENTS;
+
+    if( address >= begin && address < end ) {
+      uintptr_t byte_offset = address - begin;
+      if( (byte_offset % sizeof(seq_midi_out_queue_item_t)) == 0 )
+	return (s32)(chunk * SEQ_MIDI_OUT_POOL_CHUNK_EVENTS +
+		     byte_offset / sizeof(seq_midi_out_queue_item_t));
+      return -1;
+    }
+  }
+
+  return -1;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Add one retained pool chunk. This deliberately uses a small number of
+// coarse allocations rather than per-event malloc/free operations.
+/////////////////////////////////////////////////////////////////////////////
+static s32 SEQ_MIDI_OUT_PoolGrow(void)
+{
+  if( alloc_num_chunks >= SEQ_MIDI_OUT_POOL_NUM_CHUNKS )
+    return -1;
+
+  const size_t item_bytes =
+    sizeof(seq_midi_out_queue_item_t) * SEQ_MIDI_OUT_POOL_CHUNK_EVENTS;
+  const size_t link_bytes = sizeof(u16) * SEQ_MIDI_OUT_POOL_CHUNK_EVENTS;
+  const size_t requested_bytes = item_bytes + link_bytes;
+
+#if SEQ_MIDI_OUT_MALLOC_PRECHECK
+  // FreeRTOS heap implementations account for an aligned two-word block
+  // header. Check the largest block while allocation is suspended so a
+  // recoverable shortage cannot invoke the application's fatal malloc hook.
+  const size_t required_block_size =
+    (requested_bytes + (2 * sizeof(size_t)) + portBYTE_ALIGNMENT_MASK) &
+    ~(size_t)portBYTE_ALIGNMENT_MASK;
+  HeapStats_t heap_stats;
+
+  vTaskSuspendAll();
+  vPortGetHeapStats(&heap_stats);
+  if( heap_stats.xSizeOfLargestFreeBlockInBytes < required_block_size ) {
+    (void)xTaskResumeAll();
+    if( !alloc_failure_reported ) {
+      alloc_failure_reported = 1;
+      SEQ_MIDI_OUT_NotifyAllocationFailure((u32)requested_bytes,
+					   (u32)heap_stats.xAvailableHeapSpaceInBytes,
+					   (u32)heap_stats.xSizeOfLargestFreeBlockInBytes);
+    }
+#if SEQ_MIDI_OUT_MALLOC_ANALYSIS
+    ++seq_midi_out_dropouts;
+#endif
+    return -1;
+  }
+#endif
+
+  seq_midi_out_queue_item_t *chunk =
+    (seq_midi_out_queue_item_t *)pvPortMalloc(requested_bytes);
+#if SEQ_MIDI_OUT_MALLOC_PRECHECK
+  (void)xTaskResumeAll();
+#endif
+  if( chunk == NULL ) {
+#if SEQ_MIDI_OUT_MALLOC_ANALYSIS
+    ++seq_midi_out_dropouts;
+#endif
+    return -1;
+  }
+
+  alloc_heap[alloc_num_chunks++] = chunk;
+  return 0;
+}
+#endif
 
 #if SEQ_MIDI_OUT_SUPPORT_DELAY
 #if SEQ_MIDI_OUT_PPQN_DELAY_NUM < 1 || SEQ_MIDI_OUT_PPQN_DELAY_NUM > 256
@@ -637,12 +772,15 @@ s32 SEQ_MIDI_OUT_FreeHeap(void)
 #elif SEQ_MIDI_OUT_MALLOC_METHOD == 5
   // not relevant
 #else
-  if( alloc_heap != NULL ) {
-    vPortFree(alloc_heap);
-    alloc_heap = NULL;
-    alloc_links = NULL;
+  u32 chunk;
+  for(chunk=0; chunk<alloc_num_chunks; ++chunk) {
+    if( alloc_heap[chunk] != NULL ) {
+      vPortFree(alloc_heap[chunk]);
+      alloc_heap[chunk] = NULL;
+    }
   }
 
+  alloc_num_chunks = 0;
   alloc_pos = 0;
   alloc_failure_reported = 0;
   seq_midi_out_allocated = 0;
@@ -774,110 +912,42 @@ static seq_midi_out_queue_item_t *SEQ_MIDI_OUT_SlotMalloc(void)
   ///////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////
 
-  // allocate memory if this hasn't been done yet
-  if( alloc_heap == NULL ) {
-    const size_t item_bytes = sizeof(seq_midi_out_queue_item_t) * SEQ_MIDI_OUT_MAX_EVENTS;
-    const size_t link_bytes = sizeof(*alloc_links) * SEQ_MIDI_OUT_MAX_EVENTS;
-    const size_t requested_bytes = item_bytes + link_bytes;
-#if SEQ_MIDI_OUT_MALLOC_PRECHECK
-    // heap_4 accounts for an aligned two-word block header. Compare against
-    // the largest block, rather than only the total, so fragmentation cannot
-    // turn this recoverable check into the fatal malloc hook.
-    const size_t required_block_size =
-      (requested_bytes + (2 * sizeof(size_t)) + portBYTE_ALIGNMENT_MASK) &
-      ~(size_t)portBYTE_ALIGNMENT_MASK;
-    HeapStats_t heap_stats;
-
-    // Keep another task from allocating between the check and allocation.
-    vTaskSuspendAll();
-    vPortGetHeapStats(&heap_stats);
-    if( heap_stats.xSizeOfLargestFreeBlockInBytes < required_block_size ) {
-      (void)xTaskResumeAll();
-      if( !alloc_failure_reported ) {
-	alloc_failure_reported = 1;
-	SEQ_MIDI_OUT_NotifyAllocationFailure((u32)requested_bytes,
-					     (u32)heap_stats.xAvailableHeapSpaceInBytes,
-					     (u32)heap_stats.xSizeOfLargestFreeBlockInBytes);
-      }
-#if SEQ_MIDI_OUT_MALLOC_ANALYSIS
-      ++seq_midi_out_dropouts;
-#endif
-      return NULL;
-    }
-#endif
-
-    alloc_heap = (seq_midi_out_queue_item_t *)pvPortMalloc(requested_bytes);
-#if SEQ_MIDI_OUT_MALLOC_PRECHECK
-    (void)xTaskResumeAll();
-#endif
-    if( alloc_heap == NULL ) {
-#if SEQ_MIDI_OUT_MALLOC_ANALYSIS
-      ++seq_midi_out_dropouts;
-#endif
-      return NULL;
-    }
-
-    alloc_links = (u16 *)((u8 *)alloc_heap + item_bytes);
-  }
-
-  // is there still a free slot?
-  if( seq_midi_out_allocated >= SEQ_MIDI_OUT_MAX_EVENTS ) {
-#if SEQ_MIDI_OUT_MALLOC_ANALYSIS
-    ++seq_midi_out_dropouts;
-#endif
+  // Start with one coarse retained block. Grow only after every slot in the
+  // currently allocated capacity is in use.
+  if( alloc_num_chunks == 0 && SEQ_MIDI_OUT_PoolGrow() < 0 )
     return NULL;
+
+  u32 capacity = alloc_num_chunks * SEQ_MIDI_OUT_POOL_CHUNK_EVENTS;
+  if( seq_midi_out_allocated >= capacity ) {
+    if( SEQ_MIDI_OUT_PoolGrow() < 0 )
+      return NULL;
+    capacity = alloc_num_chunks * SEQ_MIDI_OUT_POOL_CHUNK_EVENTS;
   }
 
-  // search for next free slot
+  // Search only allocated chunks. This simple circular scan also fixes the
+  // old packed-flag search, whose starting word accidentally divided by the
+  // total event count instead of the flag width.
   s32 new_pos = -1;
-
-  s32 i;
+  u32 i;
+  u32 ix = (alloc_pos + 1) % capacity;
+  for(i=0; i<capacity; ++i) {
 #if SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH == 1
-  // start with +1, since the chance is higher that this block is free
-  s32 ix = (alloc_pos + 1) % SEQ_MIDI_OUT_MAX_EVENTS;
-  for(i=0; i<SEQ_MIDI_OUT_MAX_EVENTS; ++i) {
     if( !alloc_flags[ix] ) {
       alloc_flags[ix] = 1;
-      new_pos = ix;
+      new_pos = (s32)ix;
       break;
     }
-
-    ix = ++ix % SEQ_MIDI_OUT_MAX_EVENTS;
-  }
 #else
-  s32 ix = ((alloc_pos/SEQ_MIDI_OUT_MAX_EVENTS) + 1) % (SEQ_MIDI_OUT_MAX_EVENTS / SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH);
-  u32 mask;
-  for(i=0; i<SEQ_MIDI_OUT_MAX_EVENTS; ++i) {
-    u32 flags;
-    if( (flags=alloc_flags[ix]) != SEQ_MIDI_OUT_MALLOC_FLAG_MASK ) {
-      mask = (1 << 0);
-      u8 j;
-      for(j=0; j<SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH; ++j) {
-	if( (flags & mask) == 0 ) {
-	  new_pos = SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH*ix + j;
-	  alloc_flags[ix] |= mask;
-	  break;
-	}
-	mask <<= 1;
-      }
-      if( j < SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH ) {
-	break;
-      }
-
-      // we should never reach this point! (can be checked by setting a breakpoint or printf to this location)
-#if DEBUG_VERBOSE_LEVEL >= 1
-      DEBUG_MSG("[SEQ_MIDI_OUT_SlotMalloc] Malfunction case #1\n");
-#endif
-#if SEQ_MIDI_OUT_MALLOC_ANALYSIS
-    ++seq_midi_out_dropouts;
-#endif
-      return NULL;
+    u32 word = ix / SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH;
+    u32 mask = (u32)1 << (ix % SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH);
+    if( !(alloc_flags[word] & mask) ) {
+      alloc_flags[word] |= mask;
+      new_pos = (s32)ix;
+      break;
     }
-
-    ++ix;
-    ix %= (SEQ_MIDI_OUT_MAX_EVENTS / SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH);
-  }
 #endif
+    ix = (ix + 1) % capacity;
+  }
 
   if( new_pos == -1 ) {
     // should never happen! (can be checked by setting a breakpoint or printf to this location)
@@ -898,7 +968,7 @@ static seq_midi_out_queue_item_t *SEQ_MIDI_OUT_SlotMalloc(void)
     seq_midi_out_max_allocated = seq_midi_out_allocated;
 #endif
 
-  return &alloc_heap[alloc_pos];
+  return SEQ_MIDI_OUT_ItemFromIndex(alloc_pos);
 #endif
 }
 
@@ -920,23 +990,17 @@ static void SEQ_MIDI_OUT_SlotFree(seq_midi_out_queue_item_t *item)
   ///////////////////////////////////////////////////////////////////////////
   ///////////////////////////////////////////////////////////////////////////
 
-  if( item >= alloc_heap ) {
-    u32 pos = item - alloc_heap;
-    if( pos < SEQ_MIDI_OUT_MAX_EVENTS ) {
+  s32 item_index = SEQ_MIDI_OUT_ItemIndex(item);
+  if( item_index >= 0 ) {
+    u32 pos = (u32)item_index;
 #if SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH == 1
-      alloc_flags[pos] = 0;
+    alloc_flags[pos] = 0;
 #else
-      alloc_flags[pos/SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH] &= ~(1 << (pos%SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH));
+    alloc_flags[pos/SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH] &=
+      ~((u32)1 << (pos%SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH));
 #endif
-      if( seq_midi_out_allocated ) // TODO: check why it can happen that out_allocated == 0
-	--seq_midi_out_allocated;
-    } else {
-      // should never happen! (can be checked by setting a breakpoint or ptintf to this location)
-#if DEBUG_VERBOSE_LEVEL >= 1
-      DEBUG_MSG("[SEQ_MIDI_OUT_SlotFree] Malfunction case #2\n");
-#endif
-      return;
-    }
+    if( seq_midi_out_allocated ) // TODO: check why it can happen that out_allocated == 0
+      --seq_midi_out_allocated;
   } else {
     // should never happen! (can be checked by setting a breakpoint or printf to this location)
 #if DEBUG_VERBOSE_LEVEL >= 1

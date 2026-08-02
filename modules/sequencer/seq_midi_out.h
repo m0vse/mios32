@@ -41,6 +41,13 @@ extern "C" {
 #define SEQ_MIDI_OUT_MAX_EVENTS 128
 #endif
 
+// Pool allocation methods (0..3) can reserve their event storage in coarse
+// retained chunks. The default preserves the historical single allocation;
+// memory-constrained applications can choose a divisor of MAX_EVENTS.
+#ifndef SEQ_MIDI_OUT_POOL_CHUNK_EVENTS
+#define SEQ_MIDI_OUT_POOL_CHUNK_EVENTS SEQ_MIDI_OUT_MAX_EVENTS
+#endif
+
 // enable seq_midi_out_max_allocated and seq_midi_out_dropouts
 #ifndef SEQ_MIDI_OUT_MALLOC_ANALYSIS
 #define SEQ_MIDI_OUT_MALLOC_ANALYSIS 0
@@ -91,8 +98,8 @@ extern s32 SEQ_MIDI_OUT_Callback_BPM_IsRunning_Set(void *_callback_bpm_is_runnin
 extern s32 SEQ_MIDI_OUT_Callback_BPM_TickGet_Set(void *_callback_bpm_tick_get);
 extern s32 SEQ_MIDI_OUT_Callback_BPM_Set_Set(void *_callback_bpm_set);
 
-// Weak notification hook invoked when the scheduler's one-time pool
-// allocation cannot fit in the largest FreeRTOS heap block.
+// Weak notification hook invoked when a scheduler pool chunk cannot fit in
+// the largest FreeRTOS heap block.
 extern void SEQ_MIDI_OUT_NotifyAllocationFailure(u32 requested_bytes,
 						 u32 free_bytes,
 						 u32 largest_free_block);

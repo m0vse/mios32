@@ -201,15 +201,22 @@ extern void APP_SendDebugMessage(char *format, ...)
 // 5: malloc provided by library
 #define SEQ_MIDI_OUT_MALLOC_METHOD 3
 
-// Reject the scheduler's one-time pool allocation before heap_4 invokes the
-// global fatal malloc hook. The application notification hook reports the
-// recoverable error on the terminal and LCD.
+// Reject a scheduler pool-chunk allocation before the FreeRTOS heap invokes
+// the global fatal malloc hook. The application notification hook reports
+// the recoverable error on the terminal and LCD.
 #define SEQ_MIDI_OUT_MALLOC_PRECHECK 1
 
 // max number of scheduled events which will allocate memory
 // each event allocates 12 bytes
 // MAX_EVENTS must be a power of two! (e.g. 64, 128, 256, 512, ...)
 #define SEQ_MIDI_OUT_MAX_EVENTS 256
+
+// LPC17 has enough scheduler capacity for dense passages, but normally uses
+// fewer than 128 simultaneous events. Allocate that capacity in two retained
+// coarse blocks so ordinary playback does not reserve the second half.
+#if defined(MIOS32_FAMILY_LPC17xx)
+# define SEQ_MIDI_OUT_POOL_CHUNK_EVENTS 128
+#endif
 
 // enable seq_midi_out_max_allocated and seq_midi_out_dropouts
 #define SEQ_MIDI_OUT_MALLOC_ANALYSIS 1
