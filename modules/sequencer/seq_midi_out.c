@@ -25,6 +25,9 @@
 #if SEQ_MIDI_OUT_MALLOC_METHOD != 5
 // FreeRTOS based malloc required
 #include <FreeRTOS.h>
+#if SEQ_MIDI_OUT_MALLOC_PRECHECK
+#include <task.h>
+#endif
 #endif
 
 
@@ -121,6 +124,23 @@ static u16 *alloc_links;
 static u32 alloc_pos;
 #endif
 
+static u8 alloc_failure_reported;
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Allows applications to surface a recoverable scheduler allocation failure
+// in their own UI. The default implementation reports it on the configured
+// MIOS32 debug port.
+/////////////////////////////////////////////////////////////////////////////
+__attribute__((weak)) void SEQ_MIDI_OUT_NotifyAllocationFailure(u32 requested_bytes,
+						 u32 free_bytes,
+						 u32 largest_free_block)
+{
+  DEBUG_MSG("ERROR: MIDI scheduler allocation failed: requested %u bytes, "
+	    "%u bytes free, largest block %u bytes\n",
+	    requested_bytes, free_bytes, largest_free_block);
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // Queue links are stored separately for pool allocation methods.  This keeps
 // each event payload naturally aligned while reducing it from 16 to 12 bytes
@@ -172,6 +192,7 @@ s32 SEQ_MIDI_OUT_Init(u32 mode)
   //  midi_queue = NULL;
 
   seq_midi_out_allocated = 0;
+  alloc_failure_reported = 0;
 #if SEQ_MIDI_OUT_MALLOC_ANALYSIS
   seq_midi_out_max_allocated = 0;
   seq_midi_out_dropouts = 0;
@@ -621,6 +642,7 @@ s32 SEQ_MIDI_OUT_FreeHeap(void)
   }
 
   alloc_pos = 0;
+  alloc_failure_reported = 0;
   seq_midi_out_allocated = 0;
 
   int i;
@@ -755,7 +777,37 @@ static seq_midi_out_queue_item_t *SEQ_MIDI_OUT_SlotMalloc(void)
     const size_t item_bytes = sizeof(seq_midi_out_queue_item_t) * SEQ_MIDI_OUT_MAX_EVENTS;
     const size_t link_bytes = sizeof(*alloc_links) * SEQ_MIDI_OUT_MAX_EVENTS;
     const size_t requested_bytes = item_bytes + link_bytes;
+#if SEQ_MIDI_OUT_MALLOC_PRECHECK
+    // heap_4 accounts for an aligned two-word block header. Compare against
+    // the largest block, rather than only the total, so fragmentation cannot
+    // turn this recoverable check into the fatal malloc hook.
+    const size_t required_block_size =
+      (requested_bytes + (2 * sizeof(size_t)) + portBYTE_ALIGNMENT_MASK) &
+      ~(size_t)portBYTE_ALIGNMENT_MASK;
+    HeapStats_t heap_stats;
+
+    // Keep another task from allocating between the check and allocation.
+    vTaskSuspendAll();
+    vPortGetHeapStats(&heap_stats);
+    if( heap_stats.xSizeOfLargestFreeBlockInBytes < required_block_size ) {
+      (void)xTaskResumeAll();
+      if( !alloc_failure_reported ) {
+	alloc_failure_reported = 1;
+	SEQ_MIDI_OUT_NotifyAllocationFailure((u32)requested_bytes,
+					     (u32)heap_stats.xAvailableHeapSpaceInBytes,
+					     (u32)heap_stats.xSizeOfLargestFreeBlockInBytes);
+      }
+#if SEQ_MIDI_OUT_MALLOC_ANALYSIS
+      ++seq_midi_out_dropouts;
+#endif
+      return NULL;
+    }
+#endif
+
     alloc_heap = (seq_midi_out_queue_item_t *)pvPortMalloc(requested_bytes);
+#if SEQ_MIDI_OUT_MALLOC_PRECHECK
+    (void)xTaskResumeAll();
+#endif
     if( alloc_heap == NULL ) {
 #if SEQ_MIDI_OUT_MALLOC_ANALYSIS
       ++seq_midi_out_dropouts;

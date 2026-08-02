@@ -46,6 +46,13 @@ extern "C" {
 #define SEQ_MIDI_OUT_MALLOC_ANALYSIS 0
 #endif
 
+// heap_4 can reject a large one-time pool allocation without invoking the
+// application's fatal malloc hook. Enable only where vPortGetHeapStats() is
+// provided by the selected FreeRTOS heap implementation.
+#ifndef SEQ_MIDI_OUT_MALLOC_PRECHECK
+#define SEQ_MIDI_OUT_MALLOC_PRECHECK 0
+#endif
+
 // support for ppqn accurate delays
 #ifndef SEQ_MIDI_OUT_SUPPORT_DELAY
 #define SEQ_MIDI_OUT_SUPPORT_DELAY 0
@@ -76,6 +83,12 @@ extern s32 SEQ_MIDI_OUT_Callback_MIDI_SendPackage_Set(void *_callback_midi_send_
 extern s32 SEQ_MIDI_OUT_Callback_BPM_IsRunning_Set(void *_callback_bpm_is_running);
 extern s32 SEQ_MIDI_OUT_Callback_BPM_TickGet_Set(void *_callback_bpm_tick_get);
 extern s32 SEQ_MIDI_OUT_Callback_BPM_Set_Set(void *_callback_bpm_set);
+
+// Weak notification hook invoked when the scheduler's one-time pool
+// allocation cannot fit in the largest FreeRTOS heap block.
+extern void SEQ_MIDI_OUT_NotifyAllocationFailure(u32 requested_bytes,
+						 u32 free_bytes,
+						 u32 largest_free_block);
 
 extern s32 SEQ_MIDI_OUT_Send(mios32_midi_port_t port, mios32_midi_package_t midi_package, seq_midi_out_event_type_t event_type, u32 timestamp, u32 len);
 extern s32 SEQ_MIDI_OUT_ReSchedule(u8 tag, seq_midi_out_event_type_t event_type, u32 timestamp, u32 *reschedule_filter);

@@ -93,6 +93,22 @@ u8 app_din_testmode;
 /////////////////////////////////////////////////////////////////////////////
 static s32 NOTIFY_MIDI_Rx(mios32_midi_port_t port, u8 byte);
 static s32 NOTIFY_MIDI_Tx(mios32_midi_port_t port, mios32_midi_package_t package);
+
+
+/////////////////////////////////////////////////////////////////////////////
+// Keep a scheduler pool allocation failure recoverable and visible. The
+// sequencer remains responsive so the user can inspect memory or upload a
+// corrected firmware instead of entering the global malloc-failure abort.
+/////////////////////////////////////////////////////////////////////////////
+void SEQ_MIDI_OUT_NotifyAllocationFailure(u32 requested_bytes,
+					  u32 free_bytes,
+					  u32 largest_free_block)
+{
+  DEBUG_MSG("ERROR: MIDI scheduler allocation failed: requested %u bytes, "
+	    "%u bytes free, largest block %u bytes\n",
+	    requested_bytes, free_bytes, largest_free_block);
+  SEQ_UI_Msg(SEQ_UI_MSG_USER, 5000, "Scheduler memory", "allocation failed!");
+}
 static s32 NOTIFY_MIDI_TimeOut(mios32_midi_port_t port);
 
 
