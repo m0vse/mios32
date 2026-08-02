@@ -72,8 +72,12 @@
 #ifndef configGENERATE_RUN_TIME_STATS // can be changed in mios32_config.h
 #define configGENERATE_RUN_TIME_STATS           0
 #endif
+#ifndef configUSE_TRACE_FACILITY // can be changed in mios32_config.h
 #define configUSE_TRACE_FACILITY                0
+#endif
+#ifndef configUSE_STATS_FORMATTING_FUNCTIONS // can be changed in mios32_config.h
 #define configUSE_STATS_FORMATTING_FUNCTIONS    0
+#endif
 
 /* Co-routine related definitions. */
 #define configUSE_CO_ROUTINES                   0
