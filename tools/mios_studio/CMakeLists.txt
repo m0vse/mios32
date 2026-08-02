@@ -1,6 +1,15 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(MIOS_Studio VERSION 2.4.9 LANGUAGES C CXX)
+set(MIOS_STUDIO_BASE_VERSION "2.4.10")
+set(MIOS_STUDIO_VERSION_OVERRIDE "" CACHE STRING
+    "Version embedded in CI and release builds")
+if(MIOS_STUDIO_VERSION_OVERRIDE)
+    set(MIOS_STUDIO_BUILD_VERSION "${MIOS_STUDIO_VERSION_OVERRIDE}")
+else()
+    set(MIOS_STUDIO_BUILD_VERSION "${MIOS_STUDIO_BASE_VERSION}")
+endif()
+
+project(MIOS_Studio VERSION "${MIOS_STUDIO_BUILD_VERSION}" LANGUAGES C CXX)
 
 set(JUCE_PATH "" CACHE PATH "Path to a JUCE source checkout")
 if(NOT JUCE_PATH AND DEFINED ENV{JUCE_PATH})
@@ -52,6 +61,7 @@ target_sources(MIOS_Studio PRIVATE
 
 target_compile_features(MIOS_Studio PRIVATE cxx_std_17)
 target_compile_definitions(MIOS_Studio PRIVATE
+    MIOS_STUDIO_VERSION="${PROJECT_VERSION}"
     JUCE_MODAL_LOOPS_PERMITTED=1
     JUCE_USE_CURL=0
     JUCE_WEB_BROWSER=0)

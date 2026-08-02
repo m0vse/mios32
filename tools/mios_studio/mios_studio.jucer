@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<JUCERPROJECT id="MXNnwm" name="MIOS_Studio" projectType="guiapp" version="2.4.9"
+<JUCERPROJECT id="MXNnwm" name="MIOS_Studio" projectType="guiapp" version="2.4.10"
               bundleIdentifier="org.midibox.MIOSStudio" companyName="MIDIbox"
               displaySplashScreen="1" jucerFormatVersion="1" defines="JUCE_MODAL_LOOPS_PERMITTED=1">
   <EXPORTFORMATS>

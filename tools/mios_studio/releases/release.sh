@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export VERSION=2_4_9
+export VERSION=2_4_10
 
 export PATH_MAC=/Applications
 export PATH_WIN=~/Shared/
