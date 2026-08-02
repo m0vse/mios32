@@ -71,6 +71,12 @@ static u32 pc_time_control = 0; // timestamp of last operation
 //static mios32_sys_time_t pattern_timer;
 static mios32_sys_time_t pattern_remix_timer;
 
+static void PatternNameCopy(char *destination, const char *source)
+{
+  memcpy(destination, source, 20);
+  destination[20] = 0;
+}
+
 /////////////////////////////////////////////////////////////////////////////
 // Local LED handler function
 /////////////////////////////////////////////////////////////////////////////
@@ -213,11 +219,11 @@ static s32 Encoder_Handler(seq_ui_encoder_t encoder, s32 incrementer)
         // copy the name of group 1 pattern to all other pattern groups
         for(group=1; group<SEQ_CORE_NUM_GROUPS; ++group) {
 					//SEQ_LABEL_CopyPresetCategory(seq_pattern[0].num, (char *)&seq_pattern_name[group][0]);
-					sprintf(seq_pattern_name[group], seq_pattern_name[0]);
+					PatternNameCopy(seq_pattern_name[group], seq_pattern_name[0]);
         }
 				
 				// copy the pattern name
-				sprintf(pattern_name, seq_pattern_name[0]);
+				PatternNameCopy(pattern_name, seq_pattern_name[0]);
 				
       }
 
@@ -348,7 +354,7 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 					}
 					
 					// copy the pattern name for future reference
-					sprintf(pattern_name, seq_pattern_name[0]);
+					PatternNameCopy(pattern_name, seq_pattern_name[0]);
 					
 					// getting back
 					seq_pattern_remix_map = remix_map_tmp;
@@ -435,9 +441,9 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 
 	  // copy the pattern name
 	  if (remix_mode == 1) {
-	    sprintf(pattern_name_copypaste, pattern_name);
+	    PatternNameCopy(pattern_name_copypaste, pattern_name);
 	  } else {
-	    sprintf(pattern_name_copypaste, seq_pattern_name[0]);
+	    PatternNameCopy(pattern_name_copypaste, seq_pattern_name[0]);
 	  }
 
 	  
@@ -456,7 +462,7 @@ static s32 Button_Handler(seq_ui_button_t button, s32 depressed)
 	  SEQ_UI_PATTERN_MultiPaste(0);
 
 	  // paste the pattern name
-	  sprintf(seq_pattern_name[0], pattern_name_copypaste);
+	  PatternNameCopy(seq_pattern_name[0], pattern_name_copypaste);
 
 	  // paste mixer
 	  SEQ_UI_MIXER_Paste();

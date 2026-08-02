@@ -16,6 +16,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 #include <mios32.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
 
@@ -887,21 +888,17 @@ void APP_SendDebugMessage(char *format, ...)
   MUTEX_MIDIOUT_TAKE;
 
   {
-    char str[128]; // 128 chars allowed
+    char str[128] = { 0 }; // 127 chars plus terminator
     va_list args;
 
-    // failsave: if format string is longer than 100 chars, break here
-    // note that this is a weak protection: if %s is used, or a lot of other format tokens,
-    // the resulting string could still lead to a buffer overflow
-    // other the other hand we don't want to allocate too many byte for buffer[] to save stack
-    if( strlen(format) > 100 ) {
-      // exit with less costly message
-      MIOS32_MIDI_SendDebugString("(ERROR: string passed to MIOS32_MIDI_SendDebugMessage() is longer than 100 chars!\n");
-    } else {
-      // transform formatted string into string
-      va_start(args, format);
-      vsprintf(str, format, args);
-    }
+    va_start(args, format);
+    int formatted_len = vsnprintf(str, sizeof(str), format, args);
+    va_end(args);
+
+    if( formatted_len < 0 )
+      strcpy(str, "(ERROR: invalid debug message format)\n");
+    else if( formatted_len >= (int)sizeof(str) )
+      memcpy(&str[sizeof(str)-5], "...\n", 5);
 
     u32 len = strlen(str);
     u8 *str_ptr = (u8 *)str;
