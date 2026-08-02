@@ -29,6 +29,18 @@ juce_add_gui_app(MIOS_Studio
     ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/icon/MIOS_Studio.iconset/icon_128x128.png"
     ICON_SMALL "${CMAKE_CURRENT_SOURCE_DIR}/icon/MIOS_Studio.iconset/icon_16x16.png")
 
+# JUCE 9.0.0 does not make its generated Windows resource file depend on
+# Info.txt.  Without this dependency, changing the release version in an
+# existing build tree can leave the executable's file properties stale.
+if(WIN32)
+    get_target_property(MIOS_STUDIO_GENERATED_SOURCES_DIR
+        MIOS_Studio JUCE_GENERATED_SOURCES_DIRECTORY)
+    add_custom_command(
+        OUTPUT "${MIOS_STUDIO_GENERATED_SOURCES_DIR}/MIOS_Studio_resources.rc"
+        APPEND
+        DEPENDS "${MIOS_STUDIO_GENERATED_SOURCES_DIR}/Info.txt")
+endif()
+
 juce_generate_juce_header(MIOS_Studio)
 
 target_sources(MIOS_Studio PRIVATE
