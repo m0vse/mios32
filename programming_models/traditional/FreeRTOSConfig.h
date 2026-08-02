@@ -46,7 +46,9 @@
 #define configUSE_RECURSIVE_MUTEXES             1
 #define configUSE_COUNTING_SEMAPHORES           0
 #define configUSE_ALTERNATIVE_API               0 /* Deprecated! */
-#define configQUEUE_REGISTRY_SIZE               10
+// Queue names are only useful to debugger-aware registry consumers. MIOS32
+// does not query the registry, so avoid reserving an otherwise unused table.
+#define configQUEUE_REGISTRY_SIZE               0
 #define configUSE_QUEUE_SETS                    0
 #define configUSE_TIME_SLICING                  1
 #define configUSE_NEWLIB_REENTRANT              0
