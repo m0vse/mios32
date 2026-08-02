@@ -35,7 +35,15 @@
 #ifndef AHB_SECTION
 #define AHB_SECTION
 #endif
-u8 AHB_SECTION seq_mixer_value[SEQ_MIXER_NUM_CHANNELS][SEQ_MIXER_NUM_PARAMETERS];
+// LPC17 AHB SRAM is dominated by the parameter store and FreeRTOS heap. FatFS
+// tiny mode leaves enough main SRAM for this non-DMA mixer table, allowing the
+// more constrained AHB region to be reserved for the runtime heap.
+#if defined(MIOS32_FAMILY_LPC17xx)
+# define SEQ_MIXER_SECTION
+#else
+# define SEQ_MIXER_SECTION AHB_SECTION
+#endif
+u8 SEQ_MIXER_SECTION seq_mixer_value[SEQ_MIXER_NUM_CHANNELS][SEQ_MIXER_NUM_PARAMETERS];
 char seq_mixer_map_name[21];
 
 // flags for CC1..CC4: if cleared, CC will be sent after PC, if set CC will be sent before PC
