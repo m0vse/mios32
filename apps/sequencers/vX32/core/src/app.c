@@ -104,7 +104,7 @@ void APP_Background(void) {
 /////////////////////////////////////////////////////////////////////////////
 //  This hook is called when a complete MIDI event has been received
 /////////////////////////////////////////////////////////////////////////////
-void APP_NotifyReceivedEvent(mios32_midi_port_t port, mios32_midi_package_t midi_package) {
+void APP_MIDI_NotifyPackage(mios32_midi_port_t port, mios32_midi_package_t midi_package) {
     
 static unsigned char testmodule1; //FIXME TESTING
 static unsigned char testmodule2; //FIXME TESTING
