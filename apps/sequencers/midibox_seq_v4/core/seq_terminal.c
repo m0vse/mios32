@@ -302,31 +302,35 @@ s32 SEQ_TERMINAL_ParseLine(char *input, void *_output_function)
   char *separators = " \t";
   char *brkt;
   char *parameter;
+  s32 command_parsed = 0;
 
   MUTEX_MIDIOUT_TAKE;
 
 #if !defined(MIOS32_DONT_USE_OSC)
 #if !defined(MIOS32_FAMILY_EMULATION)
   if( UIP_TERMINAL_ParseLine(input, _output_function) >= 1 )
-    return 0; // command parsed by UIP Terminal
+    command_parsed = 1;
 #endif
 #endif
 
 #if !defined(MIOS32_FAMILY_EMULATION)
 #if !defined(MIOS32_DONT_USE_AOUT)
-  if( AOUT_TerminalParseLine(input, _output_function) >= 1 )
-    return 0; // command parsed
+  if( !command_parsed && AOUT_TerminalParseLine(input, _output_function) >= 1 )
+    command_parsed = 1;
 #endif
 #endif
 
 #ifdef MIOS32_LCD_universal
-  if( APP_LCD_TerminalParseLine(input, _output_function) >= 1 )
-    return 0; // command parsed
+  if( !command_parsed && APP_LCD_TerminalParseLine(input, _output_function) >= 1 )
+    command_parsed = 1;
 #endif
 
   MUTEX_MIDIOUT_GIVE;
 
-  if( (parameter = strtok_r(line_buffer, separators, &brkt)) ) {
+  if( command_parsed )
+    return 0;
+
+  if( (parameter = strtok_r(input, separators, &brkt)) ) {
     if( strcmp(parameter, "help") == 0 ) {
       SEQ_TERMINAL_PrintHelp(out);
     } else if( strcmp(parameter, "system") == 0 ) {
