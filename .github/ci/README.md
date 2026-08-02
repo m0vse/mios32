@@ -6,10 +6,10 @@ application for its supported cores. Changes to MIOS32, drivers, modules,
 FreeRTOS, linker scripts, programming models, bootloader integration, or board
 environment files build every discovered firmware application.
 
-`firmware-config.json` records hardware restrictions and the subset of mature
-applications which already have release packaging scripts. Tutorials,
-benchmarks, examples, and tests are continuously built, but do not create noisy
-end-user releases.
+`firmware-config.json` records hardware restrictions and the deployable
+end-user applications which receive versioned release packages. Tutorials,
+benchmarks, examples, quick experiments, and tests are continuously built, but
+do not create noisy end-user releases.
 
 Release tags are application scoped: `<application>-v<version>`. The first
 automated release starts at the version recorded in the configuration. Later
