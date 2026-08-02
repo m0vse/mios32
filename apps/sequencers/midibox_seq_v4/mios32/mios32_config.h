@@ -37,6 +37,14 @@
 #endif
 #define MIOS32_USB_MIDI_NUM_PORTS 4
 
+// A full-speed USB MIDI transaction carries at most 16 four-byte event
+// packets. Two transactions of buffering retain burst tolerance while
+// recovering scarce LPC17 main SRAM. Other platforms keep the core default.
+#if defined(MIOS32_FAMILY_LPC17xx) && defined(MIOS32_USB_USE_TINYUSB)
+# define MIOS32_USB_MIDI_RX_BUFFER_SIZE 32
+# define MIOS32_USB_MIDI_TX_BUFFER_SIZE 32
+#endif
+
 // port used for debugging via MIDI
 //#define MIOS32_MIDI_DEBUG_PORT USB0
 
