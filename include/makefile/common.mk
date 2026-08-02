@@ -56,7 +56,7 @@ LDFLAGS += -T $(LD_FILE) -mthumb -u _start -Wl,--gc-section  -Xlinker -M -Xlinke
 
 # for https://launchpad.net/gcc-arm-embedded: enable newlib-nano for better performance
 # not compatible with other toolchains (users have to switch to new version, or disable the line below)
-LDFLAGS += --specs=nano.specs
+LDFLAGS += --specs=nano.specs --specs=nosys.specs
 
 # default assembler flags
 AFLAGS += $(A_DEFINES) $(A_INCLUDE) -Wa,-adhlns=$(<:.s=.lst)
