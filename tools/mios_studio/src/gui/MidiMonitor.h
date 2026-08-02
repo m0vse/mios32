@@ -32,6 +32,7 @@ public:
 
     //==============================================================================
     void scanMidiDevices(const String& searchPort = String());
+    bool isPortSelectorPopupActive() const;
 
     //==============================================================================
     void paint(Graphics& g);

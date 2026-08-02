@@ -45,6 +45,11 @@ MidiMonitor::~MidiMonitor()
 {
 }
 
+bool MidiMonitor::isPortSelectorPopupActive() const
+{
+    return midiPortSelector != nullptr && midiPortSelector->isPopupActive();
+}
+
 //==============================================================================
 // Should be called after startup once window is visible
 void MidiMonitor::scanMidiDevices(const String& searchPort)

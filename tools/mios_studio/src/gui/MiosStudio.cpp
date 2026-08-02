@@ -707,6 +707,15 @@ void MiosStudio::timerCallback()
         case 1:
             Timer::stopTimer();
 
+            // Rebuilding a ComboBox while its popup is open dismisses the
+            // menu.  Startup retries can otherwise make the port selector
+            // appear to close every 250 ms while a backend is settling.
+            if( midiInMonitor->isPortSelectorPopupActive() ||
+                midiOutMonitor->isPortSelectorPopupActive() ) {
+                Timer::startTimer(100);
+                break;
+            }
+
             midiInMonitor->scanMidiDevices(inPortFromCommandLine);
             ++initialMidiScanCounter;
 
@@ -715,6 +724,12 @@ void MiosStudio::timerCallback()
 
         case 2:
             Timer::stopTimer();
+
+            if( midiInMonitor->isPortSelectorPopupActive() ||
+                midiOutMonitor->isPortSelectorPopupActive() ) {
+                Timer::startTimer(100);
+                break;
+            }
 
             midiOutMonitor->scanMidiDevices(outPortFromCommandLine);
             ++initialMidiScanCounter;
