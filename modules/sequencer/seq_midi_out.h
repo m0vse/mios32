@@ -58,6 +58,13 @@ extern "C" {
 #define SEQ_MIDI_OUT_SUPPORT_DELAY 0
 #endif
 
+// Number of MIDI port IDs covered by the PPQN delay lookup. Applications
+// with a sparse, bounded port set can override this to avoid reserving all
+// 256 possible u8 port values.
+#ifndef SEQ_MIDI_OUT_PPQN_DELAY_NUM
+#define SEQ_MIDI_OUT_PPQN_DELAY_NUM 256
+#endif
+
 
 /////////////////////////////////////////////////////////////////////////////
 // Global Types

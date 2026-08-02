@@ -217,6 +217,11 @@ extern void APP_SendDebugMessage(char *format, ...)
 // support delays
 #define SEQ_MIDI_OUT_SUPPORT_DELAY 1
 
+// MBSEQ clock delays are available through OSC4 (port ID 0x43). CV and
+// loopback ports are not clock-delay targets, so the remaining sparse u8
+// address space does not require storage.
+#define SEQ_MIDI_OUT_PPQN_DELAY_NUM 0x44
+
 
 #if defined(MIOS32_FAMILY_STM32F10x)
 // enable third UART

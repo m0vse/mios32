@@ -168,8 +168,10 @@ static void SEQ_MIDI_OUT_ItemNextSet(seq_midi_out_queue_item_t *item,
 }
 
 #if SEQ_MIDI_OUT_SUPPORT_DELAY
-#define PPQN_DELAY_NUM 256
-static s8 ppqn_delay[PPQN_DELAY_NUM];
+#if SEQ_MIDI_OUT_PPQN_DELAY_NUM < 1 || SEQ_MIDI_OUT_PPQN_DELAY_NUM > 256
+# error "SEQ_MIDI_OUT_PPQN_DELAY_NUM must be in the range 1..256"
+#endif
+static s8 ppqn_delay[SEQ_MIDI_OUT_PPQN_DELAY_NUM];
 #endif
 
 
@@ -204,7 +206,7 @@ s32 SEQ_MIDI_OUT_Init(u32 mode)
 #if SEQ_MIDI_OUT_SUPPORT_DELAY
   {
     int i;
-    for(i=0; i<PPQN_DELAY_NUM; ++i) {
+    for(i=0; i<SEQ_MIDI_OUT_PPQN_DELAY_NUM; ++i) {
       ppqn_delay[i] = 0;
     }
   }
@@ -359,7 +361,7 @@ s32 SEQ_MIDI_OUT_Send(mios32_midi_port_t port, mios32_midi_package_t midi_packag
 
 
 #if SEQ_MIDI_OUT_SUPPORT_DELAY
-  if( port < PPQN_DELAY_NUM ) {
+  if( port < SEQ_MIDI_OUT_PPQN_DELAY_NUM ) {
     s8 delay = ppqn_delay[port];
     if( (delay < 0) && (timestamp < -delay) ) {
       timestamp = 0;
@@ -531,7 +533,7 @@ s32 SEQ_MIDI_OUT_ReSchedule(u8 tag, seq_midi_out_event_type_t event_type, u32 ti
 
       u32 delayed_timestamp = timestamp;
 #if SEQ_MIDI_OUT_SUPPORT_DELAY
-      if( copy.port < PPQN_DELAY_NUM ) {
+      if( copy.port < SEQ_MIDI_OUT_PPQN_DELAY_NUM ) {
 	s8 delay = ppqn_delay[copy.port];
 	if( (delay < 0) && (delayed_timestamp < -delay) ) {
 	  delayed_timestamp = 0;
@@ -709,7 +711,7 @@ s32 SEQ_MIDI_OUT_Handler(void)
       u32 delayed_timestamp = copy.len + copy.timestamp;
 #if SEQ_MIDI_OUT_SUPPORT_DELAY
       // revert timestamp delay (will be added again by SEQ_MIDI_OUT_Send())
-      if( copy.port < PPQN_DELAY_NUM ) {
+      if( copy.port < SEQ_MIDI_OUT_PPQN_DELAY_NUM ) {
 	s8 delay = ppqn_delay[copy.port];
 	if( (delay > 0) && (delayed_timestamp < delay) ) {
 	  delayed_timestamp = 0;
@@ -952,7 +954,7 @@ static void SEQ_MIDI_OUT_SlotFree(seq_midi_out_queue_item_t *item)
 /////////////////////////////////////////////////////////////////////////////
 s32 SEQ_MIDI_OUT_DelaySet(mios32_midi_port_t port, s8 delay)
 {
-  if( port >= PPQN_DELAY_NUM )
+  if( port >= SEQ_MIDI_OUT_PPQN_DELAY_NUM )
     return -1; // invalid port
   ppqn_delay[port] = delay;
   return 0; // no error
@@ -964,7 +966,7 @@ s32 SEQ_MIDI_OUT_DelaySet(mios32_midi_port_t port, s8 delay)
 /////////////////////////////////////////////////////////////////////////////
 s8  SEQ_MIDI_OUT_DelayGet(mios32_midi_port_t port)
 {
-  if( port >= PPQN_DELAY_NUM )
+  if( port >= SEQ_MIDI_OUT_PPQN_DELAY_NUM )
     return 0;
   return ppqn_delay[port];
 }
