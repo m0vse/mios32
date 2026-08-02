@@ -151,6 +151,8 @@
 #include "app.h"
 #include "sysex.h"
 #include "envelope.h"
+#include "drum.h"
+#include "filter.h"
 
 /////////////////////////////////////////////////////////////////////////////
 // Version/app info 
