@@ -33,7 +33,7 @@
     "apps/synthesizers/midibox_fm_v2_1": ["stm32f4"],
     "apps/synthesizers/midibox_genesis_tracker": ["stm32f4"],
     "apps/synthesizers/midibox_quad_genesis": ["stm32f4"],
-    "apps/synthesizers/midibox_sj_v2": ["lpc17", "stm32f4"],
+    "apps/synthesizers/midibox_sj_v2": ["lpc17"],
     "apps/synthesizers/midibox_vgmplayer": ["stm32f4"],
     "apps/troubleshooting/mbhp_core_stm32_module": ["stm32"],
     "apps/tutorials/012_ain_muxed": ["stm32", "stm32f4"]
