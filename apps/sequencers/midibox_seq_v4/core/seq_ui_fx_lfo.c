@@ -55,7 +55,7 @@
 static u8 edit_cc_number;
 
 // map ITEM_* position with LFO flag number (see doc/mbseqv4_cc_implementation.txt)
-static u8 lfo_flag_map[7] = {
+static const u8 lfo_flag_map[7] = {
   0, // ITEM_ENABLE_ONE_SHOT
   6, // ITEM_ENABLE_CLK_DIV
   1, // ITEM_ENABLE_NOTE

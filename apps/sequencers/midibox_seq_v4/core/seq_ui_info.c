@@ -89,7 +89,7 @@ typedef enum {
 /////////////////////////////////////////////////////////////////////////////
 
 #define LIST_ENTRY_WIDTH 9
-static char list_entries[NUM_LIST_ITEMS*LIST_ENTRY_WIDTH] =
+static const char list_entries[NUM_LIST_ITEMS*LIST_ENTRY_WIDTH] =
 //<--------->
   "System   "
   "Globals  "
@@ -380,7 +380,7 @@ static s32 SEQ_UI_INFO_UpdateList(void)
     int i;
 
     char *list_item = (char *)&ui_global_dir_list[LIST_ENTRY_WIDTH*item];
-    char *list_entry = (char *)&list_entries[LIST_ENTRY_WIDTH*(item+list_view_offset)];
+    const char *list_entry = &list_entries[LIST_ENTRY_WIDTH*(item+list_view_offset)];
     memcpy(list_item, list_entry, LIST_ENTRY_WIDTH);
     for(i=LIST_ENTRY_WIDTH-1; i>=0; --i)
       if( list_item[i] == ' ' )
