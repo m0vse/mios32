@@ -48,7 +48,9 @@ typedef struct seq_midi_out_queue_item_t {
   u16                   len;
   mios32_midi_package_t package;
   u32                   timestamp;
+#if SEQ_MIDI_OUT_MALLOC_METHOD == 4 || SEQ_MIDI_OUT_MALLOC_METHOD == 5
   struct seq_midi_out_queue_item_t *next;
+#endif
 } seq_midi_out_queue_item_t;
 
 
@@ -58,6 +60,8 @@ typedef struct seq_midi_out_queue_item_t {
 
 static seq_midi_out_queue_item_t *SEQ_MIDI_OUT_SlotMalloc(void);
 static void SEQ_MIDI_OUT_SlotFree(seq_midi_out_queue_item_t *item);
+static seq_midi_out_queue_item_t *SEQ_MIDI_OUT_ItemNextGet(const seq_midi_out_queue_item_t *item);
+static void SEQ_MIDI_OUT_ItemNextSet(seq_midi_out_queue_item_t *item, seq_midi_out_queue_item_t *next);
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -88,6 +92,10 @@ static seq_midi_out_queue_item_t *midi_queue;
 
 #if SEQ_MIDI_OUT_MALLOC_METHOD >= 0 && SEQ_MIDI_OUT_MALLOC_METHOD <= 3
 
+#if SEQ_MIDI_OUT_MAX_EVENTS >= 0xffff
+# error "Compact scheduler links support fewer than 65535 events"
+#endif
+
 // determine flag array width and mask
 #if SEQ_MIDI_OUT_MALLOC_METHOD == 0
 # define SEQ_MIDI_OUT_MALLOC_FLAG_WIDTH 1
@@ -109,8 +117,35 @@ static seq_midi_out_queue_item_t *midi_queue;
 
 // Note: we could easily provide an option for static heap allocation as well
 static seq_midi_out_queue_item_t *alloc_heap;
+static u16 *alloc_links;
 static u32 alloc_pos;
 #endif
+
+/////////////////////////////////////////////////////////////////////////////
+// Queue links are stored separately for pool allocation methods.  This keeps
+// each event payload naturally aligned while reducing it from 16 to 12 bytes
+// on 32-bit targets.  Per-item malloc methods retain native pointers.
+/////////////////////////////////////////////////////////////////////////////
+static seq_midi_out_queue_item_t *SEQ_MIDI_OUT_ItemNextGet(const seq_midi_out_queue_item_t *item)
+{
+#if SEQ_MIDI_OUT_MALLOC_METHOD == 4 || SEQ_MIDI_OUT_MALLOC_METHOD == 5
+  return item->next;
+#else
+  u16 next = alloc_links[item - alloc_heap];
+  return next == 0xffff ? NULL : &alloc_heap[next];
+#endif
+}
+
+
+static void SEQ_MIDI_OUT_ItemNextSet(seq_midi_out_queue_item_t *item,
+				     seq_midi_out_queue_item_t *next)
+{
+#if SEQ_MIDI_OUT_MALLOC_METHOD == 4 || SEQ_MIDI_OUT_MALLOC_METHOD == 5
+  item->next = next;
+#else
+  alloc_links[item - alloc_heap] = next == NULL ? 0xffff : (u16)(next - alloc_heap);
+#endif
+}
 
 #if SEQ_MIDI_OUT_SUPPORT_DELAY
 #define PPQN_DELAY_NUM 256
@@ -323,7 +358,7 @@ s32 SEQ_MIDI_OUT_Send(mios32_midi_port_t port, mios32_midi_package_t midi_packag
     new_item->event_type = event_type;
     new_item->timestamp = timestamp;
     new_item->len = len;
-    new_item->next = NULL;
+    SEQ_MIDI_OUT_ItemNextSet(new_item, NULL);
   }
 
 #if DEBUG_VERBOSE_LEVEL >= 2
@@ -374,7 +409,7 @@ s32 SEQ_MIDI_OUT_Send(mios32_midi_port_t port, mios32_midi_package_t midi_packag
 	break;
       }
 
-      if( (next_item=item->next) == NULL ) {
+      if( (next_item=SEQ_MIDI_OUT_ItemNextGet(item)) == NULL ) {
 	// end of queue reached, insert new item at the end
 	break;
       }
@@ -394,11 +429,11 @@ s32 SEQ_MIDI_OUT_Send(mios32_midi_port_t port, mios32_midi_package_t midi_packag
       if( last_item == NULL )
 	midi_queue = new_item;
       else
-	last_item->next = new_item;
-      new_item->next = item;
+	SEQ_MIDI_OUT_ItemNextSet(last_item, new_item);
+      SEQ_MIDI_OUT_ItemNextSet(new_item, item);
     } else {
-      item->next = new_item;
-      new_item->next = next_item;
+      SEQ_MIDI_OUT_ItemNextSet(item, new_item);
+      SEQ_MIDI_OUT_ItemNextSet(new_item, next_item);
     }
   }
 
@@ -413,7 +448,7 @@ s32 SEQ_MIDI_OUT_Send(mios32_midi_port_t port, mios32_midi_package_t midi_packag
   item=midi_queue;
   while( item != NULL ) {
     DEBUG_MSG("[%u] (tag %d) %02x %02x %02x len:%u @%u\n", item->timestamp, item->package.cable, item->package.evnt0, item->package.evnt1, item->package.evnt2, item->len, SEQ_BPM_TickGet());
-    item = item->next;
+    item = SEQ_MIDI_OUT_ItemNextGet(item);
   }
   DEBUG_MSG("--- ^^^ ---\n");
   
@@ -471,7 +506,6 @@ s32 SEQ_MIDI_OUT_ReSchedule(u8 tag, seq_midi_out_event_type_t event_type, u32 ti
       copy.len = item->len;
       copy.package.ALL = item->package.ALL;
       copy.timestamp = item->timestamp;
-      copy.next = item->next;
 #endif
 
       u32 delayed_timestamp = timestamp;
@@ -489,7 +523,7 @@ s32 SEQ_MIDI_OUT_ReSchedule(u8 tag, seq_midi_out_event_type_t event_type, u32 ti
 	break;
 
       // remove item from queue
-      seq_midi_out_queue_item_t *next_item = item->next;
+      seq_midi_out_queue_item_t *next_item = SEQ_MIDI_OUT_ItemNextGet(item);
       SEQ_MIDI_OUT_SlotFree(item);
       item = next_item;
 
@@ -497,7 +531,7 @@ s32 SEQ_MIDI_OUT_ReSchedule(u8 tag, seq_midi_out_event_type_t event_type, u32 ti
       if( prev_item == NULL ) {
 	midi_queue = item;
       } else {
-	prev_item->next = item;
+	SEQ_MIDI_OUT_ItemNextSet(prev_item, item);
       }
 
 #if DEBUG_VERBOSE_LEVEL >= 2
@@ -513,11 +547,11 @@ s32 SEQ_MIDI_OUT_ReSchedule(u8 tag, seq_midi_out_event_type_t event_type, u32 ti
 	prev_item = NULL;
 	seq_midi_out_queue_item_t *tmp_item = midi_queue;
 	while( tmp_item != NULL ) {
-	  if( tmp_item->next == item ) {
+	  if( SEQ_MIDI_OUT_ItemNextGet(tmp_item) == item ) {
 	    prev_item = tmp_item;
 	    break;
 	  } else
-	    tmp_item = tmp_item->next;
+	    tmp_item = SEQ_MIDI_OUT_ItemNextGet(tmp_item);
 	}
 
 	if( prev_item == NULL ) {
@@ -532,7 +566,7 @@ s32 SEQ_MIDI_OUT_ReSchedule(u8 tag, seq_midi_out_event_type_t event_type, u32 ti
     } else {
       // switch to next item
       prev_item = item;
-      item = item->next;
+      item = SEQ_MIDI_OUT_ItemNextGet(item);
     }
   }
 
@@ -553,7 +587,7 @@ s32 SEQ_MIDI_OUT_FlushQueue(void)
       callback_midi_send_package(item->port, item->package);
     }
 
-    midi_queue = item->next;
+    midi_queue = SEQ_MIDI_OUT_ItemNextGet(item);
     SEQ_MIDI_OUT_SlotFree(item);
   }
 
@@ -570,7 +604,7 @@ s32 SEQ_MIDI_OUT_FreeHeap(void)
   // ensure that all items are delocated
   seq_midi_out_queue_item_t *item;
   while( (item=midi_queue) != NULL ) {
-    midi_queue = item->next;
+    midi_queue = SEQ_MIDI_OUT_ItemNextGet(item);
     SEQ_MIDI_OUT_SlotFree(item);
   }
 
@@ -583,6 +617,7 @@ s32 SEQ_MIDI_OUT_FreeHeap(void)
   if( alloc_heap != NULL ) {
     vPortFree(alloc_heap);
     alloc_heap = NULL;
+    alloc_links = NULL;
   }
 
   alloc_pos = 0;
@@ -642,12 +677,11 @@ s32 SEQ_MIDI_OUT_Handler(void)
       copy.len = item->len;
       copy.package.ALL = item->package.ALL;
       copy.timestamp = item->timestamp;
-      copy.next = item->next;
 #endif
       copy.package.velocity = 0; // ensure that velocity is 0
 
       // remove item from queue
-      midi_queue = item->next;
+      midi_queue = SEQ_MIDI_OUT_ItemNextGet(item);
       SEQ_MIDI_OUT_SlotFree(item);
 
       u32 delayed_timestamp = copy.len + copy.timestamp;
@@ -666,7 +700,7 @@ s32 SEQ_MIDI_OUT_Handler(void)
       SEQ_MIDI_OUT_Send(copy.port, copy.package, SEQ_MIDI_OUT_OffEvent, delayed_timestamp, 0);
     } else {
       // remove item from queue
-      midi_queue = item->next;
+      midi_queue = SEQ_MIDI_OUT_ItemNextGet(item);
       SEQ_MIDI_OUT_SlotFree(item);
     }
   }
@@ -718,14 +752,18 @@ static seq_midi_out_queue_item_t *SEQ_MIDI_OUT_SlotMalloc(void)
 
   // allocate memory if this hasn't been done yet
   if( alloc_heap == NULL ) {
-    alloc_heap = (seq_midi_out_queue_item_t *)pvPortMalloc(
-      sizeof(seq_midi_out_queue_item_t)*SEQ_MIDI_OUT_MAX_EVENTS);
+    const size_t item_bytes = sizeof(seq_midi_out_queue_item_t) * SEQ_MIDI_OUT_MAX_EVENTS;
+    const size_t link_bytes = sizeof(*alloc_links) * SEQ_MIDI_OUT_MAX_EVENTS;
+    const size_t requested_bytes = item_bytes + link_bytes;
+    alloc_heap = (seq_midi_out_queue_item_t *)pvPortMalloc(requested_bytes);
     if( alloc_heap == NULL ) {
 #if SEQ_MIDI_OUT_MALLOC_ANALYSIS
       ++seq_midi_out_dropouts;
 #endif
       return NULL;
     }
+
+    alloc_links = (u16 *)((u8 *)alloc_heap + item_bytes);
   }
 
   // is there still a free slot?
