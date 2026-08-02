@@ -17,13 +17,26 @@
     }
   },
   "platform_overrides": {
+    "apps/examples/com_console": ["stm32"],
+    "apps/examples/cv_autotune": ["stm32"],
+    "apps/examples/dmx": ["stm32"],
+    "apps/examples/microvga": ["stm32"],
     "apps/controllers/midibox_kb_v1": ["lpc17", "stm32f4"],
+    "apps/mios32_test/app_lcd/st7637": ["stm32"],
+    "apps/mios32_test/bs_rw_check": ["stm32"],
+    "apps/misc/rgb_led_controller": ["stm32"],
     "apps/processing/midibox_cv_v2": ["lpc17", "stm32f4"],
+    "apps/quickies/csc": ["stm32", "stm32f4"],
+    "apps/quickies/fast_srio_scan": ["stm32"],
+    "apps/synthesizers/SD card sample player": ["lpc17", "stm32f4"],
+    "apps/synthesizers/goom": ["lpc17", "stm32f4"],
     "apps/synthesizers/midibox_fm_v2_1": ["stm32f4"],
     "apps/synthesizers/midibox_genesis_tracker": ["stm32f4"],
     "apps/synthesizers/midibox_quad_genesis": ["stm32f4"],
+    "apps/synthesizers/midibox_sj_v2": ["lpc17", "stm32f4"],
     "apps/synthesizers/midibox_vgmplayer": ["stm32f4"],
-    "apps/troubleshooting/mbhp_core_stm32_module": ["stm32"]
+    "apps/troubleshooting/mbhp_core_stm32_module": ["stm32"],
+    "apps/tutorials/012_ain_muxed": ["stm32", "stm32f4"]
   },
   "excluded_apps": {
     "apps/sequencers/vX32/build/vXjuce": "Desktop MIOSJUCE target; it does not use the embedded common.mk build"
