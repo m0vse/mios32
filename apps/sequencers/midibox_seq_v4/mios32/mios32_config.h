@@ -135,7 +135,8 @@ extern void APP_SendDebugMessage(char *format, ...)
 // P.S.: in order to check if the stack size is sufficient, store a preset pattern in Event->Presets page
 // Sequencer could crash with hardfault on a buffer overrun
 
-// reserved memory for FreeRTOS pvPortMalloc function
+// Heap size for fixed-region allocators. LPC17 uses heap_5 instead, with the
+// available tails of main and AHB SRAM supplied by the linker script.
 #ifdef MBSEQV4P
 # define MIOS32_HEAP_SIZE 20*1024
 #elif defined(MIOS32_FAMILY_LPC17xx) && defined(MIOS32_USB_USE_TINYUSB)

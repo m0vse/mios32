@@ -5,6 +5,18 @@
 
 FREE_RTOS      =    $(MIOS32_PATH)/FreeRTOS
 
+# heap_4 remains the default for existing applications. Applications which
+# provide multiple non-contiguous RAM regions can opt into heap_5 before this
+# makefile is included.
+MIOS32_FREERTOS_HEAP_TYPE ?= 4
+
+ifeq ($(MIOS32_FREERTOS_HEAP_TYPE),5)
+CFLAGS += -DMIOS32_FREERTOS_HEAP_5=1
+FREERTOS_HEAP_SOURCE = $(FREE_RTOS)/Source/portable/MemMang/heap_5.c
+else
+FREERTOS_HEAP_SOURCE = $(FREE_RTOS)/Source/portable/MemMang/heap_4.c
+endif
+
 # extend include path
 C_INCLUDE += 	-I $(MIOS32_PATH)/programming_models/traditional \
 		-I $(FREE_RTOS)/Source/include \
@@ -23,7 +35,7 @@ THUMB_SOURCE += \
 		$(FREE_RTOS)/Source/queue.c \
 		$(FREE_RTOS)/Source/timers.c \
 		$(FREE_RTOS)/Source/portable/GCC/ARM_CM3/port.c \
-		$(FREE_RTOS)/Source/portable/MemMang/heap_4.c
+		$(FREERTOS_HEAP_SOURCE)
 
 ifeq ($(FAMILY),STM32F10x)
 ifeq ($(PROCESSOR),STM32F103CB)

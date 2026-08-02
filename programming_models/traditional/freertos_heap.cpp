@@ -3,7 +3,7 @@
 // as proposed by http://www.state-machine.com/arm/AN_QP_and_ARM7_ARM9-GNU.pdf
 //
 // but instead of disabling malloc and free, we overload these with the
-// FreeRTOS heap_4 allocator.
+// selected FreeRTOS allocator.
 //////////////////////////////////////////////////////////////////////////////
 
 #include <stdlib.h>
@@ -13,6 +13,7 @@
 #include <mios32.h>
 
 extern "C" void *pvPortRealloc(void *p, size_t size);
+extern "C" size_t MIOS32_FREERTOS_HeapTotalSizeGet(void);
 
 //............................................................................
 extern "C" void *malloc(size_t size)
@@ -44,13 +45,14 @@ extern "C" void vPortMallocDebugInfo(void)
   HeapStats_t stats;
   vPortGetHeapStats(&stats);
 
-  const size_t used = configTOTAL_HEAP_SIZE - stats.xAvailableHeapSpaceInBytes;
-  const size_t percent = (configTOTAL_HEAP_SIZE != 0U) ? (used * 100U) / configTOTAL_HEAP_SIZE : 0U;
+  const size_t total = MIOS32_FREERTOS_HeapTotalSizeGet();
+  const size_t used = total - stats.xAvailableHeapSpaceInBytes;
+  const size_t percent = (total != 0U) ? (used * 100U) / total : 0U;
 
   MIOS32_MIDI_SendDebugMessage(
     "Heap: %u of %u bytes used (%u%%), %u bytes free, %u bytes minimum ever free\n",
     (unsigned)used,
-    (unsigned)configTOTAL_HEAP_SIZE,
+    (unsigned)total,
     (unsigned)percent,
     (unsigned)stats.xAvailableHeapSpaceInBytes,
     (unsigned)stats.xMinimumEverFreeBytesRemaining);

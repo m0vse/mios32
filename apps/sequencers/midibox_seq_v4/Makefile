@@ -149,6 +149,7 @@ CFLAGS =	$(DEBUG) $(OPTIMIZE)
 # bootloader or applications which still use the legacy mass-storage driver.
 ifeq ($(FAMILY),LPC17xx)
 MIOS32_USB_USE_TINYUSB = 1
+MIOS32_FREERTOS_HEAP_TYPE = 5
 endif
 
 

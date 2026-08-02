@@ -59,7 +59,38 @@ static void TASK_MIDI_Hooks(void *pvParameters);
 // FreeRTOS Heap
 /////////////////////////////////////////////////////////////////////////////
 
-#if configAPPLICATION_ALLOCATED_HEAP
+#if defined(MIOS32_FREERTOS_HEAP_5)
+extern uint8_t _ebss;
+extern uint8_t _ebss_ahb;
+extern uint8_t __heap_main_limit;
+extern uint8_t __heap_ahb_limit;
+
+static size_t mios32_freertos_heap_total_size;
+
+static void MIOS32_FREERTOS_HeapInit(void)
+{
+  const HeapRegion_t heap_regions[] = {
+    { &_ebss, (size_t)(&__heap_main_limit - &_ebss) },
+    { &_ebss_ahb, (size_t)(&__heap_ahb_limit - &_ebss_ahb) },
+    { NULL, 0 }
+  };
+
+  mios32_freertos_heap_total_size =
+    heap_regions[0].xSizeInBytes + heap_regions[1].xSizeInBytes;
+  vPortDefineHeapRegions(heap_regions);
+}
+
+size_t MIOS32_FREERTOS_HeapTotalSizeGet(void)
+{
+  return mios32_freertos_heap_total_size;
+}
+#else
+size_t MIOS32_FREERTOS_HeapTotalSizeGet(void)
+{
+  return configTOTAL_HEAP_SIZE;
+}
+
+# if configAPPLICATION_ALLOCATED_HEAP
 # if defined(MIOS32_FAMILY_LPC17xx) && !defined(MIOS32_FREERTOS_HEAP_SECTION)
 #  define MIOS32_FREERTOS_HEAP_SECTION __attribute__ ((section (".bss_ahb")))
 # else
@@ -69,6 +100,7 @@ static void TASK_MIDI_Hooks(void *pvParameters);
 # endif
 
 uint8_t MIOS32_FREERTOS_HEAP_SECTION ucHeap[configTOTAL_HEAP_SIZE];
+# endif
 #endif
 
 
@@ -90,6 +122,11 @@ __attribute__ ((weak)) void APP_MIDI_Tick(void)
 /////////////////////////////////////////////////////////////////////////////
 int main(void)
 {
+#if defined(MIOS32_FREERTOS_HEAP_5)
+  // heap_5 must know all RAM regions before any MIOS32 module can allocate.
+  MIOS32_FREERTOS_HeapInit();
+#endif
+
   // initialize hardware and MIOS32 modules
 #ifndef MIOS32_DONT_USE_SYS
   MIOS32_SYS_Init(0);

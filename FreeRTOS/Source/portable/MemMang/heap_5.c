@@ -482,6 +482,54 @@ void * pvPortCalloc( size_t xNum,
 }
 /*-----------------------------------------------------------*/
 
+/* MIOS32 compatibility helper matching the heap_4 adapter. */
+void * pvPortRealloc( void * pv,
+                      size_t xWantedSize )
+{
+    uint8_t * puc;
+    BlockLink_t * pxLink;
+    size_t xCurrentSize;
+    size_t xCopySize;
+    void * pvNew;
+
+    if( pv == NULL )
+    {
+        return pvPortMalloc( xWantedSize );
+    }
+
+    if( xWantedSize == 0U )
+    {
+        vPortFree( pv );
+        return NULL;
+    }
+
+    puc = ( uint8_t * ) pv - xHeapStructSize;
+    pxLink = ( void * ) puc;
+
+    heapVALIDATE_BLOCK_POINTER( pxLink );
+    configASSERT( heapBLOCK_IS_ALLOCATED( pxLink ) != 0 );
+    configASSERT( pxLink->pxNextFreeBlock == heapPROTECT_BLOCK_POINTER( NULL ) );
+
+    if( ( heapBLOCK_IS_ALLOCATED( pxLink ) == 0 ) ||
+        ( pxLink->pxNextFreeBlock != heapPROTECT_BLOCK_POINTER( NULL ) ) )
+    {
+        return NULL;
+    }
+
+    xCurrentSize = ( pxLink->xBlockSize & ~heapBLOCK_ALLOCATED_BITMASK ) - xHeapStructSize;
+    pvNew = pvPortMalloc( xWantedSize );
+
+    if( pvNew != NULL )
+    {
+        xCopySize = ( xCurrentSize < xWantedSize ) ? xCurrentSize : xWantedSize;
+        ( void ) memcpy( pvNew, pv, xCopySize );
+        vPortFree( pv );
+    }
+
+    return pvNew;
+}
+/*-----------------------------------------------------------*/
+
 static void prvInsertBlockIntoFreeList( BlockLink_t * pxBlockToInsert ) /* PRIVILEGED_FUNCTION */
 {
     BlockLink_t * pxIterator;
