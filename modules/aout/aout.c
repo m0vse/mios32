@@ -651,7 +651,9 @@ u8 AOUT_CaliPinGet(void)
 s32 AOUT_CaliCfgValueSet(u16 value)
 {
   cali_cfg_value = value;
+#ifdef DEBUG_MSG
   DEBUG_MSG("Cali_cfg: 0x%04x\n", value);
+#endif
   
   return 0; // no error
 }
