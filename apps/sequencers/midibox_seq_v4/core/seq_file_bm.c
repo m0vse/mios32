@@ -222,13 +222,14 @@ s32 SEQ_FILE_BM_Read(char *session, u8 global)
 	  seq_ui_bookmark_t *bm = &seq_ui_bookmarks[current_bookmark];
 	  //strncpy(bm->name, word, 6);
 	  //strncpy(bm->name, (char *)&line_buffer+5, 6); // allow spaces...
-	  strncpy(bm->name, brkt, 6); // allow spaces...
+	  strncpy(bm->name, brkt ? brkt : "", 5); // allow spaces...
+	  bm->name[5] = 0;
 	} else if( strcmp(parameter, "ParLayer") == 0 ) {
 	  char *word = strtok_r(NULL, separators, &brkt);
-	  int layer = word[0] - 'A';
+	  int layer = word ? word[0] - 'A' : -1;
 	  if( layer < 0 || layer > 16 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
-	    DEBUG_MSG("[SEQ_FILE_BM] ERROR invalid ParLayer '%s' in Slot %d\n", word, current_bookmark+1);
+	    DEBUG_MSG("[SEQ_FILE_BM] ERROR invalid ParLayer '%s' in Slot %d\n", word ? word : "<missing>", current_bookmark+1);
 #endif
 	  } else {
 	    seq_ui_bookmark_t *bm = &seq_ui_bookmarks[current_bookmark];
@@ -237,10 +238,10 @@ s32 SEQ_FILE_BM_Read(char *session, u8 global)
 	  }
 	} else if( strcmp(parameter, "TrgLayer") == 0 ) {
 	  char *word = strtok_r(NULL, separators, &brkt);
-	  int layer = word[0] - 'A';
+	  int layer = word ? word[0] - 'A' : -1;
 	  if( layer < 0 || layer > 16 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
-	    DEBUG_MSG("[SEQ_FILE_BM] ERROR invalid TrgLayer '%s' in Slot %d\n", word, current_bookmark+1);
+	    DEBUG_MSG("[SEQ_FILE_BM] ERROR invalid TrgLayer '%s' in Slot %d\n", word ? word : "<missing>", current_bookmark+1);
 #endif
 	  } else {
 	    seq_ui_bookmark_t *bm = &seq_ui_bookmarks[current_bookmark];
@@ -249,9 +250,9 @@ s32 SEQ_FILE_BM_Read(char *session, u8 global)
 	  }
 	} else if( strcmp(parameter, "Tracks") == 0 ) {
 	  char *word = strtok_r(NULL, separators, &brkt);
-	  if( strlen(word) < 16 ) {
+	  if( word == NULL || strlen(word) < 16 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
-	    DEBUG_MSG("[SEQ_FILE_BM] ERROR invalid Tracks Parameter '%s' in Slot %d\n", word, current_bookmark+1);
+	    DEBUG_MSG("[SEQ_FILE_BM] ERROR invalid Tracks Parameter '%s' in Slot %d\n", word ? word : "<missing>", current_bookmark+1);
 #endif
 	  } else {
 	    seq_ui_bookmark_t *bm = &seq_ui_bookmarks[current_bookmark];
@@ -264,9 +265,9 @@ s32 SEQ_FILE_BM_Read(char *session, u8 global)
 	  }
 	} else if( strcmp(parameter, "Mutes") == 0 ) {
 	  char *word = strtok_r(NULL, separators, &brkt);
-	  if( strlen(word) < 16 ) {
+	  if( word == NULL || strlen(word) < 16 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
-	    DEBUG_MSG("[SEQ_FILE_BM] ERROR invalid Mutes Parameter '%s' in Slot %d\n", word, current_bookmark+1);
+	    DEBUG_MSG("[SEQ_FILE_BM] ERROR invalid Mutes Parameter '%s' in Slot %d\n", word ? word : "<missing>", current_bookmark+1);
 #endif
 	  } else {
 	    seq_ui_bookmark_t *bm = &seq_ui_bookmarks[current_bookmark];
@@ -282,12 +283,12 @@ s32 SEQ_FILE_BM_Read(char *session, u8 global)
 	  char *word = strtok_r(NULL, separators, &brkt);
 	  seq_ui_bookmark_t *bm = &seq_ui_bookmarks[current_bookmark];
 
-	  seq_ui_page_t page = SEQ_UI_PAGES_CfgNameSearch(word);
+	  seq_ui_page_t page = word ? SEQ_UI_PAGES_CfgNameSearch(word) : SEQ_UI_PAGE_NONE;
 	  if( page == SEQ_UI_PAGE_NONE ) {
 	    s32 value = get_dec(word);
 	    if( value <= 0 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
-	      DEBUG_MSG("[SEQ_FILE_BM] ERROR invalid value '%s' for parameter '%s' in Slot %d\n", word, parameter, current_bookmark+1);
+	      DEBUG_MSG("[SEQ_FILE_BM] ERROR invalid value '%s' for parameter '%s' in Slot %d\n", word ? word : "<missing>", parameter, current_bookmark+1);
 #endif
 	    } else {
 	      page = SEQ_UI_PAGES_OldBmIndexSearch(value);
@@ -296,7 +297,7 @@ s32 SEQ_FILE_BM_Read(char *session, u8 global)
 
 	  if( page == SEQ_UI_PAGE_NONE ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
-	    DEBUG_MSG("[SEQ_FILE_BM] ERROR invalid value '%s' for parameter '%s' in Slot %d\n", word, parameter, current_bookmark+1);
+	    DEBUG_MSG("[SEQ_FILE_BM] ERROR invalid value '%s' for parameter '%s' in Slot %d\n", word ? word : "<missing>", parameter, current_bookmark+1);
 #endif
 	  } else {
 	    bm->page = page;
@@ -310,7 +311,7 @@ s32 SEQ_FILE_BM_Read(char *session, u8 global)
 
 	  if( value < 0 ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
-	    DEBUG_MSG("[SEQ_FILE_BM] ERROR invalid value '%s', for parameter '%s' in Slot %d\n", word, parameter, current_bookmark+1);
+	    DEBUG_MSG("[SEQ_FILE_BM] ERROR invalid value '%s', for parameter '%s' in Slot %d\n", word ? word : "<missing>", parameter, current_bookmark+1);
 #endif
 	  } else if( strcmp(parameter, "Group") == 0 ) {
 	    bm->group = value - 1;

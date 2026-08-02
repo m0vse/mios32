@@ -24,6 +24,7 @@
 
 #include <ff.h>
 #include <diskio.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "tasks.h"
@@ -262,9 +263,9 @@ s32 SEQ_FILE_LoadSessionName(void)
 
   sprintf(filepath, "%s/LAST_ONE.V4", SEQ_FILE_SESSION_PATH);
   if( (status=FILE_ReadOpen(&file, filepath)) >= 0 ) {
-    char linebuffer[20];
+    char linebuffer[20] = { 0 };
     status = FILE_ReadLine((u8 *)&linebuffer, 20);
-    if( status < 0 || strlen(linebuffer) > 8 ) {
+    if( status < 0 || !SEQ_FILE_IsValidSessionName(linebuffer) ) {
 #if DEBUG_VERBOSE_LEVEL >= 1
       DEBUG_MSG("[SEQ_FILE_LoadSessionName] ERROR: invalid session name '%s'\n", linebuffer);
 #endif
@@ -596,16 +597,16 @@ s32 SEQ_FILE_CreateBackup(void)
 /////////////////////////////////////////////////////////////////////////////
 s32 SEQ_FILE_IsValidSessionName(char *name)
 {
+  if( name == NULL )
+    return 0;
+
   int i;
   int len = strlen(name);
-  if( len > 8 )
+  if( len < 1 || len > 8 )
     return 0;
 
   for(i=0; i<len; ++i) {
     char c = name[i];
-    if( !c || c == ' ' )
-      break;
-
     if( (c >= '0' && c <= '9') ||
 	(c >= 'a' && c <= 'z') ||
 	(c >= 'A' && c <= 'Z') ||
@@ -623,6 +624,9 @@ s32 SEQ_FILE_IsValidSessionName(char *name)
 /////////////////////////////////////////////////////////////////////////////
 s32 SEQ_FILE_CreateSession(char *name, u8 new_session)
 {
+  if( !SEQ_FILE_IsValidSessionName(name) )
+    return FILE_ERR_INVALID_SESSION_NAME;
+
   // take over session name
   strcpy(seq_file_new_session_name, name);
   seq_file_backup_percentage = 0;
@@ -661,9 +665,14 @@ s32 SEQ_FILE_DeleteSession(char *name)
 {
   s32 status = 0;
 
+  if( !SEQ_FILE_IsValidSessionName(name) )
+    return FILE_ERR_INVALID_SESSION_NAME;
+
   // complete path
-  char path[30];
-  sprintf(path, "%s/%s", SEQ_FILE_SESSION_PATH, name);
+  char path[MAX_PATH];
+  int path_len = snprintf(path, sizeof(path), "%s/%s", SEQ_FILE_SESSION_PATH, name);
+  if( path_len < 0 || path_len >= (int)sizeof(path) )
+    return FILE_ERR_INVALID_SESSION_NAME;
 
   {
     DIR di;
@@ -675,19 +684,31 @@ s32 SEQ_FILE_DeleteSession(char *name)
       DEBUG_MSG("Failed to open directory!");
       status = FILE_ERR_NO_DIR;
     } else {
-      while( f_readdir(&di, &de) == FR_OK && de.fname[0] != 0 ) {
+      FRESULT fs_status;
+      while( (fs_status=f_readdir(&di, &de)) == FR_OK && de.fname[0] != 0 ) {
 	if( de.fname[0] && de.fname[0] != '.' ) {
-	  char filepath[30];
-	  sprintf(filepath, "%s/%s", path, de.fname);
+	  char filepath[MAX_PATH];
+	  int filepath_len = snprintf(filepath, sizeof(filepath), "%s/%s", path, de.fname);
+	  if( filepath_len < 0 || filepath_len >= (int)sizeof(filepath) ) {
+	    DEBUG_MSG("FAILED to delete overlong path %s/%s", path, de.fname);
+	    status = FILE_ERR_REMOVE;
+	    continue;
+	  }
 
 	  s32 del_status;
 	  if( (del_status=FILE_Remove(filepath)) < 0 ) {
 	    DEBUG_MSG("FAILED to delete %s (status: %d)", filepath, del_status);
+	    status = del_status;
 	  } else {
 	    DEBUG_MSG("%s deleted", filepath);
 	  }
 	}
       }
+
+      if( fs_status != FR_OK && status >= 0 )
+	status = FILE_ERR_READ;
+
+      f_closedir(&di);
     }
   }
 
