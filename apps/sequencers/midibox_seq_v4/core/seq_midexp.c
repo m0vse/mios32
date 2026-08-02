@@ -159,6 +159,7 @@ static s32 SEQ_MIDEXP_WriteVarLen(u32 value)
 static u32 export_tick;
 static u32 export_trk_size;
 static u32 export_trk_tick;
+static s32 export_file_status;
 
 static s32 Hook_MIDI_SendPackage(mios32_midi_port_t port, mios32_midi_package_t package)
 {
@@ -202,12 +203,21 @@ static s32 Hook_MIDI_SendPackage(mios32_midi_port_t port, mios32_midi_package_t 
 
   if( num_bytes ) {
     u32 delta = export_tick - export_trk_tick;
-    export_trk_size += SEQ_MIDEXP_WriteVarLen(delta);
-    export_trk_size += SEQ_MIDEXP_WriteWord(word, num_bytes);
+    s32 write_len = SEQ_MIDEXP_WriteVarLen(delta);
+    if( write_len >= 0 ) {
+      export_trk_size += write_len;
+      write_len = SEQ_MIDEXP_WriteWord(word, num_bytes);
+    }
+
+    if( write_len < 0 )
+      export_file_status = write_len;
+    else
+      export_trk_size += write_len;
+
     export_trk_tick = export_tick;
   }
 
-  return 0; // no error
+  return export_file_status;
 }
 
 static s32 Hook_BPM_IsRunning(void)
@@ -236,6 +246,8 @@ static s32 Hook_BPM_Set(float bpm)
 s32 SEQ_MIDEXP_GenerateFile(char *path)
 {
   s32 status = 0;
+  u8 file_open = 0;
+  u8 remove_partial = 0;
 
   u32 ppqn = SEQ_BPM_PPQN_Get();
   u32 ticks_per_measure = ((int)export_steps_per_measure + 1) * (ppqn/4);
@@ -280,6 +292,8 @@ s32 SEQ_MIDEXP_GenerateFile(char *path)
     status = -1; // file error
     goto error;
   }
+  file_open = 1;
+  remove_partial = 1;
 
   // write file header
   u32 header_size = 6;
@@ -289,6 +303,7 @@ s32 SEQ_MIDEXP_GenerateFile(char *path)
   status |= SEQ_MIDEXP_WriteWord(last_track-first_track+1, 2); // Number of Tracks
   status |= SEQ_MIDEXP_WriteWord(ppqn, 2); // PPQN
   status |= FILE_WriteClose();
+  file_open = 0;
 
   // check file status
   if( status < 0 ) {
@@ -344,6 +359,7 @@ s32 SEQ_MIDEXP_GenerateFile(char *path)
       status = -3; // file re-open error
       goto error;
     }
+    file_open = 1;
 
     // write Track header
     u32 track_header_filepos = FILE_WriteGetCurrentSize();
@@ -353,20 +369,45 @@ s32 SEQ_MIDEXP_GenerateFile(char *path)
     status |= FILE_WriteBuffer((u8*)"MTrk", 4);
     status |= SEQ_MIDEXP_WriteWord(export_trk_size, 4); // Placeholder
 
+    if( status < 0 )
+      goto error;
+
     // add track name as meta event
     {
       char buffer[20];
 
-      export_trk_size += SEQ_MIDEXP_WriteVarLen(0);
+      s32 write_len = SEQ_MIDEXP_WriteVarLen(0);
+      if( write_len < 0 ) {
+	status = write_len;
+	goto error;
+      }
+      export_trk_size += write_len;
       buffer[0] = 0xff; // Meta
-      export_trk_size += SEQ_MIDEXP_WriteWord(buffer[0], 1);
+      write_len = SEQ_MIDEXP_WriteWord(buffer[0], 1);
+      if( write_len < 0 ) {
+	status = write_len;
+	goto error;
+      }
+      export_trk_size += write_len;
       buffer[0] = 0x03; // Sequence/Track Name
-      export_trk_size += SEQ_MIDEXP_WriteWord(buffer[0], 1);
-      export_trk_size += SEQ_MIDEXP_WriteVarLen(4); // String Length (4 chars)
+      write_len = SEQ_MIDEXP_WriteWord(buffer[0], 1);
+      if( write_len < 0 ) {
+	status = write_len;
+	goto error;
+      }
+      export_trk_size += write_len;
+      write_len = SEQ_MIDEXP_WriteVarLen(4); // String Length (4 chars)
+      if( write_len < 0 ) {
+	status = write_len;
+	goto error;
+      }
+      export_trk_size += write_len;
       sprintf(buffer, "G%dT%d",
 	      (export_track / SEQ_CORE_NUM_TRACKS_PER_GROUP) + 1,
 	      (export_track % SEQ_CORE_NUM_TRACKS_PER_GROUP) + 1);
       status |= FILE_WriteBuffer((u8*)buffer, 4);
+      if( status < 0 )
+	goto error;
       export_trk_size += 4;
     }
 
@@ -379,6 +420,7 @@ s32 SEQ_MIDEXP_GenerateFile(char *path)
 #endif
 
     // start export of selected track
+    export_file_status = 0;
     for(export_tick=0; export_tick < number_ticks; ++export_tick) {
       // propagate tick
       SEQ_CORE_Tick(export_tick, export_track, 0);
@@ -394,10 +436,18 @@ s32 SEQ_MIDEXP_GenerateFile(char *path)
 
       // forward MIDI events to Hook_MIDI_SendPackage()
       SEQ_MIDI_OUT_Handler();
+
+      if( export_file_status < 0 ) {
+	status = export_file_status;
+	goto error;
+      }
     }
 
     // close file
     status |= FILE_WriteClose();
+    file_open = 0;
+    if( status < 0 )
+      goto error;
 
     if( export_trk_size ) {
       // switch back to first byte of track and write final track size
@@ -408,13 +458,28 @@ s32 SEQ_MIDEXP_GenerateFile(char *path)
 	status = -3; // file re-open error
 	goto error;
       }
+      file_open = 1;
       status |= FILE_WriteSeek(track_header_filepos + 4);
       status |= SEQ_MIDEXP_WriteWord(export_trk_size, 4);
       status |= FILE_WriteClose();
+      file_open = 0;
+      if( status < 0 )
+	goto error;
     }
   }
 
 error:
+  if( file_open )
+    FILE_WriteClose();
+
+  if( status < 0 && remove_partial ) {
+    s32 remove_status = FILE_Remove(path);
+#if DEBUG_VERBOSE_LEVEL >= 1
+    if( remove_status < 0 )
+      DEBUG_MSG("[SEQ_MIDEXP_WriteFile] Failed to remove partial file %s, status: %d\n", path, remove_status);
+#endif
+  }
+
   // MIDI scheduler: restore default MIDI/BPM handlers
   SEQ_MIDI_OUT_Callback_MIDI_SendPackage_Set(NULL);
   SEQ_MIDI_OUT_Callback_BPM_IsRunning_Set(NULL);
@@ -432,5 +497,5 @@ error:
   MUTEX_MIDIOUT_GIVE;
   MUTEX_SDCARD_GIVE;
 
-  return 0; // no error
+  return status < 0 ? status : 0;
 }
