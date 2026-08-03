@@ -149,7 +149,7 @@ void OscToolConnect::timerCallback()
 
         udpSocket = new UdpSocket();
         if( !udpSocket->connect(remoteHostLine->getText(), portNumberReadLine->getText().getIntValue(), portNumberWriteLine->getText().getIntValue()) ) {
-            AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+            miosShowMessageBox(AlertWindow::WarningIcon,
                                         T("No connection to remote host"),
                                         T("Check remote host name (or IP) and port numbers!"),
                                         String());
@@ -228,13 +228,13 @@ void OscToolSend::buttonClicked(Button* buttonThatWasClicked)
             if( packet.size() ) {
                 oscToolConnect->udpSocket->write((unsigned char*)&packet.getReference(0), packet.size());
             } else {
-                AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                miosShowMessageBox(AlertWindow::WarningIcon,
                                             T("Invalid OSC packet"),
                                             T("The entered packet is invalid (or empty) - check syntax!"),
                                             String());
             }
         } else {
-            AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+            miosShowMessageBox(AlertWindow::WarningIcon,
                                         T("No connection to remote host"),
                                         T("Please press the connect button to establish connection!"),
                                         String());

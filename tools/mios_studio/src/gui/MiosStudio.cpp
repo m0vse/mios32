@@ -720,11 +720,13 @@ void MiosStudio::paint (Graphics& g)
     g.fillAll(Colour(0xffc1d0ff));
 
     const IosStudioLayout layout = getIosStudioLayout(getLocalBounds());
-    paintIosPanel(g, layout.midiIn, String());
-    paintIosPanel(g, layout.upload, T("Upload"));
-    paintIosPanel(g, layout.terminal, T("MIOS Terminal"));
-    paintIosPanel(g, layout.keyboard, T("MIDI Keyboard"));
-    paintIosKeyboard(g, layout.keyboard.reduced(8));
+    if( iosActiveToolPage == iosToolStudio ) {
+        paintIosPanel(g, layout.midiIn, String());
+        paintIosPanel(g, layout.upload, T("Upload"));
+        paintIosPanel(g, layout.terminal, T("MIOS Terminal"));
+        paintIosPanel(g, layout.keyboard, T("MIDI Keyboard"));
+        paintIosKeyboard(g, layout.keyboard.reduced(8));
+    }
 
     if( iosDrawerOpen || layout.persistentDrawer || iosDrawerAnimation > 0.0f ) {
         const Rectangle<int> drawerBounds = getIosDrawerBounds(*this, layout, layout.persistentDrawer ? 1.0f : iosDrawerAnimation);
@@ -774,6 +776,52 @@ void MiosStudio::resized()
         drawerScrim.setVisible(false);
         for( int i = 0; i < iosToolCount; ++i )
             toolButtons[i].setVisible(false);
+    }
+
+    const bool showStudioPage = iosActiveToolPage == iosToolStudio;
+    for( Component* component : { static_cast<Component*>(&inputLabel),
+                                  static_cast<Component*>(&outputLabel),
+                                  static_cast<Component*>(&deviceIdLabel),
+                                  static_cast<Component*>(&uploadFileLabel),
+                                  static_cast<Component*>(&inputSelector),
+                                  static_cast<Component*>(&outputSelector),
+                                  static_cast<Component*>(&deviceIdSlider),
+                                  static_cast<Component*>(&refreshButton),
+                                  static_cast<Component*>(&queryButton),
+                                  static_cast<Component*>(&uploadFileButton),
+                                  static_cast<Component*>(&uploadStartButton),
+                                  static_cast<Component*>(&uploadStopButton),
+                                  static_cast<Component*>(&sendTerminalButton),
+                                  static_cast<Component*>(&terminalInput),
+                                  static_cast<Component*>(&midiInLog),
+                                  static_cast<Component*>(&midiOutLog),
+                                  static_cast<Component*>(&uploadQueryLog),
+                                  static_cast<Component*>(&uploadStatusLog),
+                                  static_cast<Component*>(&terminalLog) } )
+        component->setVisible(showStudioPage);
+
+    Component* selectedToolPage = getIosToolPageComponent(iosActiveToolPage);
+    for( int page = iosToolStudio + 1; page < iosToolCount; ++page ) {
+        if( Component* toolPage = getIosToolPageComponent((IosToolPage)page) )
+            toolPage->setVisible(toolPage == selectedToolPage);
+    }
+
+    if( !showStudioPage ) {
+        if( selectedToolPage != nullptr ) {
+            const int pageWidth = jmax(getWidth() - 16, selectedToolPage->getWidth());
+            const int pageHeight = jmax(getHeight() - 16, selectedToolPage->getHeight());
+            selectedToolPage->setBounds(8, 8, pageWidth, pageHeight);
+            selectedToolPage->toBack();
+        }
+
+        if( showDrawer ) {
+            drawerScrim.toFront(false);
+            drawerBackground.toFront(false);
+            drawerHintLabel.toFront(false);
+            for( int i = 0; i < iosToolCount; ++i )
+                toolButtons[i].toFront(false);
+        }
+        return;
     }
 
     auto midiInner = layout.midiIn.reduced(8);
@@ -1217,6 +1265,25 @@ void MiosStudio::initialiseIosUi()
     for( IosClipboardTextEditor* editor : { &midiInLog, &midiOutLog, &uploadQueryLog, &uploadStatusLog, &terminalLog } )
         configureIosLog(*editor);
 
+    iosSysexTool.reset(new SysexTool(this));
+    iosSysexLibrarian.reset(new SysexLibrarian(this));
+    iosOscTool.reset(new OscTool(this));
+    iosMidio128Tool.reset(new Midio128Tool(this));
+    iosMbCvTool.reset(new MbCvTool(this));
+    iosMbhpMfTool.reset(new MbhpMfTool(this));
+    iosMiosFileBrowser.reset(new MiosFileBrowser(this));
+
+    for( Component* toolPage : { static_cast<Component*>(iosSysexTool.get()),
+                                 static_cast<Component*>(iosSysexLibrarian.get()),
+                                 static_cast<Component*>(iosOscTool.get()),
+                                 static_cast<Component*>(iosMidio128Tool.get()),
+                                 static_cast<Component*>(iosMbCvTool.get()),
+                                 static_cast<Component*>(iosMbhpMfTool.get()),
+                                 static_cast<Component*>(iosMiosFileBrowser.get()) } ) {
+        addChildComponent(toolPage);
+        toolPage->setVisible(false);
+    }
+
     addIosLogEntry(uploadQueryLog, T("Waiting for first query."));
     addIosLogEntry(uploadStatusLog, T("Connect a Core MIDI interface, select matching input/output ports, then query."));
     addIosLogEntry(terminalLog, T("MIOS Terminal ready."));
@@ -1499,8 +1566,30 @@ void MiosStudio::setIosActiveToolPage(IosToolPage page)
     for( int i = 0; i < iosToolCount; ++i )
         toolButtons[i].setToggleState(i == (int)page, dontSendNotification);
 
-    if( page != iosToolStudio )
-        addIosLogEntry(uploadStatusLog, getIosToolPageName(page) + T(" is not ported to the iOS presentation yet."));
+    resized();
+    repaint();
+}
+
+Component* MiosStudio::getIosToolPageComponent(IosToolPage page) const
+{
+    switch( page ) {
+    case iosToolSysexTool:
+        return iosSysexTool.get();
+    case iosToolSysexLibrarian:
+        return iosSysexLibrarian.get();
+    case iosToolOsc:
+        return iosOscTool.get();
+    case iosToolMidio128:
+        return iosMidio128Tool.get();
+    case iosToolMbCv:
+        return iosMbCvTool.get();
+    case iosToolMbhpMf:
+        return iosMbhpMfTool.get();
+    case iosToolFileBrowser:
+        return iosMiosFileBrowser.get();
+    default:
+        return nullptr;
+    }
 }
 
 const String MiosStudio::getIosToolPageName(IosToolPage page) const
@@ -1607,6 +1696,43 @@ void MiosStudio::timerCallback()
                 addIosLogEntry(terminalLog, T("< ") + text);
             }
 
+            if( data[0] < 0xf8 ) {
+                switch( iosActiveToolPage ) {
+                case iosToolSysexTool:
+                    if( iosSysexTool != nullptr && iosSysexTool->sysexToolReceive != nullptr )
+                        iosSysexTool->sysexToolReceive->handleIncomingMidiMessage(message, runningStatus);
+                    break;
+
+                case iosToolSysexLibrarian:
+                    if( iosSysexLibrarian != nullptr && iosSysexLibrarian->sysexLibrarianControl != nullptr )
+                        iosSysexLibrarian->sysexLibrarianControl->handleIncomingMidiMessage(message, runningStatus);
+                    break;
+
+                case iosToolMidio128:
+                    if( iosMidio128Tool != nullptr && iosMidio128Tool->midio128ToolControl != nullptr )
+                        iosMidio128Tool->midio128ToolControl->handleIncomingMidiMessage(message, runningStatus);
+                    break;
+
+                case iosToolMbCv:
+                    if( iosMbCvTool != nullptr && iosMbCvTool->mbCvToolControl != nullptr )
+                        iosMbCvTool->mbCvToolControl->handleIncomingMidiMessage(message, runningStatus);
+                    break;
+
+                case iosToolMbhpMf:
+                    if( iosMbhpMfTool != nullptr && iosMbhpMfTool->mbhpMfToolControl != nullptr )
+                        iosMbhpMfTool->mbhpMfToolControl->handleIncomingMidiMessage(message, runningStatus);
+                    break;
+
+                case iosToolFileBrowser:
+                    if( iosMiosFileBrowser != nullptr )
+                        iosMiosFileBrowser->handleIncomingMidiMessage(message, runningStatus);
+                    break;
+
+                default:
+                    break;
+                }
+            }
+
             addIosLogEntry(midiInLog, String::toHexString(message.getRawData(),
                                                           message.getRawDataSize()));
 
@@ -1683,7 +1809,7 @@ void MiosStudio::timerCallback()
             if( !runningInBatchMode() ) {
                 // and check for infos
                 if( commandLineInfoMessages.length() ) {
-                    AlertWindow::showMessageBox(AlertWindow::InfoIcon,
+                    miosShowMessageBox(AlertWindow::InfoIcon,
                                                 T("Info"),
                                                 commandLineInfoMessages,
                                                 String());
@@ -1692,7 +1818,7 @@ void MiosStudio::timerCallback()
 
                 // now also check for command line errors
                 if( commandLineErrorMessages.length() ) {
-                    AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                    miosShowMessageBox(AlertWindow::WarningIcon,
                                                 T("Command Line Error"),
                                                 commandLineErrorMessages,
                                                 String());
@@ -1835,7 +1961,7 @@ void MiosStudio::timerCallback()
                         JUCEApplication::getInstance()->setApplicationReturnValue(0); // no error
                         JUCEApplication::quit();
                     } else {
-                        AlertWindow::showMessageBox(AlertWindow::InfoIcon,
+                        miosShowMessageBox(AlertWindow::InfoIcon,
                                                     T("Info"),
                                                     T("All batch jobs executed."),
                                                     String());
@@ -2355,7 +2481,7 @@ bool MiosStudio::perform(const InvocationInfo& info)
             + T("Original application Copyright (C) 2010 Thorsten Klose\n")
             + T("Modernisation Copyright (C) 2026 Phil Taylor");
 
-        AlertWindow::showMessageBox(AlertWindow::InfoIcon,
+        miosShowMessageBox(AlertWindow::InfoIcon,
                                     T("About MIOS Studio"),
                                     message,
                                     T("OK"),

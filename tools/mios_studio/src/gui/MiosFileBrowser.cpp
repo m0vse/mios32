@@ -555,7 +555,7 @@ void MiosFileBrowser::openTextEditor(const Array<uint8>& data)
     } else {
         // TK: crashes Juce2 - it seems that we are not allowed to use an AlertWindow from the MiosStudio::timerCallback() thread
 #if 0
-        AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+        miosShowMessageBox(AlertWindow::WarningIcon,
                                     T("Found binary data!"),
                                     T("This file contains binary data, therefore it\nisn't possible modify it with the text editor!\nPlease use the hex editor instead!"),
                                     T("Ok"));
@@ -661,6 +661,13 @@ bool MiosFileBrowser::downloadFileSelection(unsigned selection)
 
             String readFileName(currentReadFileName.substring(currentReadFileName.lastIndexOfChar('/')+1));
             File defaultPathFile(defaultPath + "/" + readFileName);
+#if JUCE_IOS
+            miosShowMessageBox(AlertWindow::InfoIcon,
+                               T("Files picker pending"),
+                               T("Downloading files from the core will use the iOS Files picker in the next File Browser pass."),
+                               T("OK"));
+            setStatus(T("Cancelled save operation for ") + currentReadFileName);
+#else
             FileChooser myChooser(T("Store ") + currentReadFileName, defaultPathFile);
             if( !myChooser.browseForFileToSave(true) ) {
                 setStatus(T("Cancled save operation for ") + currentReadFileName);
@@ -676,7 +683,7 @@ bool MiosFileBrowser::downloadFileSelection(unsigned selection)
                 currentReadFile.deleteFile();
                 if( !(currentReadFileStream=currentReadFile.createOutputStream()) ||
                     currentReadFileStream->failedToOpen() ) {
-                    AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                    miosShowMessageBox(AlertWindow::WarningIcon,
                                                 String(),
                                                 T("File cannot be created!"),
                                                 String());
@@ -687,6 +694,7 @@ bool MiosFileBrowser::downloadFileSelection(unsigned selection)
                     return true;
                 }
             }
+#endif
         }
     }
 
@@ -727,6 +735,12 @@ bool MiosFileBrowser::deleteFileSelection(unsigned selection)
 
     if( selectedItem ) {
         String fileName(selectedItem->getUniqueName());
+#if JUCE_IOS
+        miosShowMessageBox(AlertWindow::InfoIcon,
+                           T("Confirmation pending"),
+                           T("Deleting files will use an asynchronous iOS confirmation prompt in the next File Browser pass."),
+                           T("OK"));
+#else
         if( AlertWindow::showOkCancelBox(AlertWindow::WarningIcon,
                                          T("Removing ") + fileName,
                                          T("Do you really want to remove\n") + fileName + T("?"),
@@ -736,6 +750,7 @@ bool MiosFileBrowser::deleteFileSelection(unsigned selection)
             sendCommand(T("del ") + fileName);
             return true;
         }
+#endif
     }
 
     // operation finished
@@ -757,6 +772,12 @@ bool MiosFileBrowser::deleteFinished(void)
 //==============================================================================
 bool MiosFileBrowser::createDir(void)
 {
+#if JUCE_IOS
+    miosShowMessageBox(AlertWindow::InfoIcon,
+                       T("Text prompt pending"),
+                       T("Creating directories will use an asynchronous iOS text prompt in the next File Browser pass."),
+                       T("OK"));
+#else
     AlertWindow enterName(T("Creating new Directory"),
                           T("Please enter directory name:"),
                           AlertWindow::QuestionIcon);
@@ -774,6 +795,7 @@ bool MiosFileBrowser::createDir(void)
                 sendCommand(T("mkdir ") + getSelectedPath() + name);
         }        
     }
+#endif
 
     return false;
 }
@@ -790,6 +812,12 @@ bool MiosFileBrowser::createDirFinished(void)
 //==============================================================================
 bool MiosFileBrowser::createFile(void)
 {
+#if JUCE_IOS
+    miosShowMessageBox(AlertWindow::InfoIcon,
+                       T("Text prompt pending"),
+                       T("Creating files will use an asynchronous iOS text prompt in the next File Browser pass."),
+                       T("OK"));
+#else
     AlertWindow enterName(T("Creating new File"),
                           T("Please enter filename:"),
                           AlertWindow::QuestionIcon);
@@ -808,6 +836,7 @@ bool MiosFileBrowser::createFile(void)
                 return uploadBuffer(getSelectedPath() + name, emptyBuffer);
         }        
     }
+#endif
 
     return false;
 }
@@ -822,12 +851,26 @@ bool MiosFileBrowser::uploadFile(String filename)
         defaultPath = propertiesFile->getValue(T("defaultFilebrowserPath"), defaultPath);
     }
     File defaultPathFile(defaultPath);
+#if JUCE_IOS
+    if( !filename.length() ) {
+        miosShowMessageBox(AlertWindow::InfoIcon,
+                           T("Files picker pending"),
+                           T("Uploading files to the core will use the iOS Files picker in the next File Browser pass."),
+                           T("OK"));
+        return false;
+    }
+#else
     FileChooser myChooser(T("Upload File to Core"), defaultPathFile);
     if( !filename.length() && !myChooser.browseForFileToOpen() ) {
         return false;
     }
+#endif
 
+#if JUCE_IOS
+    File inFile(filename);
+#else
     File inFile(filename.length() ? filename : myChooser.getResult());
+#endif
 
     // store default path
     if( propertiesFile ) {
@@ -839,7 +882,7 @@ bool MiosFileBrowser::uploadFile(String filename)
         if( miosStudio->runningInBatchMode() ) {
             std::cerr << "The file " << inFile.getFileName() << " doesn't exist!" << std::endl;
         } else {
-            AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+            miosShowMessageBox(AlertWindow::WarningIcon,
                                         T("The file ") + inFile.getFileName(),
                                         T("doesn't exist!"),
                                         String());
@@ -848,7 +891,7 @@ bool MiosFileBrowser::uploadFile(String filename)
         if( miosStudio->runningInBatchMode() ) {
             std::cerr << "The file " << inFile.getFileName() << " can't be read!" << std::endl;
         } else {
-            AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+            miosShowMessageBox(AlertWindow::WarningIcon,
                                         T("The file ") + inFile.getFileName(),
                                         T("can't be read!"),
                                         String());

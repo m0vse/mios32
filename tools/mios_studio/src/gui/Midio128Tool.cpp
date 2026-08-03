@@ -780,6 +780,12 @@ void Midio128ToolControl::resized()
 void Midio128ToolControl::buttonClicked(Button* buttonThatWasClicked)
 {
     if( buttonThatWasClicked == loadButton ) {
+#if JUCE_IOS
+        miosShowMessageBox(AlertWindow::InfoIcon,
+                           T("Files picker pending"),
+                           T("Loading MIDIO128 SysEx files will use the iOS Files picker in the next tool-specific pass."),
+                           T("OK"));
+#else
         FileChooser fc(T("Choose a .syx file that you want to open..."),
                        syxFile,
                        T("*.syx"));
@@ -792,7 +798,14 @@ void Midio128ToolControl::buttonClicked(Button* buttonThatWasClicked)
                     propertiesFile->setValue(T("midio128SyxFile"), syxFile.getFullPathName());
             }
         }
+#endif
     } else if( buttonThatWasClicked == saveButton ) {
+#if JUCE_IOS
+        miosShowMessageBox(AlertWindow::InfoIcon,
+                           T("Files picker pending"),
+                           T("Saving MIDIO128 SysEx files will use the iOS Files picker in the next tool-specific pass."),
+                           T("OK"));
+#else
         FileChooser fc(T("Choose a .syx file that you want to save..."),
                        syxFile,
                        T("*.syx"));
@@ -804,6 +817,7 @@ void Midio128ToolControl::buttonClicked(Button* buttonThatWasClicked)
                     propertiesFile->setValue(T("midio128SyxFile"), syxFile.getFullPathName());
             }
         }
+#endif
     } else if( buttonThatWasClicked == sendButton || buttonThatWasClicked == receiveButton ) {
         loadButton->setEnabled(false);
         saveButton->setEnabled(false);
@@ -847,13 +861,13 @@ void Midio128ToolControl::timerCallback()
         if( syxBlock > 0 ) {
             if( !dumpReceived ) {
                 transferFinished = true;
-                AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                miosShowMessageBox(AlertWindow::WarningIcon,
                                             T("No response from core."),
                                             T("Check:\n- MIDI In/Out connections\n- Device ID\n- that MIDIO128 firmware has been uploaded"),
                                             String());
             } else if( checksumError ) {
                 transferFinished = true;
-                AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                miosShowMessageBox(AlertWindow::WarningIcon,
                                             T("Detected checksum error!"),
                                             T("Check:\n- MIDI In/Out connections\n- your MIDI interface"),
                                             String());
@@ -865,7 +879,7 @@ void Midio128ToolControl::timerCallback()
                 transferFinished = true;
 
                 if( currentSyxDump.size() != 6*256 ) {
-                    AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                    miosShowMessageBox(AlertWindow::WarningIcon,
                                                 T("Unexpected MIDI handling error!"),
                                                 T("Please inform TK how this happened."),
                                                 T("will do"));
@@ -955,13 +969,13 @@ bool Midio128ToolControl::loadSyx(File &syxFile)
     std::unique_ptr<FileInputStream> inFileStream = syxFile.createInputStream();
 
     if( !inFileStream ) {
-        AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+        miosShowMessageBox(AlertWindow::WarningIcon,
                                     T("The file ") + syxFile.getFileName(),
                                     T("doesn't exist!"),
                                     String());
         return false;
     } else if( inFileStream->isExhausted() || !inFileStream->getTotalLength() ) {
-        AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+        miosShowMessageBox(AlertWindow::WarningIcon,
                                     T("The file ") + syxFile.getFileName(),
                                     T("is empty!"),
                                     String());
@@ -1023,7 +1037,7 @@ bool Midio128ToolControl::loadSyx(File &syxFile)
     }
 
     if( errorMessage != String() ) {
-        AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+        miosShowMessageBox(AlertWindow::WarningIcon,
                                     T("The file ") + syxFile.getFileName(),
                                     errorMessage,
                                     String());
@@ -1041,7 +1055,7 @@ bool Midio128ToolControl::saveSyx(File &syxFile)
     std::unique_ptr<FileOutputStream> outFileStream = syxFile.createOutputStream();
             
     if( !outFileStream || outFileStream->failedToOpen() ) {
-        AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+        miosShowMessageBox(AlertWindow::WarningIcon,
                                     String(),
                                     T("File cannot be created!"),
                                     String());

@@ -97,9 +97,7 @@ target_sources(MIOS_Studio PRIVATE
     src/UdpSocket.cpp
     src/UploadHandler.cpp)
 
-if(NOT MIOS_STUDIO_IOS)
-    target_sources(MIOS_Studio PRIVATE ${MIOS_STUDIO_DESKTOP_GUI_SOURCES})
-endif()
+target_sources(MIOS_Studio PRIVATE ${MIOS_STUDIO_DESKTOP_GUI_SOURCES})
 
 target_compile_features(MIOS_Studio PRIVATE cxx_std_17)
 target_compile_definitions(MIOS_Studio PRIVATE

@@ -191,7 +191,7 @@ bool UploadWindow::uploadFileFromExternal(const String& filename)
         if( miosStudio->runningInBatchMode() ) {
             std::cerr << "The .hex file " << filename << " can't be read!" << std::endl;
         } else {
-            AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+            miosShowMessageBox(AlertWindow::WarningIcon,
                                         T("Failed to open file"),
                                         filename + String(" can't be read!"),
                                         String());

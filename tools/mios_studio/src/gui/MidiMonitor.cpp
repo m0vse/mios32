@@ -122,7 +122,7 @@ void MidiMonitor::scanMidiDevices(const String& searchPort)
         if( inPort ) {
             if( searchPort.length() ) {
                 std::cout << "ERROR: MIDI IN Port '" << searchPort << "' not found!" << std::endl;
-                AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                miosShowMessageBox(AlertWindow::WarningIcon,
                                             T("Unknown MIDI IN Port"),
                                             String("MIDI IN Port '") + searchPort + String("' not found!"),
                                             String());
@@ -130,7 +130,7 @@ void MidiMonitor::scanMidiDevices(const String& searchPort)
         } else {
             if( searchPort.length() ) {
                 std::cout << "ERROR: MIDI OUT Port '" << searchPort << "' not found!" << std::endl;
-                AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                miosShowMessageBox(AlertWindow::WarningIcon,
                                             T("Unknown MIDI OUT Port"),
                                             String("MIDI OUT Port '") + searchPort + String("' not found!"),
                                             String());

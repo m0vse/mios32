@@ -551,6 +551,12 @@ void MbCvToolControl::resized()
 void MbCvToolControl::buttonClicked(Button* buttonThatWasClicked)
 {
     if( buttonThatWasClicked == loadButton ) {
+#if JUCE_IOS
+        miosShowMessageBox(AlertWindow::InfoIcon,
+                           T("Files picker pending"),
+                           T("Loading MIDIbox CV SysEx files will use the iOS Files picker in the next tool-specific pass."),
+                           T("OK"));
+#else
         FileChooser fc(T("Choose a .syx file that you want to open..."),
                        syxFile,
                        T("*.syx"));
@@ -563,7 +569,14 @@ void MbCvToolControl::buttonClicked(Button* buttonThatWasClicked)
                     propertiesFile->setValue(T("mbCvSyxFile"), syxFile.getFullPathName());
             }
         }
+#endif
     } else if( buttonThatWasClicked == saveButton ) {
+#if JUCE_IOS
+        miosShowMessageBox(AlertWindow::InfoIcon,
+                           T("Files picker pending"),
+                           T("Saving MIDIbox CV SysEx files will use the iOS Files picker in the next tool-specific pass."),
+                           T("OK"));
+#else
         FileChooser fc(T("Choose a .syx file that you want to save..."),
                        syxFile,
                        T("*.syx"));
@@ -575,6 +588,7 @@ void MbCvToolControl::buttonClicked(Button* buttonThatWasClicked)
                     propertiesFile->setValue(T("mbCvSyxFile"), syxFile.getFullPathName());
             }
         }
+#endif
     } else if( buttonThatWasClicked == sendButton || buttonThatWasClicked == receiveButton ) {
         loadButton->setEnabled(false);
         saveButton->setEnabled(false);
@@ -624,13 +638,13 @@ void MbCvToolControl::timerCallback()
         if( dumpRequested ) {
             if( !dumpReceived ) {
                 transferFinished = true;
-                AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                miosShowMessageBox(AlertWindow::WarningIcon,
                                             T("No response from core."),
                                             T("Check:\n- MIDI In/Out connections\n- Device ID\n- that MIDIbox CV firmware has been uploaded"),
                                             String());
             } else if( checksumError ) {
                 transferFinished = true;
-                AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                miosShowMessageBox(AlertWindow::WarningIcon,
                                             T("Detected checksum error!"),
                                             T("Check:\n- MIDI In/Out connections\n- your MIDI interface"),
                                             String());
@@ -722,13 +736,13 @@ bool MbCvToolControl::loadSyx(File &syxFile)
     std::unique_ptr<FileInputStream> inFileStream = syxFile.createInputStream();
 
     if( !inFileStream ) {
-        AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+        miosShowMessageBox(AlertWindow::WarningIcon,
                                     T("The file ") + syxFile.getFileName(),
                                     T("doesn't exist!"),
                                     String());
         return false;
     } else if( inFileStream->isExhausted() || !inFileStream->getTotalLength() ) {
-        AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+        miosShowMessageBox(AlertWindow::WarningIcon,
                                     T("The file ") + syxFile.getFileName(),
                                     T("is empty!"),
                                     String());
@@ -784,7 +798,7 @@ bool MbCvToolControl::loadSyx(File &syxFile)
     }
 
     if( errorMessage != String() ) {
-        AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+        miosShowMessageBox(AlertWindow::WarningIcon,
                                     T("The file ") + syxFile.getFileName(),
                                     errorMessage,
                                     String());
@@ -802,7 +816,7 @@ bool MbCvToolControl::saveSyx(File &syxFile)
     std::unique_ptr<FileOutputStream> outFileStream = syxFile.createOutputStream();
             
     if( !outFileStream || outFileStream->failedToOpen() ) {
-        AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+        miosShowMessageBox(AlertWindow::WarningIcon,
                                     String(),
                                     T("File cannot be created!"),
                                     String());

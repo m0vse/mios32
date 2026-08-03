@@ -170,7 +170,7 @@ bool SysexToolSend::sendSyxFile(const String& filename, const bool& sendImmediat
         if( miosStudio->runningInBatchMode() ) {
             std::cerr << "ERROR: the file " << inFile.getFileName() << " doesn't exist!" << std::endl;
         } else {
-            AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+            miosShowMessageBox(AlertWindow::WarningIcon,
                                         T("The file ") + inFile.getFileName(),
                                         T("doesn't exist!"),
                                         String());
@@ -182,7 +182,7 @@ bool SysexToolSend::sendSyxFile(const String& filename, const bool& sendImmediat
         if( miosStudio->runningInBatchMode() ) {
             std::cerr << "ERROR: the file " << inFile.getFileName() << " is empty!" << std::endl;
         } else {
-            AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+            miosShowMessageBox(AlertWindow::WarningIcon,
                                         T("The file ") + inFile.getFileName(),
                                         T("is empty!"),
                                         String());
@@ -381,7 +381,7 @@ void SysexToolReceive::filenameComponentChanged(FilenameComponent *fileComponent
 
         Array<uint8> saveData = receiveBox->getBinary();
         if( saveData.size() == 0 ) {
-            AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+            miosShowMessageBox(AlertWindow::WarningIcon,
                                         String(),
                                         T("No data to save!"),
                                         String());
@@ -390,7 +390,7 @@ void SysexToolReceive::filenameComponentChanged(FilenameComponent *fileComponent
             std::unique_ptr<FileOutputStream> outFileStream = outFile.createOutputStream();
             
             if( !outFileStream || outFileStream->failedToOpen() ) {
-                AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                miosShowMessageBox(AlertWindow::WarningIcon,
                                             String(),
                                             T("File cannot be created!"),
                                             String());

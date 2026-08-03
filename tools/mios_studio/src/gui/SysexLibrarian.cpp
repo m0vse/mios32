@@ -462,6 +462,12 @@ void SysexLibrarianControl::buttonClicked(Button* buttonThatWasClicked)
         stopTransfer();
     } else if( buttonThatWasClicked == loadBankButton ||
                buttonThatWasClicked == loadPatchButton ) {
+#if JUCE_IOS
+        miosShowMessageBox(AlertWindow::InfoIcon,
+                           T("Files picker pending"),
+                           T("Loading SysEx librarian files will use the iOS Files picker in the next tool-specific pass."),
+                           T("OK"));
+#else
         FileChooser fc(T("Choose a .syx file that you want to open..."),
                        syxFile,
                        T("*.syx"));
@@ -474,8 +480,15 @@ void SysexLibrarianControl::buttonClicked(Button* buttonThatWasClicked)
                     propertiesFile->setValue(T("sysexLibrarianSyxFile"), syxFile.getFullPathName());
             }
         }
+#endif
     } else if( buttonThatWasClicked == saveBankButton ||
                buttonThatWasClicked == savePatchButton ) {
+#if JUCE_IOS
+        miosShowMessageBox(AlertWindow::InfoIcon,
+                           T("Files picker pending"),
+                           T("Saving SysEx librarian files will use the iOS Files picker in the next tool-specific pass."),
+                           T("OK"));
+#else
         FileChooser fc(T("Choose a .syx file that you want to save..."),
                        syxFile,
                        T("*.syx"));
@@ -487,6 +500,7 @@ void SysexLibrarianControl::buttonClicked(Button* buttonThatWasClicked)
                     propertiesFile->setValue(T("sysexLibrarianSyxFile"), syxFile.getFullPathName());
             }
         }
+#endif
     } else if( buttonThatWasClicked == sendBankButton ||
                buttonThatWasClicked == receiveBankButton ||
                buttonThatWasClicked == sendPatchButton ||
@@ -627,7 +641,7 @@ void SysexLibrarianControl::timerCallback()
         if( dumpRequested ) {
             if( checksumError ) {
                 transferFinished = true;
-                AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                miosShowMessageBox(AlertWindow::WarningIcon,
                                             T("Detected checksum error!"),
                                             T("Check:\n- MIDI In/Out connections\n- your MIDI interface"),
                                             String());
@@ -638,7 +652,7 @@ void SysexLibrarianControl::timerCallback()
                 } else {
                     transferFinished = true;
                     timerRestartDelay = 10; // next time we will start with short delay again
-                    AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                    miosShowMessageBox(AlertWindow::WarningIcon,
                                                 T("No response from device."),
                                                 T("Check:\n- MIDI In/Out connections\n- Device ID\n- that MIDIbox firmware has been uploaded"),
                                                 String());
@@ -708,7 +722,7 @@ void SysexLibrarianControl::timerCallback()
         } else {
             if( errorResponse ) {
                 transferFinished = true;
-                AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+                miosShowMessageBox(AlertWindow::WarningIcon,
                                             T("Got Error response!"),
                                             T("Check:\n- if a valid patch has been uploaded\n- error code in MIDI IN monitor"),
                                             String());
@@ -855,13 +869,13 @@ bool SysexLibrarianControl::loadSyx(File &syxFile, const bool& loadBank)
     std::unique_ptr<FileInputStream> inFileStream = syxFile.createInputStream();
 
     if( !inFileStream ) {
-        AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+        miosShowMessageBox(AlertWindow::WarningIcon,
                                     T("The file ") + syxFile.getFileName(),
                                     T("doesn't exist!"),
                                     String());
         return false;
     } else if( inFileStream->isExhausted() || !inFileStream->getTotalLength() ) {
-        AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+        miosShowMessageBox(AlertWindow::WarningIcon,
                                     T("The file ") + syxFile.getFileName(),
                                     T("is empty!"),
                                     String());
@@ -930,7 +944,7 @@ bool SysexLibrarianControl::loadSyx(File &syxFile, const bool& loadBank)
     juce_free(buffer);
 
     if( !errorMessage.isEmpty() ) {
-        AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+        miosShowMessageBox(AlertWindow::WarningIcon,
                                     T("The file ") + syxFile.getFileName(),
                                     errorMessage,
                                     String());
@@ -946,7 +960,7 @@ bool SysexLibrarianControl::saveSyx(File &syxFile, const bool& saveBank)
     std::unique_ptr<FileOutputStream> outFileStream = syxFile.createOutputStream();
             
     if( !outFileStream || outFileStream->failedToOpen() ) {
-        AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+        miosShowMessageBox(AlertWindow::WarningIcon,
                                     String(),
                                     T("File cannot be created!"),
                                     String());
@@ -956,7 +970,7 @@ bool SysexLibrarianControl::saveSyx(File &syxFile, const bool& saveBank)
 
     int spec = deviceTypeSelector->getSelectedId()-1;
     if( spec < 0 || spec >= miosStudio->sysexPatchDb->getNumSpecs() ) {
-        AlertWindow::showMessageBox(AlertWindow::WarningIcon,
+        miosShowMessageBox(AlertWindow::WarningIcon,
                                     String(),
                                     T("Invalid patch type selected!"),
                                     String());

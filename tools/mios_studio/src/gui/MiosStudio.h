@@ -21,7 +21,6 @@
 #include <memory>
 #include <queue>
 
-#if ! JUCE_IOS
 #include "UploadWindow.h"
 #include "MidiMonitor.h"
 #include "MiosTerminal.h"
@@ -33,7 +32,6 @@
 #include "MbhpMfTool.h"
 #include "SysexLibrarian.h"
 #include "MiosFileBrowser.h"
-#endif
 #include "../SysexPatchDb.h"
 #include "../UploadHandler.h"
 #include "../SysexHelper.h"
@@ -253,6 +251,13 @@ protected:
     IosClipboardTextEditor uploadQueryLog;
     IosClipboardTextEditor uploadStatusLog;
     IosClipboardTextEditor terminalLog;
+    std::unique_ptr<SysexTool> iosSysexTool;
+    std::unique_ptr<SysexLibrarian> iosSysexLibrarian;
+    std::unique_ptr<OscTool> iosOscTool;
+    std::unique_ptr<Midio128Tool> iosMidio128Tool;
+    std::unique_ptr<MbCvTool> iosMbCvTool;
+    std::unique_ptr<MbhpMfTool> iosMbhpMfTool;
+    std::unique_ptr<MiosFileBrowser> iosMiosFileBrowser;
     Rectangle<int> keyboardBounds;
     StringArray inputPortNames;
     StringArray outputPortNames;
@@ -280,6 +285,7 @@ protected:
     void configureIosDrawerButton(IosDrawerRowButton& button, const String& text);
     void setIosDrawerOpen(bool shouldBeOpen);
     void setIosActiveToolPage(IosToolPage page);
+    Component* getIosToolPageComponent(IosToolPage page) const;
     const String getIosToolPageName(IosToolPage page) const;
     void paintIosPanel(Graphics& g, Rectangle<int> bounds, const String& title);
     void paintIosKeyboard(Graphics& g, Rectangle<int> bounds);

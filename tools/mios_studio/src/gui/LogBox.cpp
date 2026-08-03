@@ -371,10 +371,18 @@ void LogBox::listBoxItemClicked(int row, const MouseEvent& e)
             PopupMenu m;
             addPopupMenuItems(m, &e);
 
+#if JUCE_IOS
+            Component::SafePointer<LogBox> safeThis(this);
+            m.showMenuAsync(PopupMenu::Options(), [safeThis](int result) {
+                if( result != 0 && safeThis != nullptr )
+                    safeThis->performPopupMenuAction(result);
+            });
+#else
             const int result = m.show();
 
             if( result != 0 )
                 performPopupMenuAction(result);
+#endif
         }
     }
 }

@@ -46,4 +46,17 @@ private:
 #define T(x) String(x)
 #define juce_malloc(x) malloc(x)
 #define juce_free(x)   free(x)
+
+inline void miosShowMessageBox(MessageBoxIconType iconType,
+                               const String& title,
+                               const String& message,
+                               const String& buttonText,
+                               Component* associatedComponent = nullptr)
+{
+#if JUCE_IOS
+    AlertWindow::showMessageBoxAsync(iconType, title, message, buttonText, associatedComponent);
+#else
+    AlertWindow::showMessageBox(iconType, title, message, buttonText, associatedComponent);
+#endif
+}
 #endif
