@@ -206,6 +206,11 @@ Midio128ToolConfigDout::Midio128ToolConfigDout()
     addAndMakeVisible(table = new TableListBox(T("DOUT Button Table"), this));
     table->setColour(ListBox::outlineColourId, Colours::grey);
     table->setOutlineThickness(1);
+#if JUCE_IOS
+    table->setViewportIgnoreDragFlag(true);
+    if( Viewport* tableViewport = table->getViewport() )
+        tableViewport->setScrollOnDragMode(Viewport::ScrollOnDragMode::all);
+#endif
 
     table->getHeader().addColumn(T("DOUT"), 1, 50);
     table->getHeader().addColumn(T("SR/Pin"), 2, 50);
@@ -406,6 +411,11 @@ Midio128ToolConfigDin::Midio128ToolConfigDin()
     addAndMakeVisible(table = new TableListBox(T("DIN Button Table"), this));
     table->setColour(ListBox::outlineColourId, Colours::grey);
     table->setOutlineThickness(1);
+#if JUCE_IOS
+    table->setViewportIgnoreDragFlag(true);
+    if( Viewport* tableViewport = table->getViewport() )
+        tableViewport->setScrollOnDragMode(Viewport::ScrollOnDragMode::all);
+#endif
 
     table->getHeader().addColumn(T("DIN"), 1, 50);
     table->getHeader().addColumn(T("SR/Pin"), 2, 50);
@@ -757,6 +767,29 @@ void Midio128ToolControl::paint (Graphics& g)
 
 void Midio128ToolControl::resized()
 {
+#if JUCE_IOS
+    Rectangle<int> bounds(getLocalBounds().reduced(8));
+    Rectangle<int> row(bounds.removeFromTop(32));
+
+    loadButton->setBounds(row.removeFromLeft((row.getWidth() - 8) / 2));
+    row.removeFromLeft(8);
+    saveButton->setBounds(row);
+
+    bounds.removeFromTop(8);
+    row = bounds.removeFromTop(32);
+    deviceIdLabel->setBounds(row.removeFromLeft(88));
+    row.removeFromLeft(8);
+    deviceIdSlider->setBounds(row);
+
+    bounds.removeFromTop(8);
+    row = bounds.removeFromTop(32);
+    receiveButton->setBounds(row.removeFromLeft((row.getWidth() - 8) / 2));
+    row.removeFromLeft(8);
+    sendButton->setBounds(row);
+
+    bounds.removeFromTop(8);
+    progressBar->setBounds(bounds.removeFromTop(24));
+#else
     int buttonX0 = 10;
     int buttonXOffset = 80;
     int buttonY = 8;
@@ -774,6 +807,7 @@ void Midio128ToolControl::resized()
 
     int progressBarX = sendButton->getX() + buttonWidth + 20;
     progressBar->setBounds(progressBarX, buttonY, getWidth()-progressBarX-buttonX0, buttonHeight);
+#endif
 }
 
 //==============================================================================
@@ -1090,7 +1124,12 @@ Midio128Tool::Midio128Tool(MiosStudio *_miosStudio)
     resizeLimits.setSizeLimits(100, 300, 2048, 2048);
     addAndMakeVisible(resizer = new ResizableCornerComponent(this, &resizeLimits));
 
+#if JUCE_IOS
+    resizer->setVisible(false);
+    setSize(360, 980);
+#else
     setSize(860, 500);
+#endif
 }
 
 Midio128Tool::~Midio128Tool()
@@ -1106,7 +1145,13 @@ void Midio128Tool::paint (Graphics& g)
 
 void Midio128Tool::resized()
 {
+#if JUCE_IOS
+    const int controlHeight = 144;
+    midio128ToolControl->setBounds(0, 0, getWidth(), controlHeight);
+    midio128ToolConfig->setBounds(0, controlHeight + 8, getWidth(), getHeight() - controlHeight - 8);
+#else
     midio128ToolControl->setBounds(0, 0, getWidth(), 40);
     midio128ToolConfig->setBounds(0, 40, getWidth(), getHeight()-40);
     resizer->setBounds(getWidth()-16, getHeight()-16, 16, 16);
+#endif
 }

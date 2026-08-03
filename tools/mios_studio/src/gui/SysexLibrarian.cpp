@@ -41,6 +41,11 @@ SysexLibrarianBank::SysexLibrarianBank(MiosStudio *_miosStudio, const String& ba
     table->setColour(ListBox::outlineColourId, Colours::grey);
     table->setOutlineThickness(1);
     table->setMultipleSelectionEnabled(true);
+#if JUCE_IOS
+    table->setViewportIgnoreDragFlag(true);
+    if( Viewport* tableViewport = table->getViewport() )
+        tableViewport->setScrollOnDragMode(Viewport::ScrollOnDragMode::all);
+#endif
 
     table->getHeader().addColumn(T("Patch"), 1, 50);
     table->getHeader().addColumn(T("Name"), 2, 140);
@@ -174,6 +179,17 @@ void SysexLibrarianBank::resized()
 {
     bankHeaderLabel->setBounds(0, 0, getWidth(), 20);
 
+#if JUCE_IOS
+    const int buttonWidth = jmax(44, (getWidth() - 16) / 5);
+
+    moveDownButton->setBounds (8 + 0*buttonWidth, 22, buttonWidth-4, 24);
+    moveUpButton->setBounds   (8 + 1*buttonWidth, 22, buttonWidth-4, 24);
+    insertButton->setBounds   (8 + 2*buttonWidth, 22, buttonWidth-4, 24);
+    deleteButton->setBounds   (8 + 3*buttonWidth, 22, buttonWidth-4, 24);
+    clearButton->setBounds    (8 + 4*buttonWidth, 22, buttonWidth-4, 24);
+
+    table->setBounds          (8, 54, getWidth()-16, getHeight()-62);
+#else
     //unsigned buttonWidth = getWidth() / 5;
     unsigned buttonWidth = 200 / 5;
 
@@ -184,6 +200,7 @@ void SysexLibrarianBank::resized()
     clearButton->setBounds    (4*buttonWidth+8, 20, buttonWidth-8, 16);
 
     table->setBounds          (8, 40, getWidth()-16-16, getHeight()-40-8);
+#endif
 }
 
 
@@ -415,6 +432,46 @@ void SysexLibrarianControl::paint (Graphics& g)
 
 void SysexLibrarianControl::resized()
 {
+#if JUCE_IOS
+    auto bounds = getLocalBounds().reduced(8);
+    const int rowHeight = 28;
+    const int gap = 6;
+
+    deviceTypeSelector->setBounds(bounds.removeFromTop(rowHeight));
+    bounds.removeFromTop(gap);
+
+    auto layoutSliderRow = [&](Label* label, Slider* slider) {
+        auto row = bounds.removeFromTop(rowHeight);
+        label->setBounds(row.removeFromLeft(78));
+        slider->setBounds(row);
+        bounds.removeFromTop(gap);
+    };
+
+    auto layoutButtonPair = [&](Button* left, Button* right) {
+        auto row = bounds.removeFromTop(rowHeight);
+        const int buttonWidth = (row.getWidth() - 8) / 2;
+        left->setBounds(row.removeFromLeft(buttonWidth));
+        row.removeFromLeft(8);
+        right->setBounds(row);
+        bounds.removeFromTop(gap);
+    };
+
+    layoutSliderRow(deviceIdLabel, deviceIdSlider);
+    layoutSliderRow(bankSelectLabel, bankSelectSlider);
+    layoutButtonPair(loadBankButton, saveBankButton);
+    layoutButtonPair(receiveBankButton, sendBankButton);
+    bounds.removeFromTop(4);
+    layoutButtonPair(loadPatchButton, savePatchButton);
+    layoutButtonPair(receivePatchButton, sendPatchButton);
+    bounds.removeFromTop(4);
+    layoutSliderRow(bufferLabel, bufferSlider);
+    layoutButtonPair(receiveBufferButton, sendBufferButton);
+
+    auto transferRow = bounds.removeFromBottom(rowHeight);
+    progressBar->setBounds(transferRow.removeFromLeft(jmax(0, transferRow.getWidth() - 58)));
+    transferRow.removeFromLeft(8);
+    stopButton->setBounds(transferRow);
+#else
     int buttonX0 = 15;
     int buttonXOffset = 100;
     int buttonY = 8;
@@ -453,6 +510,7 @@ void SysexLibrarianControl::resized()
 
     progressBar->setBounds(buttonX0, getHeight()-buttonY-buttonHeight, 2*buttonWidth-45, buttonHeight);
     stopButton->setBounds(buttonX0 + 2*buttonWidth-45+10, getHeight()-buttonY-buttonHeight, 45, buttonHeight);
+#endif
 }
 
 //==============================================================================
@@ -1025,10 +1083,22 @@ SysexLibrarian::SysexLibrarian(MiosStudio *_miosStudio)
     transferBankLButton->addListener(this);
     transferBankLButton->setTooltip(T("Move all patches from Assembly to Transaction Bank"));
 
+#if JUCE_IOS
+    transferBankRButton->setButtonText(T("\\/\\/"));
+    transferPatchRButton->setButtonText(T("\\/"));
+    transferPatchLButton->setButtonText(T("/\\"));
+    transferBankLButton->setButtonText(T("/\\/\\"));
+#endif
+
     resizeLimits.setSizeLimits(100, 300, 2048, 2048);
     addAndMakeVisible(resizer = new ResizableCornerComponent(this, &resizeLimits));
 
+#if JUCE_IOS
+    resizer->setVisible(false);
+    setSize(360, 1180);
+#else
     setSize(725, 500);
+#endif
 }
 
 SysexLibrarian::~SysexLibrarian()
@@ -1044,6 +1114,28 @@ void SysexLibrarian::paint (Graphics& g)
 
 void SysexLibrarian::resized()
 {
+#if JUCE_IOS
+    auto bounds = getLocalBounds().reduced(8);
+
+    sysexLibrarianControl->setBounds(bounds.removeFromTop(380));
+    bounds.removeFromTop(10);
+
+    sysexLibrarianBank->setBounds(bounds.removeFromTop(340));
+    bounds.removeFromTop(8);
+
+    auto transferRow = bounds.removeFromTop(32);
+    const int transferButtonWidth = jmax(54, (transferRow.getWidth() - 24) / 4);
+    transferBankRButton->setBounds(transferRow.removeFromLeft(transferButtonWidth));
+    transferRow.removeFromLeft(8);
+    transferPatchRButton->setBounds(transferRow.removeFromLeft(transferButtonWidth));
+    transferRow.removeFromLeft(8);
+    transferPatchLButton->setBounds(transferRow.removeFromLeft(transferButtonWidth));
+    transferRow.removeFromLeft(8);
+    transferBankLButton->setBounds(transferRow.removeFromLeft(transferButtonWidth));
+
+    bounds.removeFromTop(8);
+    sysexLibrarianAssemblyBank->setBounds(bounds);
+#else
     sysexLibrarianControl->setBounds       (0, 0, 225, getHeight());
     sysexLibrarianBank->setBounds          (220, 0, 225, getHeight());
     sysexLibrarianAssemblyBank->setBounds(500, 0, 225, getHeight());
@@ -1056,6 +1148,7 @@ void SysexLibrarian::resized()
     transferBankLButton->setBounds         (445, buttonYOffset + 3*24 + 4, 45, 16);
 
     resizer->setBounds(getWidth()-16, getHeight()-16, 16, 16);
+#endif
 }
 
 //==============================================================================

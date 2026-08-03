@@ -808,8 +808,9 @@ void MiosStudio::resized()
 
     if( !showStudioPage ) {
         if( selectedToolPage != nullptr ) {
-            const int pageWidth = jmax(getWidth() - 16, selectedToolPage->getWidth());
-            const int pageHeight = jmax(getHeight() - 16, selectedToolPage->getHeight());
+            const bool compactToolPage = iosActiveToolPage == iosToolSysexTool;
+            const int pageWidth = compactToolPage ? getWidth() - 16 : jmax(getWidth() - 16, selectedToolPage->getWidth());
+            const int pageHeight = compactToolPage ? selectedToolPage->getHeight() : jmax(getHeight() - 16, selectedToolPage->getHeight());
             selectedToolPage->setBounds(8, 8, pageWidth, pageHeight);
             selectedToolPage->toBack();
         }
@@ -1614,6 +1615,11 @@ const String MiosStudio::getIosToolPageName(IosToolPage page) const
     default:
         return T("MIOS Studio");
     }
+}
+
+const String MiosStudio::getIosActiveToolPageName() const
+{
+    return getIosToolPageName(iosActiveToolPage);
 }
 
 void MiosStudio::paintIosPanel(Graphics& g, Rectangle<int> bounds, const String&)

@@ -78,7 +78,11 @@ OscToolConnect::OscToolConnect(MiosStudio *_miosStudio, OscMonitor* _oscMonitor)
         portNumberReadLine->setText(propertiesFile->getValue(T("oscPortRead"), "10000"));
     }
 
+#if JUCE_IOS
+    setSize(360, 172);
+#else
     setSize(800, 4+24+4);
+#endif
 }
 
 OscToolConnect::~OscToolConnect()
@@ -94,6 +98,34 @@ void OscToolConnect::paint (Graphics& g)
 
 void OscToolConnect::resized()
 {
+#if JUCE_IOS
+    Rectangle<int> bounds(getLocalBounds().reduced(8));
+    const int rowHeight = 32;
+    const int labelWidth = 96;
+
+    Rectangle<int> row(bounds.removeFromTop(rowHeight));
+    remoteHostLabel->setBounds(row.removeFromLeft(labelWidth));
+    row.removeFromLeft(6);
+    remoteHostLine->setBounds(row);
+
+    bounds.removeFromTop(6);
+    row = bounds.removeFromTop(rowHeight);
+    portNumberWriteLabel->setBounds(row.removeFromLeft(labelWidth));
+    row.removeFromLeft(6);
+    portNumberWriteLine->setBounds(row);
+
+    bounds.removeFromTop(6);
+    row = bounds.removeFromTop(rowHeight);
+    portNumberReadLabel->setBounds(row.removeFromLeft(labelWidth));
+    row.removeFromLeft(6);
+    portNumberReadLine->setBounds(row);
+
+    bounds.removeFromTop(10);
+    row = bounds.removeFromTop(rowHeight);
+    connectButton->setBounds(row.removeFromLeft((row.getWidth() - 8) / 2));
+    row.removeFromLeft(8);
+    disconnectButton->setBounds(row);
+#else
     int buttonY = 4;
     int buttonWidth = 90;
     int buttonX = getWidth() - 2*buttonWidth - 10-4;
@@ -105,6 +137,7 @@ void OscToolConnect::resized()
     portNumberReadLine->setBounds(10+75+4+200+10+100+4+50+4+75+4, buttonY, 50, 24);
     connectButton->setBounds(buttonX, buttonY, buttonWidth, 24);
     disconnectButton->setBounds(buttonX + buttonWidth + 10, buttonY, buttonWidth, 24);
+#endif
 }
 
 //==============================================================================
@@ -209,6 +242,18 @@ void OscToolSend::paint (Graphics& g)
 
 void OscToolSend::resized()
 {
+#if JUCE_IOS
+    Rectangle<int> bounds(getLocalBounds().reduced(8));
+    Rectangle<int> row(bounds.removeFromTop(32));
+    sendStartButton->setBounds(row.removeFromLeft(96));
+    row.removeFromLeft(8);
+    sendClearButton->setBounds(row.removeFromLeft(96));
+
+    bounds.removeFromTop(4);
+    statusLabel->setBounds(bounds.removeFromTop(24));
+    bounds.removeFromTop(4);
+    sendBox->setBounds(bounds);
+#else
     int sendButtonY = 4;
     int sendButtonWidth = 72;
     sendStartButton->setBounds(10 + 0*(sendButtonWidth+10), sendButtonY, sendButtonWidth, 24);
@@ -216,6 +261,7 @@ void OscToolSend::resized()
     statusLabel->setBounds(getWidth()-10-500, sendButtonY, 500, 24);
 
     sendBox->setBounds(4, 32, getWidth()-8, getHeight()-32);
+#endif
 }
 
 //==============================================================================
@@ -266,7 +312,13 @@ OscTool::OscTool(MiosStudio *_miosStudio)
     resizeLimits.setSizeLimits(100, 300, 2048, 2048);
     addAndMakeVisible(resizer = new ResizableCornerComponent(this, &resizeLimits));
 
+#if JUCE_IOS
+    horizontalDividerBar->setVisible(false);
+    resizer->setVisible(false);
+    setSize(360, 840);
+#else
     setSize(850, 500);
+#endif
 }
 
 OscTool::~OscTool()
@@ -281,6 +333,14 @@ void OscTool::paint (Graphics& g)
 
 void OscTool::resized()
 {
+#if JUCE_IOS
+    Rectangle<int> bounds(getLocalBounds().reduced(8));
+    oscToolConnect->setBounds(bounds.removeFromTop(172));
+    bounds.removeFromTop(8);
+    oscToolSend->setBounds(bounds.removeFromTop(300));
+    bounds.removeFromTop(8);
+    oscMonitor->setBounds(bounds);
+#else
     oscToolConnect->setBounds(4, 4, getWidth()-8, oscToolConnect->getHeight());
 
     Component* hcomps[] = { oscToolSend,
@@ -295,4 +355,5 @@ void OscTool::resized()
                                       true); // resize the components' heights as well as widths
 
     resizer->setBounds(getWidth()-16, getHeight()-16, 16, 16);
+#endif
 }

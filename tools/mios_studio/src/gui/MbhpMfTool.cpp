@@ -299,6 +299,11 @@ MbhpMfToolCalibrationTable::MbhpMfToolCalibrationTable(MbhpMfTool* _mbhpMfTool)
     addAndMakeVisible(table = new TableListBox(T("Motorfader Table"), this));
     table->setColour(ListBox::outlineColourId, Colours::grey);
     table->setOutlineThickness(1);
+#if JUCE_IOS
+    table->setViewportIgnoreDragFlag(true);
+    if( Viewport* tableViewport = table->getViewport() )
+        tableViewport->setScrollOnDragMode(Viewport::ScrollOnDragMode::all);
+#endif
 
     table->getHeader().addColumn(T("MF"), 1, 25);
     table->getHeader().addColumn(T("Use"), 2, 40);
@@ -1034,6 +1039,37 @@ void MbhpMfToolControl::paint (Graphics& g)
 
 void MbhpMfToolControl::resized()
 {
+#if JUCE_IOS
+    Rectangle<int> bounds(getLocalBounds().reduced(8));
+    Rectangle<int> row(bounds.removeFromTop(32));
+
+    loadButton->setBounds(row.removeFromLeft((row.getWidth() - 8) / 2));
+    row.removeFromLeft(8);
+    saveButton->setBounds(row);
+
+    bounds.removeFromTop(8);
+    row = bounds.removeFromTop(32);
+    deviceIdLabel->setBounds(row.removeFromLeft(88));
+    row.removeFromLeft(8);
+    deviceIdSlider->setBounds(row);
+
+#if 0
+    bounds.removeFromTop(8);
+    row = bounds.removeFromTop(32);
+    patchLabel->setBounds(row.removeFromLeft(88));
+    row.removeFromLeft(8);
+    patchSlider->setBounds(row);
+#endif
+
+    bounds.removeFromTop(8);
+    row = bounds.removeFromTop(32);
+    receiveButton->setBounds(row.removeFromLeft((row.getWidth() - 8) / 2));
+    row.removeFromLeft(8);
+    sendButton->setBounds(row);
+
+    bounds.removeFromTop(8);
+    progressBar->setBounds(bounds.removeFromTop(24));
+#else
     int buttonX0 = 10;
     int buttonXOffset = 80;
     int buttonY = 8;
@@ -1059,6 +1095,7 @@ void MbhpMfToolControl::resized()
 
     int progressBarX = sendButton->getX() + buttonWidth + 20;
     progressBar->setBounds(progressBarX, buttonY, getWidth()-progressBarX-buttonX0, buttonHeight);
+#endif
 }
 
 //==============================================================================
@@ -1440,7 +1477,12 @@ MbhpMfTool::MbhpMfTool(MiosStudio *_miosStudio)
     resizeLimits.setSizeLimits(100, 300, 2048, 2048);
     addAndMakeVisible(resizer = new ResizableCornerComponent(this, &resizeLimits));
 
+#if JUCE_IOS
+    resizer->setVisible(false);
+    setSize(360, 1280);
+#else
     setSize(700, 630);
+#endif
 }
 
 MbhpMfTool::~MbhpMfTool()
@@ -1456,7 +1498,13 @@ void MbhpMfTool::paint (Graphics& g)
 
 void MbhpMfTool::resized()
 {
+#if JUCE_IOS
+    const int controlHeight = 144;
+    mbhpMfToolControl->setBounds(0, 0, getWidth(), controlHeight);
+    mbhpMfToolConfig->setBounds(0, controlHeight + 8, getWidth(), getHeight() - controlHeight - 8);
+#else
     mbhpMfToolControl->setBounds(0, 0, getWidth(), 40);
     mbhpMfToolConfig->setBounds(0, 40, getWidth(), getHeight()-40);
     resizer->setBounds(getWidth()-16, getHeight()-16, 16, 16);
+#endif
 }

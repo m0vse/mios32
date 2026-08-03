@@ -36,6 +36,8 @@ public:
         viewport.reset(new Viewport(T("MIOS Studio Viewport")));
         viewport->setViewedComponent(contentComponent.get(), false);
         viewport->setScrollBarsShown(false, false);
+        viewport->addMouseListener(this, true);
+        configureNestedScrollControls(*contentComponent);
         addAndMakeVisible(*viewport);
         Component::SafePointer<Viewport> safeViewport(viewport.get());
         Timer::callAfterDelay(100, [safeViewport] {
@@ -100,7 +102,7 @@ public:
         g.drawHorizontalLine(header.getBottom() - 1, 0.0f, (float)getWidth());
         g.setColour(Colours::black.withAlpha(headerChromeAlpha));
         g.setFont(Font(FontOptions(18.0f).withStyle(T("Bold"))));
-        g.drawText(T("MIOS Studio"),
+        g.drawText(getHeaderTitle(),
                    getHeaderTitleBounds(header),
                    Justification::centred);
     }
@@ -110,12 +112,18 @@ public:
         if( viewport == 0 )
             return;
 
-        const float targetAlpha = viewport->getViewPositionY() > 0 ? 1.0f : 0.0f;
+        const float targetAlpha = (viewport->getViewPositionY() > 0 || headerDragActive) ? 1.0f : 0.0f;
+        const String title = getHeaderTitle();
+        const bool titleChanged = title != lastHeaderTitle;
+        lastHeaderTitle = title;
+
         if( headerChromeAlpha != targetAlpha ) {
             const float delta = targetAlpha > headerChromeAlpha ? 0.12f : -0.16f;
             headerChromeAlpha = jlimit(0.0f, 1.0f, headerChromeAlpha + delta);
             if( std::abs(headerChromeAlpha - targetAlpha) < 0.02f )
                 headerChromeAlpha = targetAlpha;
+            repaint(getHeaderBounds());
+        } else if( titleChanged && headerChromeAlpha > 0.0f ) {
             repaint(getHeaderBounds());
         }
     }
@@ -137,6 +145,24 @@ public:
             ? jmax(bounds.getHeight(), 720)
             : bounds.getHeight();
         contentComponent->setSize(bounds.getWidth(), contentHeight);
+    }
+
+    void mouseDown(const MouseEvent& e) override
+    {
+        headerDragActive = false;
+    }
+
+    void mouseDrag(const MouseEvent& e) override
+    {
+        if( headerDragActive || e.getDistanceFromDragStart() > 4 ) {
+            headerDragActive = true;
+            repaint(getHeaderBounds());
+        }
+    }
+
+    void mouseUp(const MouseEvent&) override
+    {
+        headerDragActive = false;
     }
 #else
     void closeButtonPressed()
@@ -171,9 +197,33 @@ private:
         return getWidth() < 760 ? 59 : 24;
     }
 
+    const String getHeaderTitle() const
+    {
+        if( contentComponent != nullptr )
+            return contentComponent->getIosActiveToolPageName();
+
+        return T("MIOS Studio");
+    }
+
+    void configureNestedScrollControls(Component& component)
+    {
+        for( int i = 0; i < component.getNumChildComponents(); ++i ) {
+            if( Component* child = component.getChildComponent(i) ) {
+                if( Viewport* nestedViewport = dynamic_cast<Viewport*>(child) ) {
+                    nestedViewport->setViewportIgnoreDragFlag(true);
+                    nestedViewport->setScrollOnDragMode(Viewport::ScrollOnDragMode::all);
+                }
+
+                configureNestedScrollControls(*child);
+            }
+        }
+    }
+
     std::unique_ptr<MiosStudio> contentComponent;
     std::unique_ptr<Viewport> viewport;
     float headerChromeAlpha = 0.0f;
+    String lastHeaderTitle;
+    bool headerDragActive = false;
 #endif
 };
 

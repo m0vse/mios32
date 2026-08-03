@@ -99,6 +99,31 @@ void SysexToolSend::paint (Graphics& g)
 
 void SysexToolSend::resized()
 {
+#if JUCE_IOS
+    auto bounds = getLocalBounds().reduced(8);
+
+    sendFileChooser->setBounds(bounds.removeFromTop(28));
+    bounds.removeFromTop(8);
+
+    auto buttonRow = bounds.removeFromTop(28);
+    const int buttonWidth = jmin(74, (buttonRow.getWidth() - 16) / 3);
+    sendStartButton->setBounds(buttonRow.removeFromLeft(buttonWidth));
+    buttonRow.removeFromLeft(8);
+    sendStopButton->setBounds(buttonRow.removeFromLeft(buttonWidth));
+    buttonRow.removeFromLeft(8);
+    sendClearButton->setBounds(buttonRow.removeFromLeft(buttonWidth));
+
+    bounds.removeFromTop(6);
+    auto delayRow = bounds.removeFromTop(28);
+    sendDelayLabel->setBounds(delayRow.removeFromLeft(82));
+    sendDelaySlider->setBounds(delayRow.removeFromLeft(jmin(146, delayRow.getWidth())));
+    statusLabel->setBounds(delayRow);
+
+    bounds.removeFromTop(8);
+    progressBar->setBounds(bounds.removeFromBottom(24));
+    bounds.removeFromBottom(8);
+    sendBox->setBounds(bounds);
+#else
     sendFileChooser->setBounds(4, 4, getWidth()-8, 24);
 
     int sendButtonY = 4+32;
@@ -113,6 +138,7 @@ void SysexToolSend::resized()
     sendBox->setBounds(4, 32+40, getWidth()-8, getHeight()-32-40-4-28-4);
 
     progressBar->setBounds(4, getHeight()-28, getWidth()-8, 24);
+#endif
 }
 
 //==============================================================================
@@ -339,6 +365,24 @@ void SysexToolReceive::paint (Graphics& g)
 
 void SysexToolReceive::resized()
 {
+#if JUCE_IOS
+    auto bounds = getLocalBounds().reduced(8);
+
+    receiveFileChooser->setBounds(bounds.removeFromTop(28));
+    bounds.removeFromTop(8);
+
+    auto buttonRow = bounds.removeFromTop(28);
+    const int buttonWidth = jmin(78, (buttonRow.getWidth() - 16) / 3);
+    receiveStartButton->setBounds(buttonRow.removeFromLeft(buttonWidth));
+    buttonRow.removeFromLeft(8);
+    receiveStopButton->setBounds(buttonRow.removeFromLeft(buttonWidth));
+    buttonRow.removeFromLeft(8);
+    receiveClearButton->setBounds(buttonRow.removeFromLeft(buttonWidth));
+    statusLabel->setBounds(buttonRow);
+
+    bounds.removeFromTop(8);
+    receiveBox->setBounds(bounds);
+#else
     receiveFileChooser->setBounds(4, 4, getWidth()-8, 24);
 
     int receiveButtonY = 4+32;
@@ -349,6 +393,7 @@ void SysexToolReceive::resized()
     statusLabel->setBounds(getWidth()-10-150, receiveButtonY, 150, 24);
 
     receiveBox->setBounds(4, 32+40, getWidth()-8, getHeight()-32-40-4);
+#endif
 }
 
 //==============================================================================
@@ -444,7 +489,13 @@ SysexTool::SysexTool(MiosStudio *_miosStudio)
     resizeLimits.setSizeLimits(100, 300, 2048, 2048);
     addAndMakeVisible(resizer = new ResizableCornerComponent(this, &resizeLimits));
 
+#if JUCE_IOS
+    horizontalDividerBar->setVisible(false);
+    resizer->setVisible(false);
+    setSize(360, 760);
+#else
     setSize(860, 500);
+#endif
 }
 
 SysexTool::~SysexTool()
@@ -459,6 +510,15 @@ void SysexTool::paint (Graphics& g)
 
 void SysexTool::resized()
 {
+#if JUCE_IOS
+    auto bounds = getLocalBounds().reduced(8);
+    const int dividerHeight = 8;
+    const int sendHeight = jmin(390, jmax(300, (bounds.getHeight() - dividerHeight) / 2));
+
+    sysexToolSend->setBounds(bounds.removeFromTop(sendHeight));
+    bounds.removeFromTop(dividerHeight);
+    sysexToolReceive->setBounds(bounds);
+#else
     Component* hcomps[] = { sysexToolSend,
                             horizontalDividerBar,
                             sysexToolReceive,
@@ -471,4 +531,5 @@ void SysexTool::resized()
                                       true); // resize the components' heights as well as widths
 
     resizer->setBounds(getWidth()-16, getHeight()-16, 16, 16);
+#endif
 }

@@ -151,6 +151,7 @@ public:
     void textEditorEscapeKeyPressed(TextEditor& editor);
     void textEditorTextChanged(TextEditor&) {}
     void textEditorFocusLost(TextEditor&) {}
+    const String getIosActiveToolPageName() const;
 #else
     StringArray getMenuBarNames();
     PopupMenu getMenuForIndex(int topLevelMenuIndex, const String& menuName);

@@ -140,6 +140,11 @@ MbCvToolConfigChannels::MbCvToolConfigChannels()
     addAndMakeVisible(table = new TableListBox(T("CV Channels Table"), this));
     table->setColour(ListBox::outlineColourId, Colours::grey);
     table->setOutlineThickness(1);
+#if JUCE_IOS
+    table->setViewportIgnoreDragFlag(true);
+    if( Viewport* tableViewport = table->getViewport() )
+        tableViewport->setScrollOnDragMode(Viewport::ScrollOnDragMode::all);
+#endif
 
     table->getHeader().addColumn(T("CV"), 1, 25);
     table->getHeader().addColumn(T("Channel"), 2, 70);
@@ -525,6 +530,35 @@ void MbCvToolControl::paint (Graphics& g)
 
 void MbCvToolControl::resized()
 {
+#if JUCE_IOS
+    Rectangle<int> bounds(getLocalBounds().reduced(8));
+    Rectangle<int> row(bounds.removeFromTop(32));
+
+    loadButton->setBounds(row.removeFromLeft((row.getWidth() - 8) / 2));
+    row.removeFromLeft(8);
+    saveButton->setBounds(row);
+
+    bounds.removeFromTop(8);
+    row = bounds.removeFromTop(32);
+    deviceIdLabel->setBounds(row.removeFromLeft(88));
+    row.removeFromLeft(8);
+    deviceIdSlider->setBounds(row);
+
+    bounds.removeFromTop(8);
+    row = bounds.removeFromTop(32);
+    patchLabel->setBounds(row.removeFromLeft(88));
+    row.removeFromLeft(8);
+    patchSlider->setBounds(row);
+
+    bounds.removeFromTop(8);
+    row = bounds.removeFromTop(32);
+    receiveButton->setBounds(row.removeFromLeft((row.getWidth() - 8) / 2));
+    row.removeFromLeft(8);
+    sendButton->setBounds(row);
+
+    bounds.removeFromTop(8);
+    progressBar->setBounds(bounds.removeFromTop(24));
+#else
     int buttonX0 = 10;
     int buttonXOffset = 80;
     int buttonY = 8;
@@ -545,6 +579,7 @@ void MbCvToolControl::resized()
 
     int progressBarX = sendButton->getX() + buttonWidth + 20;
     progressBar->setBounds(progressBarX, buttonY, getWidth()-progressBarX-buttonX0, buttonHeight);
+#endif
 }
 
 //==============================================================================
@@ -849,7 +884,12 @@ MbCvTool::MbCvTool(MiosStudio *_miosStudio)
     resizeLimits.setSizeLimits(100, 300, 2048, 2048);
     addAndMakeVisible(resizer = new ResizableCornerComponent(this, &resizeLimits));
 
+#if JUCE_IOS
+    resizer->setVisible(false);
+    setSize(360, 760);
+#else
     setSize(860, 265);
+#endif
 }
 
 MbCvTool::~MbCvTool()
@@ -865,7 +905,13 @@ void MbCvTool::paint (Graphics& g)
 
 void MbCvTool::resized()
 {
+#if JUCE_IOS
+    const int controlHeight = 184;
+    mbCvToolControl->setBounds(0, 0, getWidth(), controlHeight);
+    mbCvToolConfig->setBounds(0, controlHeight + 8, getWidth(), getHeight() - controlHeight - 8);
+#else
     mbCvToolControl->setBounds(0, 0, getWidth(), 40);
     mbCvToolConfig->setBounds(0, 40, getWidth(), getHeight()-40);
     resizer->setBounds(getWidth()-16, getHeight()-16, 16, 16);
+#endif
 }

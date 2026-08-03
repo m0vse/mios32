@@ -216,6 +216,9 @@ MiosFileBrowser::MiosFileBrowser(MiosStudio *_miosStudio)
 
     addAndMakeVisible(treeView = new TreeView(T("SD Card")));
     treeView->setMultiSelectEnabled(true);
+#if JUCE_IOS
+    treeView->setViewportIgnoreDragFlag(true);
+#endif
 
     addAndMakeVisible(hexEditor = new HexTextEditor(statusLabel));
     hexEditor->setReadOnly(true);
@@ -251,7 +254,12 @@ MiosFileBrowser::MiosFileBrowser(MiosStudio *_miosStudio)
     resizeLimits.setSizeLimits(500, 320, 2048, 2048);
     addAndMakeVisible(resizer = new ResizableCornerComponent(this, &resizeLimits));
 
+#if JUCE_IOS
+    resizer->setVisible(false);
+    setSize(360, 1080);
+#else
     setSize(950, 500);
+#endif
 }
 
 MiosFileBrowser::~MiosFileBrowser()
@@ -267,6 +275,51 @@ void MiosFileBrowser::paint (Graphics& g)
 
 void MiosFileBrowser::resized()
 {
+#if JUCE_IOS
+    Rectangle<int> bounds(getLocalBounds().reduced(8));
+    const int buttonHeight = 32;
+
+    Rectangle<int> row(bounds.removeFromTop(buttonHeight));
+    updateButton->setBounds(row.removeFromLeft((row.getWidth() - 8) / 2));
+    row.removeFromLeft(8);
+    downloadButton->setBounds(row);
+
+    bounds.removeFromTop(8);
+    row = bounds.removeFromTop(buttonHeight);
+    uploadButton->setBounds(row.removeFromLeft((row.getWidth() - 8) / 2));
+    row.removeFromLeft(8);
+    removeButton->setBounds(row);
+
+    bounds.removeFromTop(8);
+    row = bounds.removeFromTop(buttonHeight);
+    createDirButton->setBounds(row.removeFromLeft((row.getWidth() - 8) / 2));
+    row.removeFromLeft(8);
+    createFileButton->setBounds(row);
+
+    bounds.removeFromTop(10);
+    treeView->setBounds(bounds.removeFromTop(280));
+
+    bounds.removeFromTop(10);
+    row = bounds.removeFromTop(buttonHeight);
+    editTextButton->setBounds(row.removeFromLeft(72));
+    row.removeFromLeft(8);
+    editHexButton->setBounds(row.removeFromLeft(72));
+    row.removeFromLeft(8);
+    saveButton->setBounds(row.removeFromRight(72));
+    row.removeFromRight(8);
+    cancelButton->setBounds(row.removeFromRight(72));
+
+    bounds.removeFromTop(6);
+    editLabel->setBounds(bounds.removeFromTop(24));
+    bounds.removeFromTop(6);
+
+    Rectangle<int> editorBounds(bounds.removeFromTop(600));
+    hexEditor->setBounds(editorBounds);
+    textEditor->setBounds(editorBounds);
+
+    bounds.removeFromTop(8);
+    statusLabel->setBounds(bounds.removeFromTop(24));
+#else
     int sendButtonY = 16;
     int sendButtonWidth = 72;
  
@@ -293,6 +346,7 @@ void MiosFileBrowser::resized()
 
     statusLabel->setBounds(10, getHeight()-24, getWidth()-20, 24);
     resizer->setBounds(getWidth()-16, getHeight()-16, 16, 16);
+#endif
 }
 
 //==============================================================================
