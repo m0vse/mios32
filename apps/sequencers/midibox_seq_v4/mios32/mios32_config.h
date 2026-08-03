@@ -138,7 +138,8 @@ extern void APP_SendDebugMessage(char *format, ...)
 // Sequencer could crash with hardfault on a buffer overrun
 
 // Heap size for fixed-region allocators. LPC17 uses heap_5 instead, with the
-// available tails of main and AHB SRAM supplied by the linker script.
+// safe AHB SRAM tail supplied by the linker script; main SRAM remains reserved
+// for statics and the startup/exception stack.
 #ifdef MBSEQV4P
 # define MIOS32_HEAP_SIZE 20*1024
 #elif defined(MIOS32_FAMILY_LPC17xx) && defined(MIOS32_USB_USE_TINYUSB)

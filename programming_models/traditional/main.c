@@ -60,15 +60,32 @@ static void TASK_MIDI_Hooks(void *pvParameters);
 /////////////////////////////////////////////////////////////////////////////
 
 #if defined(MIOS32_FREERTOS_HEAP_5)
+#if !defined(MIOS32_FAMILY_LPC17xx)
 extern uint8_t _ebss;
-extern uint8_t _ebss_ahb;
 extern uint8_t __heap_main_limit;
+#endif
+extern uint8_t _ebss_ahb;
 extern uint8_t __heap_ahb_limit;
 
 static size_t mios32_freertos_heap_total_size;
 
 static void MIOS32_FREERTOS_HeapInit(void)
 {
+#if defined(MIOS32_FAMILY_LPC17xx)
+  // Do not add the LPC17 main-SRAM tail here. The processor starts on MSP at
+  // the top of that same SRAM and continues to use it for exceptions after
+  // FreeRTOS switches tasks to PSP. A heap region growing upward into an MSP
+  // stack growing downward has no enforceable boundary; the resulting heap
+  // metadata corruption faults later inside pvPortMalloc(). The AHB tail has
+  // unambiguous ownership and remains large enough for MBSEQ's retained,
+  // coarse-grained allocations.
+  const HeapRegion_t heap_regions[] = {
+    { &_ebss_ahb, (size_t)(&__heap_ahb_limit - &_ebss_ahb) },
+    { NULL, 0 }
+  };
+
+  mios32_freertos_heap_total_size = heap_regions[0].xSizeInBytes;
+#else
   const HeapRegion_t heap_regions[] = {
     { &_ebss, (size_t)(&__heap_main_limit - &_ebss) },
     { &_ebss_ahb, (size_t)(&__heap_ahb_limit - &_ebss_ahb) },
@@ -77,6 +94,7 @@ static void MIOS32_FREERTOS_HeapInit(void)
 
   mios32_freertos_heap_total_size =
     heap_regions[0].xSizeInBytes + heap_regions[1].xSizeInBytes;
+#endif
   vPortDefineHeapRegions(heap_regions);
 }
 

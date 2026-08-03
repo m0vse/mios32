@@ -36,9 +36,8 @@ There will be a link error if there is not this amount of RAM free at the end.
 */
 _Minimum_Stack_Size = 0x100 ;
 
-/* heap_5 can use the unoccupied tails of both SRAM address ranges. Preserve
-   the minimum main-stack reserve at the top of local SRAM. */
-__heap_main_limit = _estack - _Minimum_Stack_Size;
+/* heap_5 uses the unoccupied AHB SRAM tail. Main SRAM remains owned by the
+   MSP startup/exception stack above the linked application data. */
 __heap_ahb_limit = ORIGIN(RAMAHB) + LENGTH(RAMAHB);
 
 
@@ -308,4 +307,3 @@ SECTIONS
     .debug_typenames 0 : { *(.debug_typenames) }
     .debug_varnames  0 : { *(.debug_varnames) }
 }
-
