@@ -331,6 +331,7 @@ MiosStudio::MiosStudio()
     , iosDrawerEdgeDragActive(false)
     , iosDrawerAnimation(0.0f)
     , iosActiveToolPage(iosToolStudio)
+    , midiKeyboard(0)
 #else
     , uploadWindow(0)
     , midiInMonitor(0)
@@ -730,7 +731,6 @@ void MiosStudio::paint (Graphics& g)
         paintIosPanel(g, layout.upload, T("Upload"));
         paintIosPanel(g, layout.terminal, T("MIOS Terminal"));
         paintIosPanel(g, layout.keyboard, T("MIDI Keyboard"));
-        paintIosKeyboard(g, layout.keyboard.reduced(8));
     }
 
     if( iosDrawerOpen || layout.persistentDrawer || iosDrawerAnimation > 0.0f ) {
@@ -802,7 +802,8 @@ void MiosStudio::resized()
                                   static_cast<Component*>(&midiOutLog),
                                   static_cast<Component*>(&uploadQueryLog),
                                   static_cast<Component*>(&uploadStatusLog),
-                                  static_cast<Component*>(&terminalLog) } )
+                                  static_cast<Component*>(&terminalLog),
+                                  static_cast<Component*>(midiKeyboard) } )
         component->setVisible(showStudioPage);
 
     Component* selectedToolPage = getIosToolPageComponent(iosActiveToolPage);
@@ -896,6 +897,7 @@ void MiosStudio::resized()
     uploadStatusLog.setBounds(uploadStatusPane);
 
     keyboardBounds = layout.keyboard.reduced(8);
+    midiKeyboard->setBounds(keyboardBounds);
 
     auto terminalInner = layout.terminal.reduced(8);
     auto terminalRow = terminalInner.removeFromBottom(34);
@@ -1190,6 +1192,8 @@ bool MiosStudio::reconnectMidiPortsForUpload(const String &applicationInput,
 #if JUCE_IOS
 void MiosStudio::initialiseIosUi()
 {
+    addAndMakeVisible(midiKeyboard = new MidiKeyboard(this));
+
     for( Label* heading : { &midiInHeader, &midiOutHeader, &deviceStatusHeader, &uploadStatusHeader, &terminalHeader, &keyboardHeader } )
         addChildComponent(*heading);
 
@@ -1806,37 +1810,6 @@ void MiosStudio::paintIosPanel(Graphics& g, Rectangle<int> bounds, const String&
     g.drawRect(bounds.expanded(1), 1);
 }
 
-void MiosStudio::paintIosKeyboard(Graphics& g, Rectangle<int> bounds)
-{
-    if( bounds.isEmpty() )
-        return;
-
-    const int whiteKeys = 24;
-    const float keyWidth = (float)bounds.getWidth() / (float)whiteKeys;
-
-    g.setColour(Colours::white);
-    g.fillRect(bounds);
-    g.setColour(Colours::black);
-    for(int i=0; i<=whiteKeys; ++i) {
-        const int x = bounds.getX() + roundToInt(i * keyWidth);
-        g.drawVerticalLine(x, (float)bounds.getY(), (float)bounds.getBottom());
-    }
-    g.drawRect(bounds, 1);
-
-    const int blackPattern[] = { 0, 1, 3, 4, 5 };
-    const int blackHeight = roundToInt(bounds.getHeight() * 0.62f);
-    const int blackWidth = jmax(8, roundToInt(keyWidth * 0.58f));
-    g.setColour(Colours::black);
-    for(int octave=0; octave<4; ++octave) {
-        for(int key : blackPattern) {
-            const int whiteIndex = octave * 7 + key;
-            if( whiteIndex + 1 >= whiteKeys )
-                continue;
-            const int x = bounds.getX() + roundToInt((whiteIndex + 1) * keyWidth - blackWidth / 2.0f);
-            g.fillRect(x, bounds.getY(), blackWidth, blackHeight);
-        }
-    }
-}
 #endif
 
 

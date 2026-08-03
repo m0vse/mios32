@@ -252,6 +252,7 @@ protected:
     IosClipboardTextEditor uploadQueryLog;
     IosClipboardTextEditor uploadStatusLog;
     IosClipboardTextEditor terminalLog;
+    MidiKeyboard *midiKeyboard;
     std::unique_ptr<SysexTool> iosSysexTool;
     std::unique_ptr<SysexLibrarian> iosSysexLibrarian;
     std::unique_ptr<OscTool> iosOscTool;
@@ -298,7 +299,6 @@ protected:
     Component* getIosToolPageComponent(IosToolPage page) const;
     const String getIosToolPageName(IosToolPage page) const;
     void paintIosPanel(Graphics& g, Rectangle<int> bounds, const String& title);
-    void paintIosKeyboard(Graphics& g, Rectangle<int> bounds);
 #else
     UploadWindow *uploadWindow;
     MidiMonitor *midiInMonitor;

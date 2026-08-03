@@ -40,6 +40,10 @@ MidiKeyboard::MidiKeyboard(MiosStudio *_miosStudio)
     keyboardState.addListener(this);
 
     midiKeyboardComponent->setLowestVisibleKey(24); // does match better with layout
+#if JUCE_IOS
+    midiKeyboardComponent->setKeyWidth(28.0f);
+    midiKeyboardComponent->setScrollButtonWidth(30);
+#endif
 
     addAndMakeVisible(midiChannelLabel = new Label(T("Chn."), T("Chn.")));
     midiChannelLabel->setJustificationType(Justification::centred);
@@ -155,4 +159,3 @@ void MidiKeyboard::handleIncomingMidiMessage(const MidiMessage& message, uint8 r
 {
 
 }
-
