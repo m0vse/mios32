@@ -38,6 +38,27 @@
 #include "../UploadHandler.h"
 #include "../SysexHelper.h"
 
+#if JUCE_IOS
+class IosClipboardTextEditor
+    : public TextEditor
+    , private Timer
+{
+public:
+    void setLongPressClipboardMenuEnabled(bool shouldEnable);
+
+    void mouseDown(const MouseEvent& e) override;
+    void mouseDrag(const MouseEvent& e) override;
+    void mouseUp(const MouseEvent& e) override;
+
+private:
+    void timerCallback() override;
+    void showClipboardMenu();
+
+    bool longPressClipboardMenuEnabled = false;
+    bool longPressMenuActive = false;
+};
+#endif
+
 class MiosStudio
     : public Component
     , public MidiInputCallback
@@ -191,12 +212,12 @@ protected:
     TextButton uploadStartButton;
     TextButton uploadStopButton;
     TextButton sendTerminalButton;
-    TextEditor terminalInput;
-    TextEditor midiInLog;
-    TextEditor midiOutLog;
-    TextEditor uploadQueryLog;
-    TextEditor uploadStatusLog;
-    TextEditor terminalLog;
+    IosClipboardTextEditor terminalInput;
+    IosClipboardTextEditor midiInLog;
+    IosClipboardTextEditor midiOutLog;
+    IosClipboardTextEditor uploadQueryLog;
+    IosClipboardTextEditor uploadStatusLog;
+    IosClipboardTextEditor terminalLog;
     Rectangle<int> keyboardBounds;
     StringArray inputPortNames;
     StringArray outputPortNames;
@@ -215,7 +236,7 @@ protected:
     void addIosLogEntry(TextEditor& editor, const String& textLine);
     void appendIosCoreInfo();
     void configureIosHeaderLabel(Label& label, const String& text);
-    void configureIosLog(TextEditor& editor);
+    void configureIosLog(IosClipboardTextEditor& editor);
     void paintIosPanel(Graphics& g, Rectangle<int> bounds, const String& title);
     void paintIosKeyboard(Graphics& g, Rectangle<int> bounds);
 #else

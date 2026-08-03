@@ -66,8 +66,103 @@ Component* findEditTarget()
     return nullptr;
 #endif
 }
+}
 
 #if JUCE_IOS
+void IosClipboardTextEditor::setLongPressClipboardMenuEnabled(bool shouldEnable)
+{
+    longPressClipboardMenuEnabled = shouldEnable;
+}
+
+void IosClipboardTextEditor::mouseDown(const MouseEvent& e)
+{
+    if( !longPressClipboardMenuEnabled ) {
+        TextEditor::mouseDown(e);
+        return;
+    }
+
+    if( e.mods.isPopupMenu() ) {
+        showClipboardMenu();
+        return;
+    }
+
+    longPressMenuActive = true;
+    startTimer(500);
+
+    if( getHighlightedRegion().isEmpty() )
+        TextEditor::mouseDown(e);
+}
+
+void IosClipboardTextEditor::mouseDrag(const MouseEvent& e)
+{
+    if( e.getDistanceFromDragStart() > 12 ) {
+        longPressMenuActive = false;
+        stopTimer();
+    }
+
+    if( getHighlightedRegion().isEmpty() )
+        TextEditor::mouseDrag(e);
+}
+
+void IosClipboardTextEditor::mouseUp(const MouseEvent& e)
+{
+    const bool preserveSelection = longPressClipboardMenuEnabled && !getHighlightedRegion().isEmpty();
+    longPressMenuActive = false;
+    stopTimer();
+
+    if( !preserveSelection )
+        TextEditor::mouseUp(e);
+}
+
+void IosClipboardTextEditor::timerCallback()
+{
+    stopTimer();
+
+    if( longPressMenuActive )
+        showClipboardMenu();
+}
+
+void IosClipboardTextEditor::showClipboardMenu()
+{
+    longPressMenuActive = false;
+
+    PopupMenu menu;
+    menu.setLookAndFeel(&getLookAndFeel());
+    menu.addItem(1, T("Copy"), !getHighlightedRegion().isEmpty());
+    menu.addItem(2, T("Copy All"), getTotalNumChars() > 0);
+
+    if( !isReadOnly() )
+        menu.addItem(3, T("Paste"), SystemClipboard::getTextFromClipboard().isNotEmpty());
+
+    menu.addSeparator();
+    menu.addItem(4, T("Select All"), getTotalNumChars() > 0);
+
+    menu.showMenuAsync(PopupMenu::Options().withTargetComponent(this).withMousePosition(),
+                       [safeThis = Component::SafePointer<IosClipboardTextEditor>(this)](int result) {
+        if( auto* editor = safeThis.getComponent() ) {
+            switch( result ) {
+            case 1:
+                editor->copyToClipboard();
+                break;
+            case 2:
+                SystemClipboard::copyTextToClipboard(editor->getText());
+                break;
+            case 3:
+                if( !editor->isReadOnly() )
+                    editor->insertTextAtCaret(SystemClipboard::getTextFromClipboard());
+                break;
+            case 4:
+                editor->selectAll();
+                break;
+            default:
+                break;
+            }
+        }
+    });
+}
+
+namespace
+{
 struct IosStudioLayout
 {
     Rectangle<int> title;
@@ -131,8 +226,8 @@ IosStudioLayout getIosStudioLayout(Rectangle<int> bounds)
 
     return layout;
 }
-#endif
 }
+#endif
 
 //==============================================================================
 MiosStudio::MiosStudio()
@@ -957,10 +1052,12 @@ void MiosStudio::initialiseIosUi()
     uploadStopButton.setEnabled(false);
 
     terminalInput.setTextToShowWhenEmpty(T("MIOS32 terminal command"), Colours::grey);
+    terminalInput.setLongPressClipboardMenuEnabled(true);
+    terminalInput.setPopupMenuEnabled(false);
     terminalInput.addListener(this);
     addAndMakeVisible(terminalInput);
 
-    for( TextEditor* editor : { &midiInLog, &midiOutLog, &uploadQueryLog, &uploadStatusLog, &terminalLog } )
+    for( IosClipboardTextEditor* editor : { &midiInLog, &midiOutLog, &uploadQueryLog, &uploadStatusLog, &terminalLog } )
         configureIosLog(*editor);
 
     addIosLogEntry(uploadQueryLog, T("Waiting for first query."));
@@ -1178,7 +1275,7 @@ void MiosStudio::configureIosHeaderLabel(Label& label, const String& text)
     addAndMakeVisible(label);
 }
 
-void MiosStudio::configureIosLog(TextEditor& editor)
+void MiosStudio::configureIosLog(IosClipboardTextEditor& editor)
 {
     editor.setMultiLine(true, false);
     editor.setReadOnly(true);
@@ -1187,6 +1284,7 @@ void MiosStudio::configureIosLog(TextEditor& editor)
     editor.setWantsKeyboardFocus(false);
     editor.setMouseClickGrabsKeyboardFocus(false);
     editor.setPopupMenuEnabled(false);
+    editor.setLongPressClipboardMenuEnabled(true);
     editor.setColour(TextEditor::backgroundColourId, Colours::white);
     editor.setColour(TextEditor::outlineColourId, Colour(0xff8a8a8a));
     editor.setColour(TextEditor::shadowColourId, Colour(0x33000000));
