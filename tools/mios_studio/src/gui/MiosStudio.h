@@ -57,6 +57,22 @@ private:
     bool longPressClipboardMenuEnabled = false;
     bool longPressMenuActive = false;
 };
+
+class IosDrawerRowButton
+    : public Button
+{
+public:
+    IosDrawerRowButton();
+
+    void paintButton(Graphics& g, bool isMouseOverButton, bool isButtonDown) override;
+};
+
+class IosStepperLookAndFeel
+    : public LookAndFeel_V2
+{
+public:
+    Button* createSliderButton(Slider&, bool isIncrement) override;
+};
 #endif
 
 class MiosStudio
@@ -130,6 +146,9 @@ public:
 #if JUCE_IOS
     void buttonClicked(Button* buttonThatWasClicked);
     void comboBoxChanged(ComboBox* comboBoxThatHasChanged);
+    void mouseDown(const MouseEvent& e);
+    void mouseDrag(const MouseEvent& e);
+    void mouseUp(const MouseEvent& e);
     void textEditorReturnKeyPressed(TextEditor& editor);
     void textEditorEscapeKeyPressed(TextEditor& editor);
     void textEditorTextChanged(TextEditor&) {}
@@ -191,10 +210,23 @@ protected:
 
     //==============================================================================
 #if JUCE_IOS
-    Label titleLabel;
+    enum IosToolPage {
+        iosToolStudio = 0,
+        iosToolSysexTool,
+        iosToolSysexLibrarian,
+        iosToolOsc,
+        iosToolMidio128,
+        iosToolMbCv,
+        iosToolMbhpMf,
+        iosToolFileBrowser,
+        iosToolCount
+    };
+
     Label inputLabel;
     Label outputLabel;
     Label deviceIdLabel;
+    Label drawerHintLabel;
+    Label drawerBackground;
     Label midiInHeader;
     Label midiOutHeader;
     Label deviceStatusHeader;
@@ -212,6 +244,8 @@ protected:
     TextButton uploadStartButton;
     TextButton uploadStopButton;
     TextButton sendTerminalButton;
+    IosDrawerRowButton toolButtons[iosToolCount];
+    IosStepperLookAndFeel iosStepperLookAndFeel;
     IosClipboardTextEditor terminalInput;
     IosClipboardTextEditor midiInLog;
     IosClipboardTextEditor midiOutLog;
@@ -226,6 +260,10 @@ protected:
     bool iosQueryActive;
     int iosRepeatQueriesRemaining;
     bool iosReceivedTerminalMessage;
+    bool iosDrawerOpen;
+    bool iosDrawerEdgeDragActive;
+    Point<int> iosDrawerDragStart;
+    IosToolPage iosActiveToolPage;
 
     void initialiseIosUi();
     void scanIosMidiDevices();
@@ -237,6 +275,10 @@ protected:
     void appendIosCoreInfo();
     void configureIosHeaderLabel(Label& label, const String& text);
     void configureIosLog(IosClipboardTextEditor& editor);
+    void configureIosDrawerButton(IosDrawerRowButton& button, const String& text);
+    void setIosDrawerOpen(bool shouldBeOpen);
+    void setIosActiveToolPage(IosToolPage page);
+    const String getIosToolPageName(IosToolPage page) const;
     void paintIosPanel(Graphics& g, Rectangle<int> bounds, const String& title);
     void paintIosKeyboard(Graphics& g, Rectangle<int> bounds);
 #else

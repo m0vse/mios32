@@ -161,11 +161,64 @@ void IosClipboardTextEditor::showClipboardMenu()
     });
 }
 
+IosDrawerRowButton::IosDrawerRowButton()
+    : Button(String())
+{
+}
+
+void IosDrawerRowButton::paintButton(Graphics& g, bool isMouseOverButton, bool isButtonDown)
+{
+    const bool selected = getToggleState();
+    Colour fill = selected ? Colour(0x2f2f5fb8) : Colours::transparentBlack;
+    if( isButtonDown )
+        fill = Colour(0x302f5fb8);
+    else if( isMouseOverButton )
+        fill = Colour(0x182f5fb8);
+
+    g.setColour(fill);
+    g.fillRoundedRectangle(getLocalBounds().toFloat().reduced(1.0f), 7.0f);
+    g.setColour(selected ? Colour(0xff1f3f9d) : Colours::black);
+    g.setFont(Font(FontOptions(15.0f).withStyle(selected ? T("Bold") : String())));
+    g.drawText(getButtonText(), getLocalBounds().reduced(12, 0), Justification::centredLeft);
+}
+
+class IosStepperButton
+    : public TextButton
+{
+public:
+    IosStepperButton(bool increment)
+        : TextButton(increment ? T("+") : T("-"), String())
+    {
+    }
+
+    void paintButton(Graphics& g, bool isMouseOverButton, bool isButtonDown) override
+    {
+        auto bounds = getLocalBounds().toFloat().reduced(0.5f);
+        const auto fill = isButtonDown ? Colour(0xffd9e0f4)
+                                       : isMouseOverButton ? Colour(0xffeef2ff)
+                                                           : Colour(0xfff8f9ff);
+
+        g.setColour(fill);
+        g.fillRoundedRectangle(bounds, 7.0f);
+        g.setColour(Colour(0xff9aa7d8));
+        g.drawRoundedRectangle(bounds, 7.0f, 1.0f);
+        g.setColour(Colour(0xff1f3f9d));
+        g.setFont(Font(FontOptions(19.0f)));
+        g.drawText(getButtonText(), getLocalBounds(), Justification::centred);
+    }
+};
+
+Button* IosStepperLookAndFeel::createSliderButton(Slider&, bool isIncrement)
+{
+    return new IosStepperButton(isIncrement);
+}
+
 namespace
 {
 struct IosStudioLayout
 {
     Rectangle<int> title;
+    Rectangle<int> drawer;
     Rectangle<int> midiIn;
     Rectangle<int> midiOut;
     Rectangle<int> upload;
@@ -174,6 +227,7 @@ struct IosStudioLayout
     bool compact = false;
     bool shortWide = false;
     bool stackedUploadLogs = false;
+    bool persistentDrawer = false;
 };
 
 IosStudioLayout getIosStudioLayout(Rectangle<int> bounds)
@@ -185,10 +239,13 @@ IosStudioLayout getIosStudioLayout(Rectangle<int> bounds)
 
     layout.shortWide = bounds.getWidth() >= 760 && bounds.getHeight() < 560;
     layout.compact = bounds.getWidth() < 760;
+    layout.persistentDrawer = false;
     const bool shortScreen = bounds.getHeight() < 560;
     layout.stackedUploadLogs = bounds.getWidth() < 560;
 
     const int gap = 8;
+    layout.drawer = bounds.withWidth(layout.persistentDrawer ? 220 : jmin(280, bounds.getWidth() - 32));
+
     const int monitorHeight = layout.shortWide
         ? jlimit(120, 170, bounds.getHeight() / 3)
         : layout.compact
@@ -237,6 +294,9 @@ MiosStudio::MiosStudio()
     , iosQueryActive(false)
     , iosRepeatQueriesRemaining(0)
     , iosReceivedTerminalMessage(false)
+    , iosDrawerOpen(false)
+    , iosDrawerEdgeDragActive(false)
+    , iosActiveToolPage(iosToolStudio)
 #else
     , uploadWindow(0)
     , midiInMonitor(0)
@@ -536,6 +596,10 @@ MiosStudio::MiosStudio()
 
 MiosStudio::~MiosStudio()
 {
+#if JUCE_IOS
+    deviceIdSlider.setLookAndFeel(nullptr);
+#endif
+
     if( midiInputCallbackRegistered ) {
         audioDeviceManager.removeMidiInputDeviceCallback(String(), this);
         midiInputCallbackRegistered = false;
@@ -632,6 +696,18 @@ void MiosStudio::paint (Graphics& g)
     paintIosPanel(g, layout.terminal, T("MIOS Terminal"));
     paintIosPanel(g, layout.keyboard, T("MIDI Keyboard"));
     paintIosKeyboard(g, layout.keyboard.reduced(8));
+
+    if( iosDrawerOpen || layout.persistentDrawer ) {
+        if( !layout.persistentDrawer ) {
+            g.setColour(Colours::black.withAlpha(0.18f));
+            g.fillRect(getLocalBounds());
+        }
+
+        g.setColour(Colour(0xf7f4f6ff));
+        g.fillRect(layout.drawer);
+        g.setColour(Colour(0xff9aa7d8));
+        g.drawRect(layout.drawer, 1);
+    }
 #else
     g.fillAll(Colour(0xffc1d0ff));
 #endif
@@ -641,7 +717,29 @@ void MiosStudio::resized()
 {
 #if JUCE_IOS
     const IosStudioLayout layout = getIosStudioLayout(getLocalBounds());
-    titleLabel.setBounds(layout.title);
+
+    const bool showDrawer = iosDrawerOpen || layout.persistentDrawer;
+    drawerBackground.setVisible(showDrawer);
+    drawerBackground.setBounds(layout.drawer);
+    drawerHintLabel.setVisible(showDrawer);
+
+    auto drawerInner = layout.drawer.reduced(10);
+    if( showDrawer ) {
+        drawerBackground.toFront(false);
+        drawerHintLabel.toFront(false);
+        auto drawerTop = drawerInner.removeFromTop(34);
+        drawerHintLabel.setBounds(drawerTop);
+        drawerInner.removeFromTop(8);
+
+        for( int i = 0; i < iosToolCount; ++i ) {
+            toolButtons[i].setVisible(true);
+            toolButtons[i].setBounds(drawerInner.removeFromTop(36).reduced(0, 3));
+            toolButtons[i].toFront(false);
+        }
+    } else {
+        for( int i = 0; i < iosToolCount; ++i )
+            toolButtons[i].setVisible(false);
+    }
 
     auto midiInner = layout.midiIn.reduced(8);
     auto refreshArea = midiInner.removeFromBottom(34);
@@ -1003,11 +1101,6 @@ bool MiosStudio::reconnectMidiPortsForUpload(const String &applicationInput,
 #if JUCE_IOS
 void MiosStudio::initialiseIosUi()
 {
-    titleLabel.setText(T("MIOS Studio"), dontSendNotification);
-    titleLabel.setFont(Font(FontOptions(24.0f).withStyle("Bold")));
-    titleLabel.setJustificationType(Justification::centredLeft);
-    addChildComponent(titleLabel);
-
     for( Label* heading : { &midiInHeader, &midiOutHeader, &deviceStatusHeader, &uploadStatusHeader, &terminalHeader, &keyboardHeader } )
         addChildComponent(*heading);
 
@@ -1021,6 +1114,15 @@ void MiosStudio::initialiseIosUi()
         addAndMakeVisible(*label);
     }
 
+    drawerHintLabel.setFont(Font(FontOptions(15.0f).withStyle("Bold")));
+    drawerHintLabel.setJustificationType(Justification::centredLeft);
+    drawerHintLabel.setText(T("Tools"), dontSendNotification);
+    addChildComponent(drawerHintLabel);
+
+    drawerBackground.setColour(Label::backgroundColourId, Colour(0xf7f4f6ff));
+    drawerBackground.setColour(Label::outlineColourId, Colour(0xff9aa7d8));
+    addChildComponent(drawerBackground);
+
     inputSelector.addListener(this);
     outputSelector.addListener(this);
     addAndMakeVisible(inputSelector);
@@ -1028,7 +1130,13 @@ void MiosStudio::initialiseIosUi()
 
     deviceIdSlider.setRange(0, 127, 1);
     deviceIdSlider.setSliderStyle(Slider::IncDecButtons);
-    deviceIdSlider.setTextBoxStyle(Slider::TextBoxLeft, false, 48, 28);
+    deviceIdSlider.setIncDecButtonsMode(Slider::incDecButtonsNotDraggable);
+    deviceIdSlider.setTextBoxStyle(Slider::TextBoxLeft, false, 46, 28);
+    deviceIdSlider.setLookAndFeel(&iosStepperLookAndFeel);
+    deviceIdSlider.setColour(Slider::textBoxTextColourId, Colours::black);
+    deviceIdSlider.setColour(Slider::textBoxBackgroundColourId, Colour(0xfff8f9ff));
+    deviceIdSlider.setColour(Slider::textBoxOutlineColourId, Colour(0xff9aa7d8));
+    deviceIdSlider.setColour(Slider::textBoxHighlightColourId, Colour(0x552f5fb8));
     deviceIdSlider.setValue(uploadHandler->getDeviceId(), dontSendNotification);
     deviceIdSlider.onValueChange = [this]() {
         uploadHandler->setDeviceId((uint8)deviceIdSlider.getValue());
@@ -1046,6 +1154,16 @@ void MiosStudio::initialiseIosUi()
         button->addListener(this);
         addAndMakeVisible(*button);
     }
+
+    for( int i = 0; i < iosToolCount; ++i ) {
+        configureIosDrawerButton(toolButtons[i], getIosToolPageName((IosToolPage)i));
+        toolButtons[i].setRadioGroupId(1107, dontSendNotification);
+        toolButtons[i].setClickingTogglesState(true);
+        toolButtons[i].addListener(this);
+        addChildComponent(toolButtons[i]);
+    }
+    toolButtons[iosToolStudio].setToggleState(true, dontSendNotification);
+
     repeatQueryButton.addListener(this);
     addChildComponent(repeatQueryButton);
     uploadStartButton.setEnabled(false);
@@ -1096,6 +1214,15 @@ void MiosStudio::scanIosMidiDevices()
 
 void MiosStudio::buttonClicked(Button* buttonThatWasClicked)
 {
+    for( int i = 0; i < iosToolCount; ++i ) {
+        if( buttonThatWasClicked == &toolButtons[i] ) {
+            setIosActiveToolPage((IosToolPage)i);
+            if( getLocalBounds().getWidth() < 900 )
+                setIosDrawerOpen(false);
+            return;
+        }
+    }
+
     if( buttonThatWasClicked == &refreshButton ) {
         scanIosMidiDevices();
     } else if( buttonThatWasClicked == &queryButton ) {
@@ -1129,6 +1256,26 @@ void MiosStudio::buttonClicked(Button* buttonThatWasClicked)
     } else if( buttonThatWasClicked == &sendTerminalButton ) {
         sendIosTerminalCommand(terminalInput.getText());
     }
+}
+
+void MiosStudio::mouseDown(const MouseEvent& e)
+{
+    iosDrawerDragStart = e.getPosition();
+    iosDrawerEdgeDragActive = !iosDrawerOpen && iosDrawerDragStart.x <= 24;
+
+    if( iosDrawerOpen && !getIosStudioLayout(getLocalBounds()).drawer.contains(iosDrawerDragStart) )
+        setIosDrawerOpen(false);
+}
+
+void MiosStudio::mouseDrag(const MouseEvent& e)
+{
+    if( iosDrawerEdgeDragActive && e.getDistanceFromDragStartX() > 36 )
+        setIosDrawerOpen(true);
+}
+
+void MiosStudio::mouseUp(const MouseEvent&)
+{
+    iosDrawerEdgeDragActive = false;
 }
 
 void MiosStudio::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
@@ -1290,6 +1437,53 @@ void MiosStudio::configureIosLog(IosClipboardTextEditor& editor)
     editor.setColour(TextEditor::shadowColourId, Colour(0x33000000));
     editor.setFont(Font(FontOptions(Font::getDefaultMonospacedFontName(), String(), 13.0f)));
     addAndMakeVisible(editor);
+}
+
+void MiosStudio::configureIosDrawerButton(IosDrawerRowButton& button, const String& text)
+{
+    button.setButtonText(text);
+}
+
+void MiosStudio::setIosDrawerOpen(bool shouldBeOpen)
+{
+    iosDrawerOpen = shouldBeOpen;
+    resized();
+    repaint();
+}
+
+void MiosStudio::setIosActiveToolPage(IosToolPage page)
+{
+    iosActiveToolPage = page;
+
+    for( int i = 0; i < iosToolCount; ++i )
+        toolButtons[i].setToggleState(i == (int)page, dontSendNotification);
+
+    if( page != iosToolStudio )
+        addIosLogEntry(uploadStatusLog, getIosToolPageName(page) + T(" is not ported to the iOS presentation yet."));
+}
+
+const String MiosStudio::getIosToolPageName(IosToolPage page) const
+{
+    switch( page ) {
+    case iosToolStudio:
+        return T("MIOS Studio");
+    case iosToolSysexTool:
+        return T("SysEx Tool");
+    case iosToolSysexLibrarian:
+        return T("SysEx Librarian");
+    case iosToolOsc:
+        return T("OSC Tool");
+    case iosToolMidio128:
+        return T("MIDIO128 V2");
+    case iosToolMbCv:
+        return T("MIDIbox CV V1");
+    case iosToolMbhpMf:
+        return T("MBHP_MF_NG");
+    case iosToolFileBrowser:
+        return T("MIOS File Browser");
+    default:
+        return T("MIOS Studio");
+    }
 }
 
 void MiosStudio::paintIosPanel(Graphics& g, Rectangle<int> bounds, const String&)
