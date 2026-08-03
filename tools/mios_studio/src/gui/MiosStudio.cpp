@@ -320,6 +320,11 @@ MiosStudio::MiosStudio()
     , duggleMode(false)
 #if JUCE_IOS
     , iosQueryActive(false)
+    , iosUploadActive(false)
+    , iosUploadWaitUploadRequestMessagePrint(false)
+    , iosUploadDelayedQueryPending(false)
+    , iosUploadDelayedQueryTime(0)
+    , iosUploadPreviousProgress(-1)
     , iosRepeatQueriesRemaining(0)
     , iosReceivedTerminalMessage(false)
     , iosDrawerOpen(false)
@@ -1347,19 +1352,20 @@ void MiosStudio::buttonClicked(Button* buttonThatWasClicked)
             if( result.isEmpty() )
                 return;
 
+            iosUploadFile = chooser.getResult();
             iosUploadFileName = result.isLocalFile()
                 ? result.getLocalFile().getFileName()
                 : result.toString(false);
             uploadFileLabel.setText(iosUploadFileName, dontSendNotification);
-            uploadStartButton.setEnabled(true);
+            uploadStartButton.setEnabled(iosUploadFile.existsAsFile());
             addIosLogEntry(uploadStatusLog, T("Selected upload file: ") + iosUploadFileName);
+            if( !iosUploadFile.existsAsFile() )
+                addIosLogEntry(uploadStatusLog, T("Selected file is not available as a local file."));
         });
     } else if( buttonThatWasClicked == &uploadStartButton ) {
-        addIosLogEntry(uploadStatusLog, iosUploadFileName.isNotEmpty()
-            ? T("Firmware upload is not wired in this UI milestone yet.")
-            : T("Select an upload file before starting."));
+        startIosUpload();
     } else if( buttonThatWasClicked == &uploadStopButton ) {
-        addIosLogEntry(uploadStatusLog, T("No upload is currently running."));
+        stopIosUpload(true);
     } else if( buttonThatWasClicked == &sendTerminalButton ) {
         sendIosTerminalCommand(terminalInput.getText());
     }
@@ -1465,6 +1471,169 @@ void MiosStudio::finishIosQuery()
     queryButton.setEnabled(true);
     repeatQueryButton.setEnabled(true);
     deviceIdSlider.setEnabled(true);
+}
+
+void MiosStudio::startIosUpload()
+{
+    if( getActiveMidiInput().isEmpty() || getActiveMidiOutput().isEmpty() ) {
+        addIosLogEntry(uploadStatusLog, T("Select both a MIDI input and MIDI output before uploading."));
+        return;
+    }
+
+    if( iosQueryActive || iosUploadActive || uploadHandler->busy() ) {
+        addIosLogEntry(uploadStatusLog, T("Upload/query already in progress."));
+        return;
+    }
+
+    if( !iosUploadFile.existsAsFile() ) {
+        addIosLogEntry(uploadStatusLog, T("Select an upload file before starting."));
+        return;
+    }
+
+    if( iosUploadFile.getFileExtension().compareIgnoreCase(T(".hex")) != 0 ) {
+        addIosLogEntry(uploadStatusLog, T("Firmware upload currently accepts Intel HEX (.hex) files."));
+        return;
+    }
+
+    uploadStatusLog.clear();
+    uploadQueryLog.clear();
+    addIosLogEntry(uploadStatusLog, T("Reading ") + iosUploadFile.getFileName());
+
+    String statusMessage;
+    if( !uploadHandler->hexFileLoader.loadFile(iosUploadFile, statusMessage) ) {
+        addIosLogEntry(uploadStatusLog, T("ERROR: ") + statusMessage);
+        return;
+    }
+
+    addIosLogEntry(uploadStatusLog, statusMessage);
+    if( uploadHandler->hexFileLoader.hexDumpAddressBlocks.size() < 1 ) {
+        addIosLogEntry(uploadStatusLog, T("ERROR: no blocks found"));
+        return;
+    }
+
+    LogBox rangeCheckLog(T("iOS Upload Range Check"));
+    if( !uploadHandler->checkAndDisplayRanges(&rangeCheckLog) ) {
+        addIosLogEntry(uploadStatusLog, T("ERROR: Range check failed!"));
+        return;
+    }
+    addIosLogEntry(uploadStatusLog, T("Range check passed."));
+    addIosLogEntry(uploadStatusLog, T("Trying to contact the core..."));
+    addIosLogEntry(uploadQueryLog, T("Upload in progress..."));
+
+    iosUploadActive = true;
+    iosUploadWaitUploadRequestMessagePrint = false;
+    iosUploadDelayedQueryPending = false;
+    iosUploadPreviousProgress = -1;
+    uploadStartButton.setEnabled(false);
+    uploadStopButton.setEnabled(true);
+    uploadFileButton.setEnabled(false);
+    queryButton.setEnabled(false);
+    repeatQueryButton.setEnabled(false);
+    deviceIdSlider.setEnabled(false);
+
+    if( !uploadHandler->startUpload() ) {
+        addIosLogEntry(uploadStatusLog, T("Could not start upload."));
+        stopIosUpload(false);
+    }
+}
+
+void MiosStudio::stopIosUpload(bool stoppedByUser)
+{
+    if( iosUploadActive || uploadHandler->busy() )
+        uploadHandler->finish();
+
+    iosUploadActive = false;
+    iosUploadWaitUploadRequestMessagePrint = false;
+    iosUploadDelayedQueryPending = false;
+    iosUploadPreviousProgress = -1;
+    uploadStopButton.setEnabled(false);
+    uploadFileButton.setEnabled(true);
+    uploadStartButton.setEnabled(iosUploadFile.existsAsFile());
+    queryButton.setEnabled(true);
+    repeatQueryButton.setEnabled(true);
+    deviceIdSlider.setEnabled(true);
+
+    if( stoppedByUser )
+        addIosLogEntry(uploadStatusLog, T("Upload has been stopped by user."));
+}
+
+void MiosStudio::pollIosUpload()
+{
+    if( iosUploadDelayedQueryPending &&
+        (int32)(Time::getMillisecondCounter() - iosUploadDelayedQueryTime) >= 0 ) {
+        iosUploadDelayedQueryPending = false;
+        uploadStartButton.setEnabled(iosUploadFile.existsAsFile());
+        uploadFileButton.setEnabled(true);
+        startIosQuery(1);
+    }
+
+    if( !iosUploadActive )
+        return;
+
+    if( uploadHandler->totalBlocks > 0 ) {
+        const int percent = jlimit(0, 100, (int)((100 * uploadHandler->currentBlock) / uploadHandler->totalBlocks));
+        if( percent != iosUploadPreviousProgress && (percent == 0 || percent == 100 || (percent % 5) == 0) ) {
+            iosUploadPreviousProgress = percent;
+            addIosLogEntry(uploadStatusLog,
+                           String::formatted(T("%d of %d blocks (%d%%)"),
+                                             uploadHandler->currentBlock,
+                                             uploadHandler->totalBlocks,
+                                             percent));
+        }
+    }
+
+    const int busyState = uploadHandler->busy();
+    if( busyState > 0 ) {
+        if( busyState == 2 && !iosUploadWaitUploadRequestMessagePrint ) {
+            addIosLogEntry(uploadStatusLog, T("WARNING: no response from core"));
+            addIosLogEntry(uploadStatusLog, T("Please reboot the core if it is waiting in bootloader mode."));
+            addIosLogEntry(uploadStatusLog, T("Waiting for upload request..."));
+            iosUploadWaitUploadRequestMessagePrint = true;
+        } else if( busyState == 1 && iosUploadWaitUploadRequestMessagePrint ) {
+            addIosLogEntry(uploadStatusLog, T("Received upload request."));
+            iosUploadWaitUploadRequestMessagePrint = false;
+        }
+        return;
+    }
+
+    const String errorMessage = uploadHandler->finish();
+    iosUploadActive = false;
+    iosUploadWaitUploadRequestMessagePrint = false;
+    uploadStopButton.setEnabled(false);
+    deviceIdSlider.setEnabled(true);
+
+    if( errorMessage.isNotEmpty() ) {
+        addIosLogEntry(uploadStatusLog, errorMessage);
+        uploadQueryLog.clear();
+        uploadFileButton.setEnabled(true);
+        uploadStartButton.setEnabled(iosUploadFile.existsAsFile());
+        queryButton.setEnabled(true);
+        repeatQueryButton.setEnabled(true);
+        return;
+    }
+
+    const uint32 totalBlocks = uploadHandler->totalBlocks - uploadHandler->excludedBlocks;
+    const float timeUpload = uploadHandler->timeUpload;
+    const float transferRateKb = timeUpload > 0.0f ? ((totalBlocks * 256) / timeUpload) / 1024.0f : 0.0f;
+    addIosLogEntry(uploadStatusLog,
+                   String::formatted(T("Upload of %d bytes completed after %3.2fs (%3.2f kb/s)"),
+                                     totalBlocks * 256,
+                                     timeUpload,
+                                     transferRateKb));
+
+    if( uploadHandler->recoveredErrorsCounter > 0 )
+        addIosLogEntry(uploadStatusLog,
+                       String::formatted(T("%d ignorable errors during upload solved."),
+                                         uploadHandler->recoveredErrorsCounter));
+
+    uploadQueryLog.clear();
+    addIosLogEntry(uploadQueryLog, T("Waiting for reboot..."));
+    uploadFileButton.setEnabled(false);
+    uploadStartButton.setEnabled(false);
+    queryButton.setEnabled(false);
+    repeatQueryButton.setEnabled(false);
+    iosUploadDelayedQueryPending = true;
+    iosUploadDelayedQueryTime = Time::getMillisecondCounter() + 5000;
 }
 
 void MiosStudio::sendIosTerminalCommand(const String& command)
@@ -1756,6 +1925,8 @@ void MiosStudio::timerCallback()
 
     if( iosQueryActive && !uploadHandler->busy() )
         finishIosQuery();
+
+    pollIosUpload();
 #else
     // step-wise MIDI port scan after startup
     if( initialMidiScanCounter ) {

@@ -263,8 +263,14 @@ protected:
     StringArray inputPortNames;
     StringArray outputPortNames;
     std::unique_ptr<FileChooser> iosUploadFileChooser;
+    File iosUploadFile;
     String iosUploadFileName;
     bool iosQueryActive;
+    bool iosUploadActive;
+    bool iosUploadWaitUploadRequestMessagePrint;
+    bool iosUploadDelayedQueryPending;
+    uint32 iosUploadDelayedQueryTime;
+    int iosUploadPreviousProgress;
     int iosRepeatQueriesRemaining;
     bool iosReceivedTerminalMessage;
     bool iosDrawerOpen;
@@ -277,6 +283,9 @@ protected:
     void scanIosMidiDevices();
     void startIosQuery(int repeatCount);
     void finishIosQuery();
+    void startIosUpload();
+    void stopIosUpload(bool stoppedByUser);
+    void pollIosUpload();
     void sendIosTerminalCommand(const String& command);
     void addIosLogEntry(const String& textLine);
     void addIosLogEntry(TextEditor& editor, const String& textLine);
