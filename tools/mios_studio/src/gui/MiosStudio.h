@@ -226,6 +226,7 @@ protected:
     Label outputLabel;
     Label deviceIdLabel;
     Label drawerHintLabel;
+    Label drawerScrim;
     Label drawerBackground;
     Label midiInHeader;
     Label midiOutHeader;

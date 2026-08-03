@@ -284,18 +284,24 @@ IosStudioLayout getIosStudioLayout(Rectangle<int> bounds)
     return layout;
 }
 
-Rectangle<int> getIosDrawerBounds(Component& component, const IosStudioLayout& layout, float progress)
+Rectangle<int> getIosVisibleBounds(Component& component)
 {
     Rectangle<int> visibleBounds = component.getLocalBounds();
-    int headerInset = 0;
 
     if( auto* viewport = component.findParentComponentOfClass<Viewport>() ) {
         visibleBounds = Rectangle<int>(0,
                                        viewport->getViewPositionY(),
                                        viewport->getWidth(),
                                        viewport->getHeight());
-        headerInset = visibleBounds.getY() > 0 ? 44 : 0;
     }
+
+    return visibleBounds;
+}
+
+Rectangle<int> getIosDrawerBounds(Component& component, const IosStudioLayout& layout, float progress)
+{
+    const Rectangle<int> visibleBounds = getIosVisibleBounds(component);
+    const int headerInset = visibleBounds.getY() > 0 ? 44 : 0;
 
     Rectangle<int> drawer(visibleBounds.getX() + 8,
                           visibleBounds.getY() + headerInset + 8,
@@ -744,12 +750,15 @@ void MiosStudio::resized()
 
     const bool showDrawer = iosDrawerOpen || layout.persistentDrawer || iosDrawerAnimation > 0.0f;
     const Rectangle<int> drawerBounds = getIosDrawerBounds(*this, layout, layout.persistentDrawer ? 1.0f : iosDrawerAnimation);
+    drawerScrim.setVisible(showDrawer && !layout.persistentDrawer);
+    drawerScrim.setBounds(getIosVisibleBounds(*this));
     drawerBackground.setVisible(showDrawer);
     drawerBackground.setBounds(drawerBounds);
     drawerHintLabel.setVisible(showDrawer);
 
     auto drawerInner = drawerBounds.reduced(10);
     if( showDrawer ) {
+        drawerScrim.toFront(false);
         drawerBackground.toFront(false);
         drawerHintLabel.toFront(false);
         auto drawerTop = drawerInner.removeFromTop(34);
@@ -762,6 +771,7 @@ void MiosStudio::resized()
             toolButtons[i].toFront(false);
         }
     } else {
+        drawerScrim.setVisible(false);
         for( int i = 0; i < iosToolCount; ++i )
             toolButtons[i].setVisible(false);
     }
@@ -1144,6 +1154,10 @@ void MiosStudio::initialiseIosUi()
     drawerHintLabel.setText(T("Tools"), dontSendNotification);
     addChildComponent(drawerHintLabel);
 
+    drawerScrim.setInterceptsMouseClicks(true, false);
+    drawerScrim.addMouseListener(this, false);
+    addChildComponent(drawerScrim);
+
     drawerBackground.setColour(Label::backgroundColourId, Colour(0xf7f4f6ff));
     drawerBackground.setColour(Label::outlineColourId, Colour(0xff9aa7d8));
     addChildComponent(drawerBackground);
@@ -1285,7 +1299,8 @@ void MiosStudio::buttonClicked(Button* buttonThatWasClicked)
 
 void MiosStudio::mouseDown(const MouseEvent& e)
 {
-    iosDrawerDragStart = e.getPosition();
+    const MouseEvent localEvent = e.getEventRelativeTo(this);
+    iosDrawerDragStart = localEvent.getPosition();
     iosDrawerEdgeDragActive = !iosDrawerOpen && iosDrawerDragStart.x <= 24;
 
     const IosStudioLayout layout = getIosStudioLayout(getLocalBounds());
