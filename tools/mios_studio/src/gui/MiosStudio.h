@@ -58,6 +58,7 @@ public:
         showMiosFileBrowser        = 0x2006,
         showMiosStudioPage         = 0x3000,
         showTroubleshootingPage    = 0x3001,
+        showAbout                  = 0x3002,
     };
 
     //==============================================================================

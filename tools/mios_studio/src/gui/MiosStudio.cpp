@@ -1072,6 +1072,8 @@ PopupMenu MiosStudio::getMenuForIndex(int topLevelMenuIndex, const String& menuN
         // "Help" menu
         menu.addCommandItem(commandManager, showMiosStudioPage);
         menu.addCommandItem(commandManager, showTroubleshootingPage);
+        menu.addSeparator();
+        menu.addCommandItem(commandManager, showAbout);
     }
 
     return menu;
@@ -1115,7 +1117,8 @@ void MiosStudio::getAllCommands(Array <CommandID>& commands)
                               StandardApplicationCommandIDs::del,
                               StandardApplicationCommandIDs::selectAll,
                               showMiosStudioPage,
-                              showTroubleshootingPage
+                              showTroubleshootingPage,
+                              showAbout
     };
 
     commands.addArray (ids, numElementsInArray (ids));
@@ -1258,6 +1261,10 @@ void MiosStudio::getCommandInfo(const CommandID commandID, ApplicationCommandInf
     case showTroubleshootingPage:
         result.setInfo(T("MIDI Troubleshooting Page (Web)"), T("Opens the MIDI Troubleshooting page on uCApps.de"), helpCategory, 0);
         result.addDefaultKeypress ('I', ModifierKeys::commandModifier|ModifierKeys::shiftModifier);
+        break;
+
+    case showAbout:
+        result.setInfo(T("About MIOS Studio"), T("Displays information about MIOS Studio"), helpCategory, 0);
         break;
     }
 }
@@ -1420,6 +1427,24 @@ bool MiosStudio::perform(const InvocationInfo& info)
         URL webpage(T("http://www.uCApps.de/howto_debug_midi.html"));
         webpage.launchInDefaultBrowser();
     } break;
+
+    case showAbout: {
+        const String message =
+            T("Version ") + String(T(MIOS_STUDIO_VERSION)) + T("\n\n")
+            + T("MIOS Studio is a cross-platform utility for configuring, monitoring ")
+            + T("and updating MIDIbox devices running MIOS or MIOS32. It provides ")
+            + T("firmware upload, MIDI and OSC monitors, a MIOS terminal and ")
+            + T("device-specific tools.\n\n")
+            + T("Original application Copyright (C) 2010 Thorsten Klose\n")
+            + T("Modernisation Copyright (C) 2026 Phil Taylor");
+
+        AlertWindow::showMessageBox(AlertWindow::InfoIcon,
+                                    T("About MIOS Studio"),
+                                    message,
+                                    T("OK"),
+                                    this);
+    } break;
+
     default:
         return false;
     }
