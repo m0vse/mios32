@@ -226,15 +226,15 @@ private:
         if( viewport == 0 || contentComponent == 0 )
             return;
 
-        const int keyboardBottom = getKeyboardInsetBottom();
-        if( keyboardBottom <= 0 )
-            return;
-
         Component* focused = Component::getCurrentlyFocusedComponent();
         if( focused == nullptr || focused == contentComponent.get() || !contentComponent->isParentOf(focused) )
             return;
 
         if( dynamic_cast<TextEditor*>(focused) == nullptr )
+            return;
+
+        const int keyboardBottom = getKeyboardAvoidanceInsetBottom();
+        if( keyboardBottom <= 0 )
             return;
 
         const Rectangle<int> focusedBounds = contentComponent->getLocalArea(focused, focused->getLocalBounds()).expanded(0, 10);
@@ -249,12 +249,16 @@ private:
         }
     }
 
-    int getKeyboardInsetBottom() const
+    int getKeyboardAvoidanceInsetBottom() const
     {
         if( auto* display = Desktop::getInstance().getDisplays().getDisplayForRect(getScreenBounds()) )
-            return display->keyboardInsets.getBottom();
+            if( const int keyboardInset = display->keyboardInsets.getBottom() )
+                return keyboardInset;
 
-        return 0;
+        const int viewportHeight = viewport != 0 ? viewport->getHeight() : getHeight();
+        return getWidth() < 760
+            ? jlimit(280, 390, roundToInt((float)viewportHeight * 0.45f))
+            : jlimit(220, 320, roundToInt((float)viewportHeight * 0.38f));
     }
 
     std::unique_ptr<MiosStudio> contentComponent;
