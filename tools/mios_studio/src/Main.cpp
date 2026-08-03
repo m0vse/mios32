@@ -33,8 +33,10 @@ public:
 #if JUCE_IOS
     {
         contentComponent.reset(new MiosStudio());
+        contentHolder.reset(new Component());
+        contentHolder->addAndMakeVisible(contentComponent.get());
         viewport.reset(new Viewport(T("MIOS Studio Viewport")));
-        viewport->setViewedComponent(contentComponent.get(), false);
+        viewport->setViewedComponent(contentHolder.get(), false);
         viewport->setScrollBarsShown(false, false);
         viewport->addMouseListener(this, true);
         configureNestedScrollControls(*contentComponent);
@@ -132,7 +134,12 @@ public:
 
     void resized() override
     {
-        if( viewport == 0 || contentComponent == 0 )
+        layoutContent();
+    }
+
+    void layoutContent()
+    {
+        if( viewport == 0 || contentHolder == 0 || contentComponent == 0 )
             return;
 
         auto bounds = getLocalBounds();
@@ -146,7 +153,8 @@ public:
             : phoneLandscape
             ? jmax(bounds.getHeight(), 720)
             : bounds.getHeight();
-        contentComponent->setSize(bounds.getWidth(), contentHeight);
+        contentHolder->setSize(bounds.getWidth(), contentHeight + keyboardBottomPadding);
+        contentComponent->setBounds(0, 0, bounds.getWidth(), contentHeight);
     }
 
     void mouseDown(const MouseEvent& e) override
@@ -223,19 +231,30 @@ private:
 
     void updateKeyboardAvoidance()
     {
-        if( viewport == 0 || contentComponent == 0 )
+        if( viewport == 0 || contentHolder == 0 || contentComponent == 0 ) {
+            setKeyboardBottomPadding(0);
             return;
+        }
 
         Component* focused = Component::getCurrentlyFocusedComponent();
-        if( focused == nullptr || focused == contentComponent.get() || !contentComponent->isParentOf(focused) )
+        if( focused == nullptr || focused == contentComponent.get() || !contentComponent->isParentOf(focused) ) {
+            setKeyboardBottomPadding(0);
             return;
+        }
 
-        if( dynamic_cast<TextEditor*>(focused) == nullptr )
+        TextEditor* const focusedEditor = dynamic_cast<TextEditor*>(focused);
+        if( focusedEditor == nullptr || focusedEditor->isReadOnly() ) {
+            setKeyboardBottomPadding(0);
             return;
+        }
 
         const int keyboardBottom = getKeyboardAvoidanceInsetBottom();
-        if( keyboardBottom <= 0 )
+        if( keyboardBottom <= 0 ) {
+            setKeyboardBottomPadding(0);
             return;
+        }
+
+        setKeyboardBottomPadding(keyboardBottom + 16);
 
         const Rectangle<int> focusedBounds = contentComponent->getLocalArea(focused, focused->getLocalBounds()).expanded(0, 10);
         const int visibleBottom = viewport->getViewPositionY() + viewport->getHeight() - keyboardBottom - 8;
@@ -255,17 +274,25 @@ private:
             if( const int keyboardInset = display->keyboardInsets.getBottom() )
                 return keyboardInset;
 
-        const int viewportHeight = viewport != 0 ? viewport->getHeight() : getHeight();
-        return getWidth() < 760
-            ? jlimit(280, 390, roundToInt((float)viewportHeight * 0.45f))
-            : jlimit(220, 320, roundToInt((float)viewportHeight * 0.38f));
+        return 0;
+    }
+
+    void setKeyboardBottomPadding(int padding)
+    {
+        if( keyboardBottomPadding == padding )
+            return;
+
+        keyboardBottomPadding = padding;
+        layoutContent();
     }
 
     std::unique_ptr<MiosStudio> contentComponent;
+    std::unique_ptr<Component> contentHolder;
     std::unique_ptr<Viewport> viewport;
     float headerChromeAlpha = 0.0f;
     String lastHeaderTitle;
     bool headerDragActive = false;
+    int keyboardBottomPadding = 0;
 #endif
 };
 
