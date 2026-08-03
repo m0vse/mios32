@@ -20,6 +20,12 @@ if(NOT JUCE_PATH)
 endif()
 
 string(MD5 JUCE_BUILD_ID "${JUCE_PATH}")
+
+if(WIN32)
+    include(cmake/PatchJuceWinmm.cmake)
+    patch_juce_winmm_sysex_wait("${JUCE_PATH}")
+endif()
+
 add_subdirectory("${JUCE_PATH}" "${CMAKE_CURRENT_BINARY_DIR}/JUCE-${JUCE_BUILD_ID}" EXCLUDE_FROM_ALL)
 
 juce_add_gui_app(MIOS_Studio
@@ -79,11 +85,12 @@ target_compile_definitions(MIOS_Studio PRIVATE
     JUCE_WEB_BROWSER=0)
 
 if(WIN32)
-    # The legacy WinMM backend waits indefinitely for a SysEx buffer to be
-    # returned by a device.  A crashed or disconnected MIDIbox can therefore
-    # block MIOS Studio's message or upload thread.  WinRT provides bounded
-    # port opening, device-removal notifications and non-blocking enumeration.
-    target_compile_definitions(MIOS_Studio PRIVATE JUCE_USE_WINRT_MIDI=1)
+    # Do not enable JUCE's WinRT MIDI backend here.  Its asynchronous device
+    # discovery misses the LPC17 bootloader's short USB enumeration window and
+    # does not reliably restore the application connection afterward.  MIOS
+    # Studio requires WinMM for firmware handover; PatchJuceWinmm.cmake bounds
+    # WinMM's otherwise indefinite SysEx completion wait.
+    target_compile_definitions(MIOS_Studio PRIVATE JUCE_USE_WINRT_MIDI=0)
 endif()
 
 if(MSVC)
