@@ -39,6 +39,7 @@ if(MIOS_STUDIO_IOS)
         LOCAL_NETWORK_PERMISSION_TEXT "MIOS Studio uses the local network only when OSC is enabled to communicate with MIDIbox devices."
         FILE_SHARING_ENABLED TRUE
         DOCUMENT_BROWSER_ENABLED TRUE
+        CUSTOM_XCASSETS_FOLDER "${CMAKE_CURRENT_SOURCE_DIR}/icon/ios/Images.xcassets"
         TARGETED_DEVICE_FAMILY "1,2"
         IPAD_SCREEN_ORIENTATIONS UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown
         IPHONE_SCREEN_ORIENTATIONS UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight)

@@ -66,6 +66,72 @@ Component* findEditTarget()
     return nullptr;
 #endif
 }
+
+#if JUCE_IOS
+struct IosStudioLayout
+{
+    Rectangle<int> title;
+    Rectangle<int> midiIn;
+    Rectangle<int> midiOut;
+    Rectangle<int> upload;
+    Rectangle<int> terminal;
+    Rectangle<int> keyboard;
+    bool compact = false;
+    bool shortWide = false;
+    bool stackedUploadLogs = false;
+};
+
+IosStudioLayout getIosStudioLayout(Rectangle<int> bounds)
+{
+    IosStudioLayout layout;
+
+    bounds = bounds.reduced(8);
+    layout.title = Rectangle<int>();
+
+    layout.shortWide = bounds.getWidth() >= 760 && bounds.getHeight() < 560;
+    layout.compact = bounds.getWidth() < 760;
+    const bool shortScreen = bounds.getHeight() < 560;
+    layout.stackedUploadLogs = bounds.getWidth() < 560;
+
+    const int gap = 8;
+    const int monitorHeight = layout.shortWide
+        ? jlimit(120, 170, bounds.getHeight() / 3)
+        : layout.compact
+        ? jlimit(220, 320, bounds.getHeight() / (shortScreen ? 3 : 4))
+        : jlimit(170, 240, bounds.getHeight() / 4);
+    const int uploadHeight = layout.shortWide
+        ? 0
+        : layout.compact
+        ? (layout.stackedUploadLogs
+           ? jlimit(220, 300, bounds.getHeight() / 3)
+           : jlimit(150, 210, bounds.getHeight() / 4))
+        : jlimit(170, 230, bounds.getHeight() / 4);
+    const int keyboardHeight = layout.shortWide
+        ? jlimit(110, 160, bounds.getHeight() / 3)
+        : layout.compact
+        ? jlimit(140, 230, bounds.getHeight() / (shortScreen ? 3 : 4))
+        : jlimit(200, 280, bounds.getHeight() / 4);
+
+    layout.midiIn = bounds.removeFromTop(monitorHeight).reduced(0, 4);
+    layout.midiOut = Rectangle<int>();
+
+    bounds.removeFromTop(gap);
+
+    layout.keyboard = bounds.removeFromBottom(keyboardHeight).reduced(0, 4);
+    bounds.removeFromBottom(gap);
+
+    if( layout.shortWide ) {
+        layout.upload = bounds.removeFromLeft(bounds.getWidth() / 2).reduced(0, 4);
+        layout.terminal = bounds.reduced(4, 4);
+    } else {
+        layout.upload = bounds.removeFromTop(uploadHeight).reduced(0, 4);
+        bounds.removeFromTop(gap);
+        layout.terminal = bounds.reduced(0, 4);
+    }
+
+    return layout;
+}
+#endif
 }
 
 //==============================================================================
@@ -463,7 +529,14 @@ void MiosStudio::redirectIOToConsole() {}
 void MiosStudio::paint (Graphics& g)
 {
 #if JUCE_IOS
-    g.fillAll(Colour(0xfff8fafc));
+    g.fillAll(Colour(0xffc1d0ff));
+
+    const IosStudioLayout layout = getIosStudioLayout(getLocalBounds());
+    paintIosPanel(g, layout.midiIn, String());
+    paintIosPanel(g, layout.upload, T("Upload"));
+    paintIosPanel(g, layout.terminal, T("MIOS Terminal"));
+    paintIosPanel(g, layout.keyboard, T("MIDI Keyboard"));
+    paintIosKeyboard(g, layout.keyboard.reduced(8));
 #else
     g.fillAll(Colour(0xffc1d0ff));
 #endif
@@ -472,35 +545,83 @@ void MiosStudio::paint (Graphics& g)
 void MiosStudio::resized()
 {
 #if JUCE_IOS
-    auto bounds = getLocalBounds().reduced(16);
-    titleLabel.setBounds(bounds.removeFromTop(44));
-    bounds.removeFromTop(8);
+    const IosStudioLayout layout = getIosStudioLayout(getLocalBounds());
+    titleLabel.setBounds(layout.title);
 
-    auto row = bounds.removeFromTop(44);
-    inputLabel.setBounds(row.removeFromLeft(72));
-    inputSelector.setBounds(row.removeFromLeft(jmax(180, getWidth() / 3)).reduced(0, 4));
-    row.removeFromLeft(12);
-    outputLabel.setBounds(row.removeFromLeft(72));
-    outputSelector.setBounds(row.removeFromLeft(jmax(180, getWidth() / 3)).reduced(0, 4));
+    auto midiInner = layout.midiIn.reduced(8);
+    auto refreshArea = midiInner.removeFromBottom(34);
+    refreshButton.setBounds(refreshArea.removeFromLeft(96).reduced(0, 4));
+    midiInner.removeFromBottom(4);
 
-    bounds.removeFromTop(8);
-    row = bounds.removeFromTop(48);
-    deviceIdLabel.setBounds(row.removeFromLeft(84));
-    deviceIdSlider.setBounds(row.removeFromLeft(136));
-    row.removeFromLeft(12);
-    refreshButton.setBounds(row.removeFromLeft(96).reduced(0, 6));
-    row.removeFromLeft(8);
-    queryButton.setBounds(row.removeFromLeft(96).reduced(0, 6));
-    row.removeFromLeft(8);
-    repeatQueryButton.setBounds(row.removeFromLeft(136).reduced(0, 6));
+    auto layoutMidiPort = [](Rectangle<int> bounds,
+                             Label& portLabel,
+                             ComboBox& selector,
+                             TextEditor& log) {
+        auto row = bounds.removeFromTop(32);
+        portLabel.setBounds(row.removeFromLeft(78));
+        selector.setBounds(row.reduced(0, 3));
+        bounds.removeFromTop(4);
+        log.setBounds(bounds);
+    };
 
-    bounds.removeFromTop(8);
-    auto terminalRow = bounds.removeFromBottom(48);
-    sendTerminalButton.setBounds(terminalRow.removeFromRight(96).reduced(0, 6));
+    if( layout.midiIn.getWidth() < 560 ) {
+        auto inBlock = midiInner.removeFromTop(midiInner.getHeight() / 2).withTrimmedBottom(4);
+        auto outBlock = midiInner.withTrimmedTop(4);
+        layoutMidiPort(inBlock, inputLabel, inputSelector, midiInLog);
+        layoutMidiPort(outBlock, outputLabel, outputSelector, midiOutLog);
+    } else {
+        auto inBlock = midiInner.removeFromLeft(midiInner.getWidth() / 2).withTrimmedRight(4);
+        auto outBlock = midiInner.withTrimmedLeft(4);
+        layoutMidiPort(inBlock, inputLabel, inputSelector, midiInLog);
+        layoutMidiPort(outBlock, outputLabel, outputSelector, midiOutLog);
+    }
+
+    auto uploadInner = layout.upload.reduced(8);
+    const bool narrowUpload = layout.upload.getWidth() < 560;
+    if( narrowUpload ) {
+        auto topRow = uploadInner.removeFromTop(32);
+        deviceIdLabel.setBounds(topRow.removeFromLeft(82));
+        deviceIdSlider.setBounds(topRow.removeFromLeft(132));
+        topRow.removeFromLeft(8);
+        queryButton.setBounds(topRow.removeFromLeft(86).reduced(0, 4));
+        uploadInner.removeFromTop(4);
+    } else {
+        auto header = uploadInner.removeFromTop(34);
+        deviceIdLabel.setBounds(header.removeFromLeft(82));
+        deviceIdSlider.setBounds(header.removeFromLeft(134));
+        header.removeFromLeft(8);
+        queryButton.setBounds(header.removeFromLeft(86).reduced(0, 4));
+        uploadInner.removeFromTop(8);
+    }
+
+    uploadStatusLog.setVisible(true);
+
+    auto uploadStatusPane = uploadInner.removeFromBottom(jlimit(86, 130, uploadInner.getHeight() / 3));
+    auto uploadControlPane = uploadInner.removeFromBottom(narrowUpload ? 64 : 58);
+    auto deviceStatusPane = uploadInner.withTrimmedBottom(6);
+
+    uploadQueryLog.setBounds(deviceStatusPane);
+
+    uploadFileLabel.setBounds(uploadControlPane.removeFromTop(22));
+    auto fileRow = uploadControlPane.removeFromTop(34);
+    uploadFileButton.setBounds(fileRow.removeFromLeft(narrowUpload ? 86 : 92).reduced(0, 4));
+    fileRow.removeFromLeft(8);
+    uploadStartButton.setBounds(fileRow.removeFromLeft(narrowUpload ? 74 : 82).reduced(0, 4));
+    fileRow.removeFromLeft(8);
+    uploadStopButton.setBounds(fileRow.removeFromLeft(narrowUpload ? 74 : 82).reduced(0, 4));
+
+    uploadStatusPane.removeFromTop(6);
+    uploadStatusLog.setBounds(uploadStatusPane);
+
+    keyboardBounds = layout.keyboard.reduced(8);
+
+    auto terminalInner = layout.terminal.reduced(8);
+    auto terminalRow = terminalInner.removeFromBottom(34);
+    const int sendWidth = terminalRow.getWidth() < 420 ? 76 : 92;
+    sendTerminalButton.setBounds(terminalRow.removeFromRight(sendWidth));
     terminalRow.removeFromRight(8);
-    terminalInput.setBounds(terminalRow.reduced(0, 6));
-    bounds.removeFromBottom(8);
-    logView.setBounds(bounds);
+    terminalInput.setBounds(terminalRow);
+    terminalLog.setBounds(terminalInner.withTrimmedBottom(6));
 #else
     horizontalLayout.layOutComponents(layoutHComps.getRawDataPointer(), layoutHComps.size(),
                                        4, 4,
@@ -787,16 +908,21 @@ bool MiosStudio::reconnectMidiPortsForUpload(const String &applicationInput,
 #if JUCE_IOS
 void MiosStudio::initialiseIosUi()
 {
-    titleLabel.setText(T("MIOS Studio iPad Proof of Concept"), dontSendNotification);
+    titleLabel.setText(T("MIOS Studio"), dontSendNotification);
     titleLabel.setFont(Font(FontOptions(24.0f).withStyle("Bold")));
     titleLabel.setJustificationType(Justification::centredLeft);
-    addAndMakeVisible(titleLabel);
+    addChildComponent(titleLabel);
 
-    inputLabel.setText(T("Input"), dontSendNotification);
-    outputLabel.setText(T("Output"), dontSendNotification);
+    for( Label* heading : { &midiInHeader, &midiOutHeader, &deviceStatusHeader, &uploadStatusHeader, &terminalHeader, &keyboardHeader } )
+        addChildComponent(*heading);
+
+    inputLabel.setText(T("MIDI In"), dontSendNotification);
+    outputLabel.setText(T("MIDI Out"), dontSendNotification);
     deviceIdLabel.setText(T("Device ID"), dontSendNotification);
-    for( Label* label : { &inputLabel, &outputLabel, &deviceIdLabel } ) {
+    uploadFileLabel.setText(T("No upload file selected"), dontSendNotification);
+    for( Label* label : { &inputLabel, &outputLabel, &deviceIdLabel, &uploadFileLabel } ) {
         label->setJustificationType(Justification::centredLeft);
+        label->setFont(Font(FontOptions(14.0f)));
         addAndMakeVisible(*label);
     }
 
@@ -817,25 +943,29 @@ void MiosStudio::initialiseIosUi()
     refreshButton.setButtonText(T("Refresh"));
     queryButton.setButtonText(T("Query"));
     repeatQueryButton.setButtonText(T("Query x10"));
+    uploadFileButton.setButtonText(T("File..."));
+    uploadStartButton.setButtonText(T("Start"));
+    uploadStopButton.setButtonText(T("Stop"));
     sendTerminalButton.setButtonText(T("Send"));
-    for( TextButton* button : { &refreshButton, &queryButton, &repeatQueryButton, &sendTerminalButton } ) {
+    for( TextButton* button : { &refreshButton, &queryButton, &uploadFileButton, &uploadStartButton, &uploadStopButton, &sendTerminalButton } ) {
         button->addListener(this);
         addAndMakeVisible(*button);
     }
+    repeatQueryButton.addListener(this);
+    addChildComponent(repeatQueryButton);
+    uploadStartButton.setEnabled(false);
+    uploadStopButton.setEnabled(false);
 
     terminalInput.setTextToShowWhenEmpty(T("MIOS32 terminal command"), Colours::grey);
     terminalInput.addListener(this);
     addAndMakeVisible(terminalInput);
 
-    logView.setMultiLine(true);
-    logView.setReadOnly(true);
-    logView.setScrollbarsShown(true);
-    logView.setCaretVisible(false);
-    logView.setFont(Font(FontOptions(Font::getDefaultMonospacedFontName(), String(), 15.0f)));
-    addAndMakeVisible(logView);
+    for( TextEditor* editor : { &midiInLog, &midiOutLog, &uploadQueryLog, &uploadStatusLog, &terminalLog } )
+        configureIosLog(*editor);
 
-    addIosLogEntry(T("MIOS Studio iOS proof of concept ready."));
-    addIosLogEntry(T("Connect a Core MIDI interface, select matching input/output ports, then query."));
+    addIosLogEntry(uploadQueryLog, T("Waiting for first query."));
+    addIosLogEntry(uploadStatusLog, T("Connect a Core MIDI interface, select matching input/output ports, then query."));
+    addIosLogEntry(terminalLog, T("MIOS Terminal ready."));
 }
 
 void MiosStudio::scanIosMidiDevices()
@@ -857,9 +987,9 @@ void MiosStudio::scanIosMidiDevices()
         outputSelector.addItem(device.name, itemId++);
     }
 
-    addIosLogEntry(String::formatted(T("Core MIDI scan: %d input(s), %d output(s)."),
-                                     inputPortNames.size(),
-                                     outputPortNames.size()));
+    addIosLogEntry(uploadStatusLog, String::formatted(T("Core MIDI scan: %d input(s), %d output(s)."),
+                                                      inputPortNames.size(),
+                                                      outputPortNames.size()));
 
     if( inputSelector.getNumItems() > 0 && inputSelector.getSelectedId() == 0 )
         inputSelector.setSelectedId(1, sendNotificationSync);
@@ -875,6 +1005,30 @@ void MiosStudio::buttonClicked(Button* buttonThatWasClicked)
         startIosQuery(1);
     } else if( buttonThatWasClicked == &repeatQueryButton ) {
         startIosQuery(10);
+    } else if( buttonThatWasClicked == &uploadFileButton ) {
+        iosUploadFileChooser.reset(new FileChooser(T("Choose MIOS upload file"),
+                                                   File(),
+                                                   T("*.hex;*.syx"),
+                                                   true));
+        iosUploadFileChooser->launchAsync(FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles,
+                                          [this](const FileChooser& chooser) {
+            const URL result = chooser.getURLResult();
+            if( result.isEmpty() )
+                return;
+
+            iosUploadFileName = result.isLocalFile()
+                ? result.getLocalFile().getFileName()
+                : result.toString(false);
+            uploadFileLabel.setText(iosUploadFileName, dontSendNotification);
+            uploadStartButton.setEnabled(true);
+            addIosLogEntry(uploadStatusLog, T("Selected upload file: ") + iosUploadFileName);
+        });
+    } else if( buttonThatWasClicked == &uploadStartButton ) {
+        addIosLogEntry(uploadStatusLog, iosUploadFileName.isNotEmpty()
+            ? T("Firmware upload is not wired in this UI milestone yet.")
+            : T("Select an upload file before starting."));
+    } else if( buttonThatWasClicked == &uploadStopButton ) {
+        addIosLogEntry(uploadStatusLog, T("No upload is currently running."));
     } else if( buttonThatWasClicked == &sendTerminalButton ) {
         sendIosTerminalCommand(terminalInput.getText());
     }
@@ -886,13 +1040,13 @@ void MiosStudio::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
         const int index = inputSelector.getSelectedId() - 1;
         if( isPositiveAndBelow(index, inputPortNames.size()) ) {
             setMidiInput(inputPortNames[index]);
-            addIosLogEntry(T("Input: ") + inputPortNames[index]);
+            addIosLogEntry(uploadStatusLog, T("Input: ") + inputPortNames[index]);
         }
     } else if( comboBoxThatHasChanged == &outputSelector ) {
         const int index = outputSelector.getSelectedId() - 1;
         if( isPositiveAndBelow(index, outputPortNames.size()) ) {
             setMidiOutput(outputPortNames[index]);
-            addIosLogEntry(T("Output: ") + outputPortNames[index]);
+            addIosLogEntry(uploadStatusLog, T("Output: ") + outputPortNames[index]);
         }
     }
 }
@@ -911,12 +1065,12 @@ void MiosStudio::textEditorEscapeKeyPressed(TextEditor& editor)
 void MiosStudio::startIosQuery(int repeatCount)
 {
     if( getActiveMidiInput().isEmpty() || getActiveMidiOutput().isEmpty() ) {
-        addIosLogEntry(T("Select both a MIDI input and MIDI output before querying."));
+        addIosLogEntry(uploadQueryLog, T("Select both a MIDI input and MIDI output before querying."));
         return;
     }
 
     if( iosQueryActive || uploadHandler->busy() ) {
-        addIosLogEntry(T("Query already in progress."));
+        addIosLogEntry(uploadQueryLog, T("Query already in progress."));
         return;
     }
 
@@ -925,7 +1079,9 @@ void MiosStudio::startIosQuery(int repeatCount)
     queryButton.setEnabled(false);
     repeatQueryButton.setEnabled(false);
     deviceIdSlider.setEnabled(false);
-    addIosLogEntry(String::formatted(T("Starting MIOS application query (%d run%s)."),
+    uploadQueryLog.clear();
+    addIosLogEntry(uploadQueryLog,
+                   String::formatted(T("Starting MIOS application query (%d run%s)."),
                                      iosRepeatQueriesRemaining,
                                      iosRepeatQueriesRemaining == 1 ? "" : "s"));
     if( !uploadHandler->startQuery() )
@@ -936,19 +1092,19 @@ void MiosStudio::finishIosQuery()
 {
     const String errorMessage = uploadHandler->finish();
     if( errorMessage.isNotEmpty() ) {
-        addIosLogEntry(T("Query failed: ") + errorMessage);
+        addIosLogEntry(uploadQueryLog, T("Query failed: ") + errorMessage);
         iosRepeatQueriesRemaining = 0;
     } else {
-        addIosLogEntry(T("Query completed."));
+        addIosLogEntry(uploadQueryLog, T("Query completed."));
         appendIosCoreInfo();
         --iosRepeatQueriesRemaining;
     }
 
     if( iosRepeatQueriesRemaining > 0 ) {
-        addIosLogEntry(String::formatted(T("Repeating query, %d remaining."), iosRepeatQueriesRemaining));
+        addIosLogEntry(uploadQueryLog, String::formatted(T("Repeating query, %d remaining."), iosRepeatQueriesRemaining));
         if( uploadHandler->startQuery() )
             return;
-        addIosLogEntry(T("Could not start repeated query."));
+        addIosLogEntry(uploadQueryLog, T("Could not start repeated query."));
         iosRepeatQueriesRemaining = 0;
     }
 
@@ -973,37 +1129,111 @@ void MiosStudio::sendIosTerminalCommand(const String& command)
     MidiMessage message = SysexHelper::createMidiMessage(dataArray);
     sendMidiMessage(message);
     terminalInput.setText(String(), dontSendNotification);
-    addIosLogEntry(T("> ") + trimmed);
+    addIosLogEntry(terminalLog, T("> ") + trimmed);
 }
 
 void MiosStudio::addIosLogEntry(const String& textLine)
 {
+    addIosLogEntry(uploadStatusLog, textLine);
+}
+
+void MiosStudio::addIosLogEntry(TextEditor& editor, const String& textLine)
+{
     const double timeStamp = Time::getMillisecondCounter() / 1000.0;
-    logView.moveCaretToEnd();
-    logView.insertTextAtCaret(String::formatted(T("[%8.3f] "), timeStamp) + textLine + T("\n"));
+    editor.setText(editor.getText() + String::formatted(T("[%8.3f] "), timeStamp) + textLine + T("\n"),
+                   dontSendNotification);
+    editor.moveCaretToEnd();
+    editor.setHighlightedRegion(Range<int>());
+    editor.giveAwayKeyboardFocus();
 }
 
 void MiosStudio::appendIosCoreInfo()
 {
     String str;
     if( !(str=uploadHandler->coreOperatingSystem).isEmpty() )
-        addIosLogEntry(T("Operating System: ") + str);
+        addIosLogEntry(uploadQueryLog, T("Operating System: ") + str);
     if( !(str=uploadHandler->coreBoard).isEmpty() )
-        addIosLogEntry(T("Board: ") + str);
+        addIosLogEntry(uploadQueryLog, T("Board: ") + str);
     if( !(str=uploadHandler->coreFamily).isEmpty() )
-        addIosLogEntry(T("Core Family: ") + str);
+        addIosLogEntry(uploadQueryLog, T("Core Family: ") + str);
     if( !(str=uploadHandler->coreChipId).isEmpty() )
-        addIosLogEntry(T("Chip ID: 0x") + str);
+        addIosLogEntry(uploadQueryLog, T("Chip ID: 0x") + str);
     if( !(str=uploadHandler->coreSerialNumber).isEmpty() )
-        addIosLogEntry(T("Serial: #") + str);
+        addIosLogEntry(uploadQueryLog, T("Serial: #") + str);
     if( !(str=uploadHandler->coreFlashSize).isEmpty() )
-        addIosLogEntry(T("Flash Memory Size: ") + str + T(" bytes"));
+        addIosLogEntry(uploadQueryLog, T("Flash Memory Size: ") + str + T(" bytes"));
     if( !(str=uploadHandler->coreRamSize).isEmpty() )
-        addIosLogEntry(T("RAM Size: ") + str + T(" bytes"));
+        addIosLogEntry(uploadQueryLog, T("RAM Size: ") + str + T(" bytes"));
     if( !(str=uploadHandler->coreAppHeader1).isEmpty() )
-        addIosLogEntry(str);
+        addIosLogEntry(uploadQueryLog, str);
     if( !(str=uploadHandler->coreAppHeader2).isEmpty() )
-        addIosLogEntry(str);
+        addIosLogEntry(uploadQueryLog, str);
+}
+
+void MiosStudio::configureIosHeaderLabel(Label& label, const String& text)
+{
+    label.setText(text, dontSendNotification);
+    label.setFont(Font(FontOptions(14.0f).withStyle("Bold")));
+    label.setJustificationType(Justification::centredLeft);
+    addAndMakeVisible(label);
+}
+
+void MiosStudio::configureIosLog(TextEditor& editor)
+{
+    editor.setMultiLine(true, false);
+    editor.setReadOnly(true);
+    editor.setScrollbarsShown(true);
+    editor.setCaretVisible(false);
+    editor.setWantsKeyboardFocus(false);
+    editor.setMouseClickGrabsKeyboardFocus(false);
+    editor.setPopupMenuEnabled(false);
+    editor.setColour(TextEditor::backgroundColourId, Colours::white);
+    editor.setColour(TextEditor::outlineColourId, Colour(0xff8a8a8a));
+    editor.setColour(TextEditor::shadowColourId, Colour(0x33000000));
+    editor.setFont(Font(FontOptions(Font::getDefaultMonospacedFontName(), String(), 13.0f)));
+    addAndMakeVisible(editor);
+}
+
+void MiosStudio::paintIosPanel(Graphics& g, Rectangle<int> bounds, const String&)
+{
+    g.setColour(Colours::white);
+    g.fillRect(bounds);
+    g.setColour(Colour(0xff9aa7d8));
+    g.drawRect(bounds, 1);
+    g.setColour(Colour(0x18000000));
+    g.drawRect(bounds.expanded(1), 1);
+}
+
+void MiosStudio::paintIosKeyboard(Graphics& g, Rectangle<int> bounds)
+{
+    if( bounds.isEmpty() )
+        return;
+
+    const int whiteKeys = 24;
+    const float keyWidth = (float)bounds.getWidth() / (float)whiteKeys;
+
+    g.setColour(Colours::white);
+    g.fillRect(bounds);
+    g.setColour(Colours::black);
+    for(int i=0; i<=whiteKeys; ++i) {
+        const int x = bounds.getX() + roundToInt(i * keyWidth);
+        g.drawVerticalLine(x, (float)bounds.getY(), (float)bounds.getBottom());
+    }
+    g.drawRect(bounds, 1);
+
+    const int blackPattern[] = { 0, 1, 3, 4, 5 };
+    const int blackHeight = roundToInt(bounds.getHeight() * 0.62f);
+    const int blackWidth = jmax(8, roundToInt(keyWidth * 0.58f));
+    g.setColour(Colours::black);
+    for(int octave=0; octave<4; ++octave) {
+        for(int key : blackPattern) {
+            const int whiteIndex = octave * 7 + key;
+            if( whiteIndex + 1 >= whiteKeys )
+                continue;
+            const int x = bounds.getX() + roundToInt((whiteIndex + 1) * keyWidth - blackWidth / 2.0f);
+            g.fillRect(x, bounds.getY(), blackWidth, blackHeight);
+        }
+    }
 }
 #endif
 
@@ -1029,16 +1259,22 @@ void MiosStudio::timerCallback()
                         text += String::formatted(T("%c"), data[i] & 0x7f);
                 if( !iosReceivedTerminalMessage ) {
                     iosReceivedTerminalMessage = true;
-                    addIosLogEntry(T("Terminal response stream started."));
+                    addIosLogEntry(terminalLog, T("Terminal response stream started."));
                 }
-                addIosLogEntry(T("< ") + text);
+                addIosLogEntry(terminalLog, T("< ") + text);
             }
+
+            addIosLogEntry(midiInLog, String::toHexString(message.getRawData(),
+                                                          message.getRawDataSize()));
 
             midiInQueue.pop();
         }
 
         if( !midiOutQueue.empty() ) {
             const ScopedLock sl(midiOutQueueLock);
+            MidiMessage &message = midiOutQueue.front();
+            addIosLogEntry(midiOutLog, String::toHexString(message.getRawData(),
+                                                           message.getRawDataSize()));
             midiOutQueue.pop();
         }
     }

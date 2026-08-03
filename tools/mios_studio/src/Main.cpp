@@ -20,7 +20,8 @@ juce_ImplementSingleton (MiosStudioProperties)
 
 class MiosStudioWindow
 #if JUCE_IOS
-    : public Component
+    : public Component,
+      private Timer
 #else
     : public DocumentWindow
 #endif
@@ -32,7 +33,16 @@ public:
 #if JUCE_IOS
     {
         contentComponent.reset(new MiosStudio());
-        addAndMakeVisible(*contentComponent);
+        viewport.reset(new Viewport(T("MIOS Studio Viewport")));
+        viewport->setViewedComponent(contentComponent.get(), false);
+        viewport->setScrollBarsShown(false, false);
+        addAndMakeVisible(*viewport);
+        Component::SafePointer<Viewport> safeViewport(viewport.get());
+        Timer::callAfterDelay(100, [safeViewport] {
+            if( safeViewport != nullptr )
+                safeViewport->setViewPosition(0, 0);
+        });
+        startTimerHz(60);
         setSize(1024, 768);
         setVisible(true);
     }
@@ -73,10 +83,60 @@ public:
 
     //==============================================================================
 #if JUCE_IOS
+    void paint(Graphics& g) override
+    {
+        g.fillAll(Colour(0xffc1d0ff));
+    }
+
+    void paintOverChildren(Graphics& g) override
+    {
+        if( headerChromeAlpha <= 0.0f )
+            return;
+
+        auto header = getHeaderBounds();
+        g.setColour(Colour(0xffedf1ff).withAlpha(0.65f * headerChromeAlpha));
+        g.fillRect(header);
+        g.setColour(Colour(0xff9aa7d8).withAlpha(0.35f * headerChromeAlpha));
+        g.drawHorizontalLine(header.getBottom() - 1, 0.0f, (float)getWidth());
+        g.setColour(Colours::black.withAlpha(headerChromeAlpha));
+        g.setFont(Font(FontOptions(18.0f).withStyle(T("Bold"))));
+        g.drawText(T("MIOS Studio"),
+                   getHeaderTitleBounds(header),
+                   Justification::centred);
+    }
+
+    void timerCallback() override
+    {
+        if( viewport == 0 )
+            return;
+
+        const float targetAlpha = viewport->getViewPositionY() > 0 ? 1.0f : 0.0f;
+        if( headerChromeAlpha != targetAlpha ) {
+            const float delta = targetAlpha > headerChromeAlpha ? 0.12f : -0.16f;
+            headerChromeAlpha = jlimit(0.0f, 1.0f, headerChromeAlpha + delta);
+            if( std::abs(headerChromeAlpha - targetAlpha) < 0.02f )
+                headerChromeAlpha = targetAlpha;
+            repaint(getHeaderBounds());
+        }
+    }
+
     void resized() override
     {
-        if( contentComponent )
-            contentComponent->setBounds(getLocalBounds());
+        if( viewport == 0 || contentComponent == 0 )
+            return;
+
+        auto bounds = getLocalBounds();
+        bounds.removeFromTop(getSafeAreaTop());
+        viewport->setBounds(bounds);
+
+        const bool phoneWidth = bounds.getWidth() < 760;
+        const bool phoneLandscape = bounds.getWidth() >= 760 && bounds.getHeight() < 560;
+        const int contentHeight = phoneWidth
+            ? jmax(bounds.getHeight(), 1180)
+            : phoneLandscape
+            ? jmax(bounds.getHeight(), 720)
+            : bounds.getHeight();
+        contentComponent->setSize(bounds.getWidth(), contentHeight);
     }
 #else
     void closeButtonPressed()
@@ -90,7 +150,30 @@ public:
 
 #if JUCE_IOS
 private:
+    Rectangle<int> getHeaderBounds() const
+    {
+        return getLocalBounds().removeFromTop(getSafeAreaTop() + 44);
+    }
+
+    Rectangle<int> getHeaderTitleBounds(Rectangle<int> header) const
+    {
+        return header.withTrimmedTop(getSafeAreaTop()).withTrimmedBottom(4);
+    }
+
+    int getSafeAreaTop() const
+    {
+        if( auto* display = Desktop::getInstance().getDisplays().getDisplayForRect(getScreenBounds()) ) {
+            const int topInset = display->safeAreaInsets.getTop();
+            if( topInset > 0 )
+                return topInset;
+        }
+
+        return getWidth() < 760 ? 59 : 24;
+    }
+
     std::unique_ptr<MiosStudio> contentComponent;
+    std::unique_ptr<Viewport> viewport;
+    float headerChromeAlpha = 0.0f;
 #endif
 };
 
@@ -134,9 +217,8 @@ public:
         // create the main window...
         miosStudioWindow = new MiosStudioWindow();
 #if JUCE_IOS
-        miosStudioWindow->addToDesktop(ComponentPeer::windowHasTitleBar
-                                       | ComponentPeer::windowIsResizable);
-        miosStudioWindow->setBounds(Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea);
+        miosStudioWindow->addToDesktop(0);
+        miosStudioWindow->setBounds(Desktop::getInstance().getDisplays().getPrimaryDisplay()->userBounds.toNearestInt());
         miosStudioWindow->toFront(true);
 #endif
 
