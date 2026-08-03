@@ -19,14 +19,26 @@
 juce_ImplementSingleton (MiosStudioProperties)
 
 class MiosStudioWindow
+#if JUCE_IOS
+    : public Component
+#else
     : public DocumentWindow
+#endif
 {
 public:
 
     //==============================================================================
-    MiosStudioWindow() 
+    MiosStudioWindow()
+#if JUCE_IOS
+    {
+        contentComponent.reset(new MiosStudio());
+        addAndMakeVisible(*contentComponent);
+        setSize(1024, 768);
+        setVisible(true);
+    }
+#else
         : DocumentWindow(String(T("MIOS Studio ")) + String(T(MIOS_STUDIO_VERSION)),
-                         Colours::lightgrey, 
+                         Colours::lightgrey,
                          DocumentWindow::allButtons,
                          true)
     {
@@ -49,21 +61,37 @@ public:
         if( !contentComponent->runningInBatchMode() )
             setVisible(true);
     }
+#endif
 
     ~MiosStudioWindow()
     {
+#if ! JUCE_IOS
         setMenuBar(0);
+#endif
         // (the content component will be deleted automatically, so no need to do it here)
     }
 
     //==============================================================================
+#if JUCE_IOS
+    void resized() override
+    {
+        if( contentComponent )
+            contentComponent->setBounds(getLocalBounds());
+    }
+#else
     void closeButtonPressed()
     {
-        // When the user presses the close button, we'll tell the app to quit. This 
+        // When the user presses the close button, we'll tell the app to quit. This
         // window will be deleted by our MiosStudioApplication::shutdown() method
         // 
         JUCEApplication::quit();
     }
+#endif
+
+#if JUCE_IOS
+private:
+    std::unique_ptr<MiosStudio> contentComponent;
+#endif
 };
 
 //==============================================================================
@@ -105,6 +133,12 @@ public:
     {
         // create the main window...
         miosStudioWindow = new MiosStudioWindow();
+#if JUCE_IOS
+        miosStudioWindow->addToDesktop(ComponentPeer::windowHasTitleBar
+                                       | ComponentPeer::windowIsResizable);
+        miosStudioWindow->setBounds(Desktop::getInstance().getDisplays().getPrimaryDisplay()->userArea);
+        miosStudioWindow->toFront(true);
+#endif
 
         /*  ..and now return, which will fall into to the main event
             dispatch loop, and this will run until something calls

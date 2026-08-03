@@ -21,6 +21,7 @@
 #include <memory>
 #include <queue>
 
+#if ! JUCE_IOS
 #include "UploadWindow.h"
 #include "MidiMonitor.h"
 #include "MiosTerminal.h"
@@ -32,14 +33,22 @@
 #include "MbhpMfTool.h"
 #include "SysexLibrarian.h"
 #include "MiosFileBrowser.h"
+#endif
 #include "../SysexPatchDb.h"
 #include "../UploadHandler.h"
+#include "../SysexHelper.h"
 
 class MiosStudio
     : public Component
     , public MidiInputCallback
+#if ! JUCE_IOS
     , public MenuBarModel
     , public ApplicationCommandTarget
+#else
+    , public Button::Listener
+    , public ComboBox::Listener
+    , public TextEditor::Listener
+#endif
     , public Timer
 {
 public:
@@ -97,6 +106,14 @@ public:
                                      bool connectToBootloader,
                                      int timeoutMs);
 
+#if JUCE_IOS
+    void buttonClicked(Button* buttonThatWasClicked);
+    void comboBoxChanged(ComboBox* comboBoxThatHasChanged);
+    void textEditorReturnKeyPressed(TextEditor& editor);
+    void textEditorEscapeKeyPressed(TextEditor& editor);
+    void textEditorTextChanged(TextEditor&) {}
+    void textEditorFocusLost(TextEditor&) {}
+#else
     StringArray getMenuBarNames();
     PopupMenu getMenuForIndex(int topLevelMenuIndex, const String& menuName);
     void menuItemSelected(int menuItemID, int topLevelMenuIndex);
@@ -109,6 +126,7 @@ public:
     void getCommandInfo(CommandID commandID, ApplicationCommandInfo& result);
 #endif
 	bool perform(const InvocationInfo& info);
+#endif
 
     void updateLayout(void);
 
@@ -116,6 +134,7 @@ public:
 
     UploadHandler *uploadHandler;
 
+#if ! JUCE_IOS
     // Windows opened by Tools button in Upload Window
     SysexToolWindow *sysexToolWindow;
     OscToolWindow *oscToolWindow;
@@ -124,6 +143,7 @@ public:
     MbhpMfToolWindow *mbhpMfToolWindow;
     SysexLibrarianWindow *sysexLibrarianWindow;
     MiosFileBrowserWindow *miosFileBrowserWindow;
+#endif
 
     //==============================================================================
     SysexPatchDb *sysexPatchDb;
@@ -149,6 +169,34 @@ protected:
     unsigned batchWaitCounter;
 
     //==============================================================================
+#if JUCE_IOS
+    Label titleLabel;
+    Label inputLabel;
+    Label outputLabel;
+    Label deviceIdLabel;
+    ComboBox inputSelector;
+    ComboBox outputSelector;
+    Slider deviceIdSlider;
+    TextButton refreshButton;
+    TextButton queryButton;
+    TextButton repeatQueryButton;
+    TextButton sendTerminalButton;
+    TextEditor terminalInput;
+    TextEditor logView;
+    StringArray inputPortNames;
+    StringArray outputPortNames;
+    bool iosQueryActive;
+    int iosRepeatQueriesRemaining;
+    bool iosReceivedTerminalMessage;
+
+    void initialiseIosUi();
+    void scanIosMidiDevices();
+    void startIosQuery(int repeatCount);
+    void finishIosQuery();
+    void sendIosTerminalCommand(const String& command);
+    void addIosLogEntry(const String& textLine);
+    void appendIosCoreInfo();
+#else
     UploadWindow *uploadWindow;
     MidiMonitor *midiInMonitor;
     MidiMonitor *midiOutMonitor;
@@ -167,6 +215,7 @@ protected:
 
     ResizableCornerComponent *resizer;
     ComponentBoundsConstrainer resizeLimits;
+#endif
 
     // TK: the Juce specific "MidiBuffer" sporatically throws an assertion when overloaded
     // therefore I'm using a std::queue instead
@@ -193,7 +242,9 @@ protected:
                                              int timeoutMs);
 
     // the command manager object used to dispatch command events
+#if ! JUCE_IOS
     ApplicationCommandManager* commandManager;
+#endif
 
     //==============================================================================
     // (prevent copy constructor and operator= being generated..)

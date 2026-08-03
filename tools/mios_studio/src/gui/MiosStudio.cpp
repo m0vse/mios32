@@ -52,6 +52,9 @@ MidiDeviceInfo findMidiDevice(const Array<MidiDeviceInfo>& devices,
 
 Component* findEditTarget()
 {
+#if JUCE_IOS
+    return dynamic_cast<TextEditor*>(Component::getCurrentlyFocusedComponent());
+#else
     for( Component* component = Component::getCurrentlyFocusedComponent();
          component != nullptr;
          component = component->getParentComponent() ) {
@@ -61,6 +64,7 @@ Component* findEditTarget()
     }
 
     return nullptr;
+#endif
 }
 }
 
@@ -68,6 +72,11 @@ Component* findEditTarget()
 MiosStudio::MiosStudio()
     : batchMode(false)
     , duggleMode(false)
+#if JUCE_IOS
+    , iosQueryActive(false)
+    , iosRepeatQueriesRemaining(0)
+    , iosReceivedTerminalMessage(false)
+#else
     , uploadWindow(0)
     , midiInMonitor(0)
     , midiOutMonitor(0)
@@ -79,7 +88,30 @@ MiosStudio::MiosStudio()
     , batchWaitCounter(0)
     , initialGuiX(-1) // centered
     , initialGuiY(-1) // centered
+#endif
 {
+#if JUCE_IOS
+    initialGuiX = -1;
+    initialGuiY = -1;
+    batchWaitCounter = 0;
+    runningStatus = 0;
+    initialMidiScanCounter = 0;
+    midiScanRetriesRemaining = 0;
+    midiInputCallbackRegistered = false;
+
+    uploadHandler = new UploadHandler(this);
+    sysexPatchDb = new SysexPatchDb();
+
+    LookAndFeel::setDefaultLookAndFeel(&myLookAndFeel);
+    initialiseIosUi();
+
+    audioDeviceManager.addMidiInputDeviceCallback(String(), this);
+    midiInputCallbackRegistered = true;
+
+    scanIosMidiDevices();
+    Timer::startTimer(20);
+    setSize(1024, 768);
+#else
     bool hideMonitors = false;
     bool hideUpload = false;
     bool hideTerminal = false;
@@ -338,6 +370,7 @@ MiosStudio::MiosStudio()
     Timer::startTimer(250);
 
     setSize(guiWidth, guiHeight);
+#endif
 }
 
 MiosStudio::~MiosStudio()
@@ -349,6 +382,10 @@ MiosStudio::~MiosStudio()
 
     if( uploadHandler )
         deleteAndZero(uploadHandler);
+#if JUCE_IOS
+    if( sysexPatchDb )
+        deleteAndZero(sysexPatchDb);
+#else
     if( sysexToolWindow )
         deleteAndZero(sysexToolWindow);
     if( oscToolWindow )
@@ -365,6 +402,7 @@ MiosStudio::~MiosStudio()
         deleteAndZero(miosFileBrowserWindow);
 
     // try: avoid crash under Windows by disabling all MIDI INs/OUTs
+#endif
     closeMidiPorts();
 }
 
@@ -424,11 +462,46 @@ void MiosStudio::redirectIOToConsole() {}
 //==============================================================================
 void MiosStudio::paint (Graphics& g)
 {
+#if JUCE_IOS
+    g.fillAll(Colour(0xfff8fafc));
+#else
     g.fillAll(Colour(0xffc1d0ff));
+#endif
 }
 
 void MiosStudio::resized()
 {
+#if JUCE_IOS
+    auto bounds = getLocalBounds().reduced(16);
+    titleLabel.setBounds(bounds.removeFromTop(44));
+    bounds.removeFromTop(8);
+
+    auto row = bounds.removeFromTop(44);
+    inputLabel.setBounds(row.removeFromLeft(72));
+    inputSelector.setBounds(row.removeFromLeft(jmax(180, getWidth() / 3)).reduced(0, 4));
+    row.removeFromLeft(12);
+    outputLabel.setBounds(row.removeFromLeft(72));
+    outputSelector.setBounds(row.removeFromLeft(jmax(180, getWidth() / 3)).reduced(0, 4));
+
+    bounds.removeFromTop(8);
+    row = bounds.removeFromTop(48);
+    deviceIdLabel.setBounds(row.removeFromLeft(84));
+    deviceIdSlider.setBounds(row.removeFromLeft(136));
+    row.removeFromLeft(12);
+    refreshButton.setBounds(row.removeFromLeft(96).reduced(0, 6));
+    row.removeFromLeft(8);
+    queryButton.setBounds(row.removeFromLeft(96).reduced(0, 6));
+    row.removeFromLeft(8);
+    repeatQueryButton.setBounds(row.removeFromLeft(136).reduced(0, 6));
+
+    bounds.removeFromTop(8);
+    auto terminalRow = bounds.removeFromBottom(48);
+    sendTerminalButton.setBounds(terminalRow.removeFromRight(96).reduced(0, 6));
+    terminalRow.removeFromRight(8);
+    terminalInput.setBounds(terminalRow.reduced(0, 6));
+    bounds.removeFromBottom(8);
+    logView.setBounds(bounds);
+#else
     horizontalLayout.layOutComponents(layoutHComps.getRawDataPointer(), layoutHComps.size(),
                                        4, 4,
                                        getWidth() - 8, getHeight() - 8,
@@ -446,6 +519,7 @@ void MiosStudio::resized()
     }
 
     resizer->setBounds(getWidth()-16, getHeight()-16, 16, 16);
+#endif
 }
 
 
@@ -710,10 +784,268 @@ bool MiosStudio::reconnectMidiPortsForUpload(const String &applicationInput,
     return false;
 }
 
+#if JUCE_IOS
+void MiosStudio::initialiseIosUi()
+{
+    titleLabel.setText(T("MIOS Studio iPad Proof of Concept"), dontSendNotification);
+    titleLabel.setFont(Font(FontOptions(24.0f).withStyle("Bold")));
+    titleLabel.setJustificationType(Justification::centredLeft);
+    addAndMakeVisible(titleLabel);
+
+    inputLabel.setText(T("Input"), dontSendNotification);
+    outputLabel.setText(T("Output"), dontSendNotification);
+    deviceIdLabel.setText(T("Device ID"), dontSendNotification);
+    for( Label* label : { &inputLabel, &outputLabel, &deviceIdLabel } ) {
+        label->setJustificationType(Justification::centredLeft);
+        addAndMakeVisible(*label);
+    }
+
+    inputSelector.addListener(this);
+    outputSelector.addListener(this);
+    addAndMakeVisible(inputSelector);
+    addAndMakeVisible(outputSelector);
+
+    deviceIdSlider.setRange(0, 127, 1);
+    deviceIdSlider.setSliderStyle(Slider::IncDecButtons);
+    deviceIdSlider.setTextBoxStyle(Slider::TextBoxLeft, false, 48, 28);
+    deviceIdSlider.setValue(uploadHandler->getDeviceId(), dontSendNotification);
+    deviceIdSlider.onValueChange = [this]() {
+        uploadHandler->setDeviceId((uint8)deviceIdSlider.getValue());
+    };
+    addAndMakeVisible(deviceIdSlider);
+
+    refreshButton.setButtonText(T("Refresh"));
+    queryButton.setButtonText(T("Query"));
+    repeatQueryButton.setButtonText(T("Query x10"));
+    sendTerminalButton.setButtonText(T("Send"));
+    for( TextButton* button : { &refreshButton, &queryButton, &repeatQueryButton, &sendTerminalButton } ) {
+        button->addListener(this);
+        addAndMakeVisible(*button);
+    }
+
+    terminalInput.setTextToShowWhenEmpty(T("MIOS32 terminal command"), Colours::grey);
+    terminalInput.addListener(this);
+    addAndMakeVisible(terminalInput);
+
+    logView.setMultiLine(true);
+    logView.setReadOnly(true);
+    logView.setScrollbarsShown(true);
+    logView.setCaretVisible(false);
+    logView.setFont(Font(FontOptions(Font::getDefaultMonospacedFontName(), String(), 15.0f)));
+    addAndMakeVisible(logView);
+
+    addIosLogEntry(T("MIOS Studio iOS proof of concept ready."));
+    addIosLogEntry(T("Connect a Core MIDI interface, select matching input/output ports, then query."));
+}
+
+void MiosStudio::scanIosMidiDevices()
+{
+    inputPortNames.clear();
+    outputPortNames.clear();
+    inputSelector.clear(dontSendNotification);
+    outputSelector.clear(dontSendNotification);
+
+    int itemId = 1;
+    for( const MidiDeviceInfo& device : MidiInput::getAvailableDevices() ) {
+        inputPortNames.add(device.name);
+        inputSelector.addItem(device.name, itemId++);
+    }
+
+    itemId = 1;
+    for( const MidiDeviceInfo& device : MidiOutput::getAvailableDevices() ) {
+        outputPortNames.add(device.name);
+        outputSelector.addItem(device.name, itemId++);
+    }
+
+    addIosLogEntry(String::formatted(T("Core MIDI scan: %d input(s), %d output(s)."),
+                                     inputPortNames.size(),
+                                     outputPortNames.size()));
+
+    if( inputSelector.getNumItems() > 0 && inputSelector.getSelectedId() == 0 )
+        inputSelector.setSelectedId(1, sendNotificationSync);
+    if( outputSelector.getNumItems() > 0 && outputSelector.getSelectedId() == 0 )
+        outputSelector.setSelectedId(1, sendNotificationSync);
+}
+
+void MiosStudio::buttonClicked(Button* buttonThatWasClicked)
+{
+    if( buttonThatWasClicked == &refreshButton ) {
+        scanIosMidiDevices();
+    } else if( buttonThatWasClicked == &queryButton ) {
+        startIosQuery(1);
+    } else if( buttonThatWasClicked == &repeatQueryButton ) {
+        startIosQuery(10);
+    } else if( buttonThatWasClicked == &sendTerminalButton ) {
+        sendIosTerminalCommand(terminalInput.getText());
+    }
+}
+
+void MiosStudio::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
+{
+    if( comboBoxThatHasChanged == &inputSelector ) {
+        const int index = inputSelector.getSelectedId() - 1;
+        if( isPositiveAndBelow(index, inputPortNames.size()) ) {
+            setMidiInput(inputPortNames[index]);
+            addIosLogEntry(T("Input: ") + inputPortNames[index]);
+        }
+    } else if( comboBoxThatHasChanged == &outputSelector ) {
+        const int index = outputSelector.getSelectedId() - 1;
+        if( isPositiveAndBelow(index, outputPortNames.size()) ) {
+            setMidiOutput(outputPortNames[index]);
+            addIosLogEntry(T("Output: ") + outputPortNames[index]);
+        }
+    }
+}
+
+void MiosStudio::textEditorReturnKeyPressed(TextEditor& editor)
+{
+    if( &editor == &terminalInput )
+        sendIosTerminalCommand(terminalInput.getText());
+}
+
+void MiosStudio::textEditorEscapeKeyPressed(TextEditor& editor)
+{
+    editor.setText(String(), dontSendNotification);
+}
+
+void MiosStudio::startIosQuery(int repeatCount)
+{
+    if( getActiveMidiInput().isEmpty() || getActiveMidiOutput().isEmpty() ) {
+        addIosLogEntry(T("Select both a MIDI input and MIDI output before querying."));
+        return;
+    }
+
+    if( iosQueryActive || uploadHandler->busy() ) {
+        addIosLogEntry(T("Query already in progress."));
+        return;
+    }
+
+    iosRepeatQueriesRemaining = jmax(1, repeatCount);
+    iosQueryActive = true;
+    queryButton.setEnabled(false);
+    repeatQueryButton.setEnabled(false);
+    deviceIdSlider.setEnabled(false);
+    addIosLogEntry(String::formatted(T("Starting MIOS application query (%d run%s)."),
+                                     iosRepeatQueriesRemaining,
+                                     iosRepeatQueriesRemaining == 1 ? "" : "s"));
+    if( !uploadHandler->startQuery() )
+        finishIosQuery();
+}
+
+void MiosStudio::finishIosQuery()
+{
+    const String errorMessage = uploadHandler->finish();
+    if( errorMessage.isNotEmpty() ) {
+        addIosLogEntry(T("Query failed: ") + errorMessage);
+        iosRepeatQueriesRemaining = 0;
+    } else {
+        addIosLogEntry(T("Query completed."));
+        appendIosCoreInfo();
+        --iosRepeatQueriesRemaining;
+    }
+
+    if( iosRepeatQueriesRemaining > 0 ) {
+        addIosLogEntry(String::formatted(T("Repeating query, %d remaining."), iosRepeatQueriesRemaining));
+        if( uploadHandler->startQuery() )
+            return;
+        addIosLogEntry(T("Could not start repeated query."));
+        iosRepeatQueriesRemaining = 0;
+    }
+
+    iosQueryActive = false;
+    queryButton.setEnabled(true);
+    repeatQueryButton.setEnabled(true);
+    deviceIdSlider.setEnabled(true);
+}
+
+void MiosStudio::sendIosTerminalCommand(const String& command)
+{
+    const String trimmed = command.trim();
+    if( trimmed.isEmpty() )
+        return;
+
+    Array<uint8> dataArray = SysexHelper::createMios32DebugMessage(uploadHandler->getDeviceId());
+    dataArray.add(0x00);
+    for(int i=0; i<trimmed.length(); ++i)
+        dataArray.add(trimmed[i] & 0x7f);
+    dataArray.add('\n');
+    dataArray.add(0xf7);
+    MidiMessage message = SysexHelper::createMidiMessage(dataArray);
+    sendMidiMessage(message);
+    terminalInput.setText(String(), dontSendNotification);
+    addIosLogEntry(T("> ") + trimmed);
+}
+
+void MiosStudio::addIosLogEntry(const String& textLine)
+{
+    const double timeStamp = Time::getMillisecondCounter() / 1000.0;
+    logView.moveCaretToEnd();
+    logView.insertTextAtCaret(String::formatted(T("[%8.3f] "), timeStamp) + textLine + T("\n"));
+}
+
+void MiosStudio::appendIosCoreInfo()
+{
+    String str;
+    if( !(str=uploadHandler->coreOperatingSystem).isEmpty() )
+        addIosLogEntry(T("Operating System: ") + str);
+    if( !(str=uploadHandler->coreBoard).isEmpty() )
+        addIosLogEntry(T("Board: ") + str);
+    if( !(str=uploadHandler->coreFamily).isEmpty() )
+        addIosLogEntry(T("Core Family: ") + str);
+    if( !(str=uploadHandler->coreChipId).isEmpty() )
+        addIosLogEntry(T("Chip ID: 0x") + str);
+    if( !(str=uploadHandler->coreSerialNumber).isEmpty() )
+        addIosLogEntry(T("Serial: #") + str);
+    if( !(str=uploadHandler->coreFlashSize).isEmpty() )
+        addIosLogEntry(T("Flash Memory Size: ") + str + T(" bytes"));
+    if( !(str=uploadHandler->coreRamSize).isEmpty() )
+        addIosLogEntry(T("RAM Size: ") + str + T(" bytes"));
+    if( !(str=uploadHandler->coreAppHeader1).isEmpty() )
+        addIosLogEntry(str);
+    if( !(str=uploadHandler->coreAppHeader2).isEmpty() )
+        addIosLogEntry(str);
+}
+#endif
+
 
 //==============================================================================
 void MiosStudio::timerCallback()
 {
+#if JUCE_IOS
+    for(int checkLoop=0; checkLoop<10; ++checkLoop) {
+        if( !midiInQueue.empty() ) {
+            const ScopedLock sl(midiInQueueLock);
+            MidiMessage &message = midiInQueue.front();
+            uint8 *data = (uint8 *)message.getRawData();
+            if( data[0] >= 0x80 && data[0] < 0xf8 )
+                runningStatus = data[0];
+
+            if( runningStatus == 0xf0 &&
+                SysexHelper::isValidMios32DebugMessage(data, message.getRawDataSize(), -1) &&
+                (data[7] == 0x40 || data[7] == 0x00) ) {
+                String text;
+                for(int i=8; i<message.getRawDataSize(); ++i)
+                    if( data[i] < 0x80 && (data[i] != '\n' || i + 1 < message.getRawDataSize()) )
+                        text += String::formatted(T("%c"), data[i] & 0x7f);
+                if( !iosReceivedTerminalMessage ) {
+                    iosReceivedTerminalMessage = true;
+                    addIosLogEntry(T("Terminal response stream started."));
+                }
+                addIosLogEntry(T("< ") + text);
+            }
+
+            midiInQueue.pop();
+        }
+
+        if( !midiOutQueue.empty() ) {
+            const ScopedLock sl(midiOutQueueLock);
+            midiOutQueue.pop();
+        }
+    }
+
+    if( iosQueryActive && !uploadHandler->busy() )
+        finishIosQuery();
+#else
     // step-wise MIDI port scan after startup
     if( initialMidiScanCounter ) {
         switch( initialMidiScanCounter ) {
@@ -935,6 +1267,7 @@ void MiosStudio::timerCallback()
             }
         }
     }
+#endif
 }
 
 
@@ -968,8 +1301,10 @@ void MiosStudio::setMidiInput(const String &port)
     }
 
     // propagate port change
+#if ! JUCE_IOS
     if( uploadWindow && initialMidiScanCounter == 0 && port != String() )
         uploadWindow->midiPortChanged();
+#endif
 
     // store setting if MIDI input selected
     if( port != String() ) {
@@ -1006,8 +1341,10 @@ void MiosStudio::setMidiOutput(const String &port)
     }
 
     // propagate port change
+#if ! JUCE_IOS
     if( uploadWindow && initialMidiScanCounter == 0 && port != String() )
         uploadWindow->midiPortChanged();
+#endif
 
     // store setting if MIDI output selected
     if( port != String() ) {
@@ -1030,6 +1367,7 @@ String MiosStudio::getMidiOutput(void)
 
 
 //==============================================================================
+#if ! JUCE_IOS
 StringArray MiosStudio::getMenuBarNames()
 {
     const char* const names[] = { "Application", "Edit", "Tools", "Help", 0 };
@@ -1519,3 +1857,4 @@ void MiosStudio::updateLayout(void)
     ////////////////////////////////////////////////////////////////////////////////////////////////
     resized();
 }
+#endif

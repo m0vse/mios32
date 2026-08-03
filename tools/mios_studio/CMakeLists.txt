@@ -20,6 +20,10 @@ if(NOT JUCE_PATH)
 endif()
 
 string(MD5 JUCE_BUILD_ID "${JUCE_PATH}")
+set(MIOS_STUDIO_IOS FALSE)
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    set(MIOS_STUDIO_IOS TRUE)
+endif()
 
 if(WIN32)
     include(cmake/PatchJuceWinmm.cmake)
@@ -28,10 +32,23 @@ endif()
 
 add_subdirectory("${JUCE_PATH}" "${CMAKE_CURRENT_BINARY_DIR}/JUCE-${JUCE_BUILD_ID}" EXCLUDE_FROM_ALL)
 
+set(MIOS_STUDIO_APP_OPTIONS)
+if(MIOS_STUDIO_IOS)
+    list(APPEND MIOS_STUDIO_APP_OPTIONS
+        LOCAL_NETWORK_PERMISSION_ENABLED TRUE
+        LOCAL_NETWORK_PERMISSION_TEXT "MIOS Studio uses the local network only when OSC is enabled to communicate with MIDIbox devices."
+        FILE_SHARING_ENABLED TRUE
+        DOCUMENT_BROWSER_ENABLED TRUE
+        TARGETED_DEVICE_FAMILY "1,2"
+        IPAD_SCREEN_ORIENTATIONS UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown
+        IPHONE_SCREEN_ORIENTATIONS UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight)
+endif()
+
 juce_add_gui_app(MIOS_Studio
     PRODUCT_NAME "MIOS Studio"
     COMPANY_NAME "MIDIbox"
     BUNDLE_ID "org.midibox.MIOSStudio"
+    ${MIOS_STUDIO_APP_OPTIONS}
     ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/icon/MIOS_Studio.iconset/icon_128x128.png"
     ICON_SMALL "${CMAKE_CURRENT_SOURCE_DIR}/icon/MIOS_Studio.iconset/icon_16x16.png")
 
@@ -49,7 +66,7 @@ endif()
 
 juce_generate_juce_header(MIOS_Studio)
 
-target_sources(MIOS_Studio PRIVATE
+set(MIOS_STUDIO_DESKTOP_GUI_SOURCES
     src/gui/CommandLineEditor.cpp
     src/gui/ConfigTableComponents.cpp
     src/gui/HexTextEditor.cpp
@@ -61,14 +78,16 @@ target_sources(MIOS_Studio PRIVATE
     src/gui/Midio128Tool.cpp
     src/gui/MidiSlider.cpp
     src/gui/MiosFileBrowser.cpp
-    src/gui/MiosStudio.cpp
     src/gui/MiosTerminal.cpp
     src/gui/OscMonitor.cpp
     src/gui/OscTextEditor.cpp
     src/gui/OscTool.cpp
     src/gui/SysexLibrarian.cpp
     src/gui/SysexTool.cpp
-    src/gui/UploadWindow.cpp
+    src/gui/UploadWindow.cpp)
+
+target_sources(MIOS_Studio PRIVATE
+    src/gui/MiosStudio.cpp
     src/HexFileLoader.cpp
     src/Main.cpp
     src/OscHelper.cpp
@@ -77,12 +96,19 @@ target_sources(MIOS_Studio PRIVATE
     src/UdpSocket.cpp
     src/UploadHandler.cpp)
 
+if(NOT MIOS_STUDIO_IOS)
+    target_sources(MIOS_Studio PRIVATE ${MIOS_STUDIO_DESKTOP_GUI_SOURCES})
+endif()
+
 target_compile_features(MIOS_Studio PRIVATE cxx_std_17)
 target_compile_definitions(MIOS_Studio PRIVATE
     MIOS_STUDIO_VERSION="${PROJECT_VERSION}"
-    JUCE_MODAL_LOOPS_PERMITTED=1
     JUCE_USE_CURL=0
     JUCE_WEB_BROWSER=0)
+
+if(NOT MIOS_STUDIO_IOS)
+    target_compile_definitions(MIOS_Studio PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1)
+endif()
 
 if(WIN32)
     # Do not enable JUCE's WinRT MIDI backend here.  Its asynchronous device
