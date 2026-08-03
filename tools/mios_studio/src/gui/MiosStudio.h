@@ -262,6 +262,7 @@ protected:
     bool iosReceivedTerminalMessage;
     bool iosDrawerOpen;
     bool iosDrawerEdgeDragActive;
+    float iosDrawerAnimation;
     Point<int> iosDrawerDragStart;
     IosToolPage iosActiveToolPage;
 

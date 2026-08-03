@@ -283,6 +283,28 @@ IosStudioLayout getIosStudioLayout(Rectangle<int> bounds)
 
     return layout;
 }
+
+Rectangle<int> getIosDrawerBounds(Component& component, const IosStudioLayout& layout, float progress)
+{
+    Rectangle<int> visibleBounds = component.getLocalBounds();
+    int headerInset = 0;
+
+    if( auto* viewport = component.findParentComponentOfClass<Viewport>() ) {
+        visibleBounds = Rectangle<int>(0,
+                                       viewport->getViewPositionY(),
+                                       viewport->getWidth(),
+                                       viewport->getHeight());
+        headerInset = visibleBounds.getY() > 0 ? 44 : 0;
+    }
+
+    Rectangle<int> drawer(visibleBounds.getX() + 8,
+                          visibleBounds.getY() + headerInset + 8,
+                          layout.drawer.getWidth(),
+                          jmax(160, visibleBounds.getHeight() - headerInset - 16));
+
+    drawer.setX(drawer.getX() - roundToInt((1.0f - progress) * (drawer.getWidth() + 12)));
+    return drawer;
+}
 }
 #endif
 
@@ -296,6 +318,7 @@ MiosStudio::MiosStudio()
     , iosReceivedTerminalMessage(false)
     , iosDrawerOpen(false)
     , iosDrawerEdgeDragActive(false)
+    , iosDrawerAnimation(0.0f)
     , iosActiveToolPage(iosToolStudio)
 #else
     , uploadWindow(0)
@@ -697,16 +720,17 @@ void MiosStudio::paint (Graphics& g)
     paintIosPanel(g, layout.keyboard, T("MIDI Keyboard"));
     paintIosKeyboard(g, layout.keyboard.reduced(8));
 
-    if( iosDrawerOpen || layout.persistentDrawer ) {
+    if( iosDrawerOpen || layout.persistentDrawer || iosDrawerAnimation > 0.0f ) {
+        const Rectangle<int> drawerBounds = getIosDrawerBounds(*this, layout, layout.persistentDrawer ? 1.0f : iosDrawerAnimation);
         if( !layout.persistentDrawer ) {
-            g.setColour(Colours::black.withAlpha(0.18f));
+            g.setColour(Colours::black.withAlpha(0.18f * iosDrawerAnimation));
             g.fillRect(getLocalBounds());
         }
 
         g.setColour(Colour(0xf7f4f6ff));
-        g.fillRect(layout.drawer);
+        g.fillRect(drawerBounds);
         g.setColour(Colour(0xff9aa7d8));
-        g.drawRect(layout.drawer, 1);
+        g.drawRect(drawerBounds, 1);
     }
 #else
     g.fillAll(Colour(0xffc1d0ff));
@@ -718,12 +742,13 @@ void MiosStudio::resized()
 #if JUCE_IOS
     const IosStudioLayout layout = getIosStudioLayout(getLocalBounds());
 
-    const bool showDrawer = iosDrawerOpen || layout.persistentDrawer;
+    const bool showDrawer = iosDrawerOpen || layout.persistentDrawer || iosDrawerAnimation > 0.0f;
+    const Rectangle<int> drawerBounds = getIosDrawerBounds(*this, layout, layout.persistentDrawer ? 1.0f : iosDrawerAnimation);
     drawerBackground.setVisible(showDrawer);
-    drawerBackground.setBounds(layout.drawer);
+    drawerBackground.setBounds(drawerBounds);
     drawerHintLabel.setVisible(showDrawer);
 
-    auto drawerInner = layout.drawer.reduced(10);
+    auto drawerInner = drawerBounds.reduced(10);
     if( showDrawer ) {
         drawerBackground.toFront(false);
         drawerHintLabel.toFront(false);
@@ -1263,7 +1288,8 @@ void MiosStudio::mouseDown(const MouseEvent& e)
     iosDrawerDragStart = e.getPosition();
     iosDrawerEdgeDragActive = !iosDrawerOpen && iosDrawerDragStart.x <= 24;
 
-    if( iosDrawerOpen && !getIosStudioLayout(getLocalBounds()).drawer.contains(iosDrawerDragStart) )
+    const IosStudioLayout layout = getIosStudioLayout(getLocalBounds());
+    if( iosDrawerOpen && !getIosDrawerBounds(*this, layout, 1.0f).contains(iosDrawerDragStart) )
         setIosDrawerOpen(false);
 }
 
@@ -1534,6 +1560,16 @@ void MiosStudio::paintIosKeyboard(Graphics& g, Rectangle<int> bounds)
 void MiosStudio::timerCallback()
 {
 #if JUCE_IOS
+    const float drawerTarget = iosDrawerOpen ? 1.0f : 0.0f;
+    if( iosDrawerAnimation != drawerTarget ) {
+        const float step = drawerTarget > iosDrawerAnimation ? 0.18f : -0.22f;
+        iosDrawerAnimation = jlimit(0.0f, 1.0f, iosDrawerAnimation + step);
+        if( std::abs(iosDrawerAnimation - drawerTarget) < 0.02f )
+            iosDrawerAnimation = drawerTarget;
+        resized();
+        repaint();
+    }
+
     for(int checkLoop=0; checkLoop<10; ++checkLoop) {
         if( !midiInQueue.empty() ) {
             const ScopedLock sl(midiInQueueLock);
