@@ -244,7 +244,6 @@ protected:
     TextButton uploadStartButton;
     TextButton uploadStopButton;
     TextButton sendTerminalButton;
-    TextButton dismissKeyboardButton;
     IosDrawerRowButton toolButtons[iosToolCount];
     IosStepperLookAndFeel iosStepperLookAndFeel;
     IosClipboardTextEditor terminalInput;

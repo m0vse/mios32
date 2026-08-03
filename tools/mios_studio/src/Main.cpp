@@ -126,6 +126,8 @@ public:
         } else if( titleChanged && headerChromeAlpha > 0.0f ) {
             repaint(getHeaderBounds());
         }
+
+        updateKeyboardAvoidance();
     }
 
     void resized() override
@@ -217,6 +219,42 @@ private:
                 configureNestedScrollControls(*child);
             }
         }
+    }
+
+    void updateKeyboardAvoidance()
+    {
+        if( viewport == 0 || contentComponent == 0 )
+            return;
+
+        const int keyboardBottom = getKeyboardInsetBottom();
+        if( keyboardBottom <= 0 )
+            return;
+
+        Component* focused = Component::getCurrentlyFocusedComponent();
+        if( focused == nullptr || focused == contentComponent.get() || !contentComponent->isParentOf(focused) )
+            return;
+
+        if( dynamic_cast<TextEditor*>(focused) == nullptr )
+            return;
+
+        const Rectangle<int> focusedBounds = contentComponent->getLocalArea(focused, focused->getLocalBounds()).expanded(0, 10);
+        const int visibleBottom = viewport->getViewPositionY() + viewport->getHeight() - keyboardBottom - 8;
+
+        if( focusedBounds.getBottom() > visibleBottom ) {
+            viewport->setViewPosition(viewport->getViewPositionX(),
+                                      focusedBounds.getBottom() - viewport->getHeight() + keyboardBottom + 8);
+        } else if( focusedBounds.getY() < viewport->getViewPositionY() + 8 ) {
+            viewport->setViewPosition(viewport->getViewPositionX(),
+                                      jmax(0, focusedBounds.getY() - 8));
+        }
+    }
+
+    int getKeyboardInsetBottom() const
+    {
+        if( auto* display = Desktop::getInstance().getDisplays().getDisplayForRect(getScreenBounds()) )
+            return display->keyboardInsets.getBottom();
+
+        return 0;
     }
 
     std::unique_ptr<MiosStudio> contentComponent;
