@@ -78,6 +78,14 @@ target_compile_definitions(MIOS_Studio PRIVATE
     JUCE_USE_CURL=0
     JUCE_WEB_BROWSER=0)
 
+if(WIN32)
+    # The legacy WinMM backend waits indefinitely for a SysEx buffer to be
+    # returned by a device.  A crashed or disconnected MIDIbox can therefore
+    # block MIOS Studio's message or upload thread.  WinRT provides bounded
+    # port opening, device-removal notifications and non-blocking enumeration.
+    target_compile_definitions(MIOS_Studio PRIVATE JUCE_USE_WINRT_MIDI=1)
+endif()
+
 if(MSVC)
     target_compile_options(MIOS_Studio PRIVATE
         /wd4018
