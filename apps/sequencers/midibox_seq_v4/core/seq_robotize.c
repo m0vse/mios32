@@ -69,7 +69,7 @@ seq_robotize_flags_t SEQ_ROBOTIZE_Event(u8 track, u8 step, seq_layer_evnt_t *e)
   seq_cc_trk_t *tcc = &seq_cc_trk[track];
 
   //exit if there's no chance of robotizing anything
-  if( ! tcc->robotize_active || tcc->robotize_probability == 0 ) // other checks - not necessary in most cases || ( !tcc->robotize_vel && !tcc->robotize_len && !tcc->robotize_note && !tcc->robotize_oct && !tcc->robotize_skip_probability && !tcc->robotize_sustain_probability && !tcc->robotize_nofx_probability && !tcc->robotize_echo_probability && !tcc->robotize_duplicate_probability ) )
+  if( !SEQ_CC_TrackRobotizeActiveGet(tcc) || tcc->robotize_probability == 0 )
     return returnflags; // nothing to do
 		
   //check robotize mask - does the current step % 16 point to an active step in the robotize mask?
@@ -100,8 +100,9 @@ MIOS32_MIDI_SendDebugMessage("random: %d ", randoms[0]);
 */
 
 	//NOTE ROBOTIZER - shift by semitones
-	if ( tcc->robotize_note && tcc->robotize_note_probability && SEQ_ROBOTIZE_Check_Probabilities( tcc->robotize_probability, tcc->robotize_note_probability, randoms, &big_randoms_used) ) {
-		range = tcc->robotize_note * 2;
+	u8 robotize_note = SEQ_CC_TrackRobotizeNoteGet(tcc);
+	if ( robotize_note && tcc->robotize_note_probability && SEQ_ROBOTIZE_Check_Probabilities( tcc->robotize_probability, tcc->robotize_note_probability, randoms, &big_randoms_used) ) {
+		range = robotize_note * 2;
 		s16 value = e->midi_package.note + ((range/2) - (s16)SEQ_RANDOM_Gen_Range(0, range));
 
 		// ensure that note is in the 0..127 range
@@ -112,8 +113,9 @@ MIOS32_MIDI_SendDebugMessage("random: %d ", randoms[0]);
 		
 
 	//OCTAVE ROBOTIZER - shift by octaves - cumulative with notes
-	if ( tcc->robotize_oct && tcc->robotize_oct_probability && SEQ_ROBOTIZE_Check_Probabilities( tcc->robotize_probability, tcc->robotize_oct_probability, randoms, &big_randoms_used) ) {
-		range = tcc->robotize_oct * 2;
+	u8 robotize_oct = SEQ_CC_TrackRobotizeOctGet(tcc);
+	if ( robotize_oct && tcc->robotize_oct_probability && SEQ_ROBOTIZE_Check_Probabilities( tcc->robotize_probability, tcc->robotize_oct_probability, randoms, &big_randoms_used) ) {
+		range = robotize_oct * 2;
 		s16 value = e->midi_package.note + (((range/2) - (s16)SEQ_RANDOM_Gen_Range(0, range))*12);
 
 		// ensure that note is in the 0..127 range

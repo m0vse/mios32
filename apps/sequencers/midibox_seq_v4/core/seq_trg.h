@@ -30,24 +30,52 @@
 // number of trigger assignments (must be alligned with seq_trg_assignments_t)
 #define SEQ_TRG_ASG_NUM 9
 
+enum {
+  SEQ_TRG_ASG_GATE,
+  SEQ_TRG_ASG_ACCENT,
+  SEQ_TRG_ASG_ROLL,
+  SEQ_TRG_ASG_GLIDE,
+  SEQ_TRG_ASG_SKIP,
+  SEQ_TRG_ASG_RANDOM_GATE,
+  SEQ_TRG_ASG_RANDOM_VALUE,
+  SEQ_TRG_ASG_NO_FX,
+  SEQ_TRG_ASG_ROLL_GATE
+};
+
 /////////////////////////////////////////////////////////////////////////////
 // Global Types
 /////////////////////////////////////////////////////////////////////////////
 
-typedef union {
-  u8 ALL[(SEQ_TRG_ASG_NUM + 1) / 2];
-  struct {
-    u8 gate:4;
-    u8 accent:4;
-    u8 roll:4;
-    u8 glide:4;
-    u8 skip:4;
-    u8 random_gate:4;
-    u8 random_value:4;
-    u8 no_fx:4;
-    u8 roll_gate:4;
-  };
+typedef struct {
+  u8 packed[(SEQ_TRG_ASG_NUM + 1) / 2];
 } seq_trg_assignments_t;
+
+typedef char seq_trg_assignments_must_be_five_bytes[
+  sizeof(seq_trg_assignments_t) == 5 ? 1 : -1];
+
+// Trigger assignments are stored as explicit nibbles. Avoiding C bitfields
+// makes the five-byte representation independent of compiler allocation order.
+static inline u8 SEQ_TRG_AssignmentValueGet(const seq_trg_assignments_t *assignments,
+					     u8 trg_num)
+{
+  if( trg_num >= SEQ_TRG_ASG_NUM )
+    return 0;
+
+  return (assignments->packed[trg_num >> 1] >> ((trg_num & 1) << 2)) & 0x0f;
+}
+
+
+static inline void SEQ_TRG_AssignmentValueSet(seq_trg_assignments_t *assignments,
+					       u8 trg_num,
+					       u8 value)
+{
+  if( trg_num < SEQ_TRG_ASG_NUM ) {
+    u8 shift = (trg_num & 1) << 2;
+    u8 mask = 0x0f << shift;
+    assignments->packed[trg_num >> 1] =
+      (assignments->packed[trg_num >> 1] & ~mask) | ((value & 0x0f) << shift);
+  }
+}
 
 
 /////////////////////////////////////////////////////////////////////////////

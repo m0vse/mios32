@@ -348,23 +348,23 @@ s32 SEQ_FILE_T_Read(char *filepath, u8 track, seq_file_t_import_flags_t flags, u
 	  } else if( strcmp(parameter, "GrooveSyncToTrack") == 0 ) {
 	    if( flags.CFG ) tcc->groove_style.sync_to_track = value;
 	  } else if( strcmp(parameter, "TriggerAsngGate") == 0 ) {
-	    if( flags.CFG ) tcc->trg_assignments.gate = value;
+	    if( flags.CFG ) SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_GATE, value);
 	  } else if( strcmp(parameter, "TriggerAsngAccent") == 0 ) {
-	    if( flags.CFG ) tcc->trg_assignments.accent = value;
+	    if( flags.CFG ) SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_ACCENT, value);
 	  } else if( strcmp(parameter, "TriggerAsngRoll") == 0 ) {
-	    if( flags.CFG ) tcc->trg_assignments.roll = value;
+	    if( flags.CFG ) SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_ROLL, value);
 	  } else if( strcmp(parameter, "TriggerAsngGlide") == 0 ) {
-	    if( flags.CFG ) tcc->trg_assignments.glide = value;
+	    if( flags.CFG ) SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_GLIDE, value);
 	  } else if( strcmp(parameter, "TriggerAsgnSkip") == 0 ) {
-	    if( flags.CFG ) tcc->trg_assignments.skip = value;
+	    if( flags.CFG ) SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_SKIP, value);
 	  } else if( strcmp(parameter, "TriggerAsgnRandomGate") == 0 ) {
-	    if( flags.CFG ) tcc->trg_assignments.random_gate = value;
+	    if( flags.CFG ) SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_RANDOM_GATE, value);
 	  } else if( strcmp(parameter, "TriggerAsgnRandomValue") == 0 ) {
-	    if( flags.CFG ) tcc->trg_assignments.random_value = value;
+	    if( flags.CFG ) SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_RANDOM_VALUE, value);
 	  } else if( strcmp(parameter, "TriggerAsgnNoFx") == 0 ) {
-	    if( flags.CFG ) tcc->trg_assignments.no_fx = value;
+	    if( flags.CFG ) SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_NO_FX, value);
 	  } else if( strcmp(parameter, "TriggerAsngRollGate") == 0 ) {
-	    if( flags.CFG ) tcc->trg_assignments.roll_gate = value;
+	    if( flags.CFG ) SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_ROLL_GATE, value);
 	  } else if( strcmp(parameter, "DrumParAsgnA") == 0 ) {
 	    if( flags.CFG ) tcc->par_assignment_drum[0] = value;
 	  } else if( strcmp(parameter, "DrumParAsgnB") == 0 ) {
@@ -682,31 +682,40 @@ static s32 SEQ_FILE_T_Write_Hlp(u8 write_to_file, u8 track)
 
 
   const char trg_asg_str[16] = "-ABCDEFGH???????";
-  sprintf(line_buffer, "TriggerAsngGate %d (%c)\n", tcc->trg_assignments.gate, trg_asg_str[tcc->trg_assignments.gate]);
+  u8 trg_asg = SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_GATE);
+  sprintf(line_buffer, "TriggerAsngGate %d (%c)\n", trg_asg, trg_asg_str[trg_asg]);
   FLUSH_BUFFER;
 
-  sprintf(line_buffer, "TriggerAsngAccent %d (%c)\n", tcc->trg_assignments.accent, trg_asg_str[tcc->trg_assignments.accent]);
+  trg_asg = SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_ACCENT);
+  sprintf(line_buffer, "TriggerAsngAccent %d (%c)\n", trg_asg, trg_asg_str[trg_asg]);
   FLUSH_BUFFER;
 
-  sprintf(line_buffer, "TriggerAsngRoll %d (%c)\n", tcc->trg_assignments.roll, trg_asg_str[tcc->trg_assignments.roll]);
+  trg_asg = SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_ROLL);
+  sprintf(line_buffer, "TriggerAsngRoll %d (%c)\n", trg_asg, trg_asg_str[trg_asg]);
   FLUSH_BUFFER;
 
-  sprintf(line_buffer, "TriggerAsngGlide %d (%c)\n", tcc->trg_assignments.glide, trg_asg_str[tcc->trg_assignments.glide]);
+  trg_asg = SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_GLIDE);
+  sprintf(line_buffer, "TriggerAsngGlide %d (%c)\n", trg_asg, trg_asg_str[trg_asg]);
   FLUSH_BUFFER;
 
-  sprintf(line_buffer, "TriggerAsgnSkip %d (%c)\n", tcc->trg_assignments.skip, trg_asg_str[tcc->trg_assignments.skip]);
+  trg_asg = SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_SKIP);
+  sprintf(line_buffer, "TriggerAsgnSkip %d (%c)\n", trg_asg, trg_asg_str[trg_asg]);
   FLUSH_BUFFER;
 
-  sprintf(line_buffer, "TriggerAsgnRandomGate %d (%c)\n", tcc->trg_assignments.random_gate, trg_asg_str[tcc->trg_assignments.random_gate]);
+  trg_asg = SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_RANDOM_GATE);
+  sprintf(line_buffer, "TriggerAsgnRandomGate %d (%c)\n", trg_asg, trg_asg_str[trg_asg]);
   FLUSH_BUFFER;
 
-  sprintf(line_buffer, "TriggerAsgnRandomValue %d (%c)\n", tcc->trg_assignments.random_value, trg_asg_str[tcc->trg_assignments.random_value]);
+  trg_asg = SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_RANDOM_VALUE);
+  sprintf(line_buffer, "TriggerAsgnRandomValue %d (%c)\n", trg_asg, trg_asg_str[trg_asg]);
   FLUSH_BUFFER;
 
-  sprintf(line_buffer, "TriggerAsgnNoFx %d (%c)\n", tcc->trg_assignments.no_fx, trg_asg_str[tcc->trg_assignments.no_fx]);
+  trg_asg = SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_NO_FX);
+  sprintf(line_buffer, "TriggerAsgnNoFx %d (%c)\n", trg_asg, trg_asg_str[trg_asg]);
   FLUSH_BUFFER;
 
-  sprintf(line_buffer, "TriggerAsngRollGate %d (%c)\n", tcc->trg_assignments.roll_gate, trg_asg_str[tcc->trg_assignments.roll_gate]);
+  trg_asg = SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_ROLL_GATE);
+  sprintf(line_buffer, "TriggerAsngRollGate %d (%c)\n", trg_asg, trg_asg_str[trg_asg]);
   FLUSH_BUFFER;
 
   

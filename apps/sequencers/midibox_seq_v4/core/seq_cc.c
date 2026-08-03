@@ -163,15 +163,15 @@ s32 SEQ_CC_Set(u8 track, u8 cc, u8 value)
       case SEQ_CC_HUMANIZE_VALUE: tcc->humanize_value = value; break;
       case SEQ_CC_HUMANIZE_MODE: tcc->humanize_mode = value; break;
     
-      case SEQ_CC_ASG_GATE: tcc->trg_assignments.gate = value; break;
-      case SEQ_CC_ASG_ACCENT: tcc->trg_assignments.accent = value; break;
-      case SEQ_CC_ASG_ROLL: tcc->trg_assignments.roll = value; break;
-      case SEQ_CC_ASG_GLIDE: tcc->trg_assignments.glide = value; break;
-      case SEQ_CC_ASG_SKIP: tcc->trg_assignments.skip = value; break;
-      case SEQ_CC_ASG_RANDOM_GATE: tcc->trg_assignments.random_gate = value; break;
-      case SEQ_CC_ASG_RANDOM_VALUE: tcc->trg_assignments.random_value = value; break;
-      case SEQ_CC_ASG_NO_FX: tcc->trg_assignments.no_fx = value; break;
-      case SEQ_CC_ASG_ROLL_GATE: tcc->trg_assignments.roll_gate = value; break;
+      case SEQ_CC_ASG_GATE: SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_GATE, value); break;
+      case SEQ_CC_ASG_ACCENT: SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_ACCENT, value); break;
+      case SEQ_CC_ASG_ROLL: SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_ROLL, value); break;
+      case SEQ_CC_ASG_GLIDE: SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_GLIDE, value); break;
+      case SEQ_CC_ASG_SKIP: SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_SKIP, value); break;
+      case SEQ_CC_ASG_RANDOM_GATE: SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_RANDOM_GATE, value); break;
+      case SEQ_CC_ASG_RANDOM_VALUE: SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_RANDOM_VALUE, value); break;
+      case SEQ_CC_ASG_NO_FX: SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_NO_FX, value); break;
+      case SEQ_CC_ASG_ROLL_GATE: SEQ_TRG_AssignmentValueSet(&tcc->trg_assignments, SEQ_TRG_ASG_ROLL_GATE, value); break;
 
       case SEQ_CC_PAR_ASG_DRUM_LAYER_A:
 	tcc->par_assignment_drum[0] = value;
@@ -217,8 +217,8 @@ s32 SEQ_CC_Set(u8 track, u8 cc, u8 value)
       case SEQ_CC_LFO_CC_PPQN: tcc->lfo_cc_ppqn = value; break;
 
       case SEQ_CC_ROBOTIZE_PROBABILITY: tcc->robotize_probability = value; break;
-      case SEQ_CC_ROBOTIZE_NOTE: tcc->robotize_note = value; break;
-      case SEQ_CC_ROBOTIZE_OCT: tcc->robotize_oct = value; break;
+      case SEQ_CC_ROBOTIZE_NOTE: SEQ_CC_TrackRobotizeNoteSet(tcc, value); break;
+      case SEQ_CC_ROBOTIZE_OCT: SEQ_CC_TrackRobotizeOctSet(tcc, value); break;
       case SEQ_CC_ROBOTIZE_LEN: tcc->robotize_len = value; break;
       case SEQ_CC_ROBOTIZE_VEL: tcc->robotize_vel = value; break;
 
@@ -233,7 +233,7 @@ s32 SEQ_CC_Set(u8 track, u8 cc, u8 value)
       case SEQ_CC_ROBOTIZE_DUPLICATE_PROBABILITY: tcc->robotize_duplicate_probability = value; break;
   
 
-      case SEQ_CC_ROBOTIZE_ACTIVE: tcc->robotize_active = value; break;
+      case SEQ_CC_ROBOTIZE_ACTIVE: SEQ_CC_TrackRobotizeActiveSet(tcc, value); break;
       case SEQ_CC_ROBOTIZE_MASK1: tcc->robotize_mask1 = value; break;
       case SEQ_CC_ROBOTIZE_MASK2: tcc->robotize_mask2 = value; break;
 
@@ -370,15 +370,15 @@ s32 SEQ_CC_Get(u8 track, u8 cc)
     case SEQ_CC_HUMANIZE_VALUE: return tcc->humanize_value;
     case SEQ_CC_HUMANIZE_MODE: return tcc->humanize_mode;
   
-    case SEQ_CC_ASG_GATE: return tcc->trg_assignments.gate;
-    case SEQ_CC_ASG_ACCENT: return tcc->trg_assignments.accent;
-    case SEQ_CC_ASG_ROLL: return tcc->trg_assignments.roll;
-    case SEQ_CC_ASG_GLIDE: return tcc->trg_assignments.glide;
-    case SEQ_CC_ASG_SKIP: return tcc->trg_assignments.skip;
-    case SEQ_CC_ASG_RANDOM_GATE: return tcc->trg_assignments.random_gate;
-    case SEQ_CC_ASG_RANDOM_VALUE: return tcc->trg_assignments.random_value;
-    case SEQ_CC_ASG_NO_FX: return tcc->trg_assignments.no_fx;
-    case SEQ_CC_ASG_ROLL_GATE: return tcc->trg_assignments.roll_gate;
+    case SEQ_CC_ASG_GATE: return SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_GATE);
+    case SEQ_CC_ASG_ACCENT: return SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_ACCENT);
+    case SEQ_CC_ASG_ROLL: return SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_ROLL);
+    case SEQ_CC_ASG_GLIDE: return SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_GLIDE);
+    case SEQ_CC_ASG_SKIP: return SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_SKIP);
+    case SEQ_CC_ASG_RANDOM_GATE: return SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_RANDOM_GATE);
+    case SEQ_CC_ASG_RANDOM_VALUE: return SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_RANDOM_VALUE);
+    case SEQ_CC_ASG_NO_FX: return SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_NO_FX);
+    case SEQ_CC_ASG_ROLL_GATE: return SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_ROLL_GATE);
 
     case SEQ_CC_PAR_ASG_DRUM_LAYER_A: return tcc->par_assignment_drum[0];
     case SEQ_CC_PAR_ASG_DRUM_LAYER_B: return tcc->par_assignment_drum[1];
@@ -412,8 +412,8 @@ s32 SEQ_CC_Get(u8 track, u8 cc)
     case SEQ_CC_LFO_CC_PPQN: return tcc->lfo_cc_ppqn;
 
     case SEQ_CC_ROBOTIZE_PROBABILITY: return tcc->robotize_probability;
-    case SEQ_CC_ROBOTIZE_NOTE: return tcc->robotize_note;
-    case SEQ_CC_ROBOTIZE_OCT: return tcc->robotize_oct;
+    case SEQ_CC_ROBOTIZE_NOTE: return SEQ_CC_TrackRobotizeNoteGet(tcc);
+    case SEQ_CC_ROBOTIZE_OCT: return SEQ_CC_TrackRobotizeOctGet(tcc);
     case SEQ_CC_ROBOTIZE_VEL: return tcc->robotize_vel;
     case SEQ_CC_ROBOTIZE_LEN: return tcc->robotize_len;
 
@@ -427,7 +427,7 @@ s32 SEQ_CC_Get(u8 track, u8 cc)
     case SEQ_CC_ROBOTIZE_ECHO_PROBABILITY: return tcc->robotize_echo_probability;
     case SEQ_CC_ROBOTIZE_DUPLICATE_PROBABILITY: return tcc->robotize_duplicate_probability;
 
-    case SEQ_CC_ROBOTIZE_ACTIVE: return tcc->robotize_active;
+    case SEQ_CC_ROBOTIZE_ACTIVE: return SEQ_CC_TrackRobotizeActiveGet(tcc);
     case SEQ_CC_ROBOTIZE_MASK1: return tcc->robotize_mask1;
     case SEQ_CC_ROBOTIZE_MASK2: return tcc->robotize_mask2;
   }
@@ -513,7 +513,8 @@ s32 SEQ_CC_TrackHasVelocityParLayer(u8 track)
 /////////////////////////////////////////////////////////////////////////////
 s32 SEQ_CC_TrackHasAccentTrgLayer(u8 track)
 {
-  return seq_cc_trk[track].trg_assignments.accent ? 1 : 0;
+  return SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments,
+				    SEQ_TRG_ASG_ACCENT) ? 1 : 0;
 }
 
 

@@ -252,9 +252,7 @@ typedef struct {
   u8       limit_lower;       // for note value limits
   u8       limit_upper;       // for note value limits
 
-  u8       robotize_note:4;    // robotize note range
-  u8       robotize_oct:3;    // robotize octave range
-  u8       robotize_active:1; // Is robotize activated?
+  u8       robotize_flags;   // note range (bits 0..3), octave range (4..6), active (7)
   u8       robotize_vel;    // robotize velocity range
   u8       robotize_len;    // robotize length range
   u8       robotize_probability:5;    // overal robotize probability
@@ -286,6 +284,39 @@ typedef struct {
   s8 link_par_layer_root;        // parameter layer which stores root value (-1 if not assigned)
   s8 link_par_layer_scale;       // parameter layer which stores scale value (-1 if not assigned)
 } seq_cc_trk_t;
+
+typedef char seq_cc_trk_must_be_130_bytes[
+  sizeof(seq_cc_trk_t) == 130 ? 1 : -1];
+
+static inline u8 SEQ_CC_TrackRobotizeNoteGet(const seq_cc_trk_t *tcc)
+{
+  return tcc->robotize_flags & 0x0f;
+}
+
+static inline void SEQ_CC_TrackRobotizeNoteSet(seq_cc_trk_t *tcc, u8 value)
+{
+  tcc->robotize_flags = (tcc->robotize_flags & 0xf0) | (value & 0x0f);
+}
+
+static inline u8 SEQ_CC_TrackRobotizeOctGet(const seq_cc_trk_t *tcc)
+{
+  return (tcc->robotize_flags >> 4) & 0x07;
+}
+
+static inline void SEQ_CC_TrackRobotizeOctSet(seq_cc_trk_t *tcc, u8 value)
+{
+  tcc->robotize_flags = (tcc->robotize_flags & 0x8f) | ((value & 0x07) << 4);
+}
+
+static inline u8 SEQ_CC_TrackRobotizeActiveGet(const seq_cc_trk_t *tcc)
+{
+  return (tcc->robotize_flags >> 7) & 1;
+}
+
+static inline void SEQ_CC_TrackRobotizeActiveSet(seq_cc_trk_t *tcc, u8 value)
+{
+  tcc->robotize_flags = (tcc->robotize_flags & 0x7f) | ((value & 1) << 7);
+}
 
 
 /////////////////////////////////////////////////////////////////////////////

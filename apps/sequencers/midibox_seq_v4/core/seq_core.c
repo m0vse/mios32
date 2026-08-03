@@ -2522,7 +2522,8 @@ s32 SEQ_CORE_CancelSustainedNotes(u8 track)
   seq_cc_trk_t *tcc = &seq_cc_trk[track];
 
   if( t->state.SUSTAINED && tcc->event_mode != SEQ_EVENT_MODE_Drum ) {
-    u8 gate_trg_assignment = tcc->trg_assignments.gate;
+    u8 gate_trg_assignment =
+      SEQ_TRG_AssignmentValueGet(&tcc->trg_assignments, SEQ_TRG_ASG_GATE);
 
     if( gate_trg_assignment ) {
       u8 any_gate_set = 0;

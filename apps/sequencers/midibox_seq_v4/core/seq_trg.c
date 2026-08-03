@@ -147,8 +147,7 @@ s32 SEQ_TRG_AssignmentGet(u8 track, u8 trg_num)
   if( trg_num >= SEQ_TRG_ASG_NUM )
     return 0;
 
-  u8 assignments = seq_cc_trk[track].trg_assignments.ALL[trg_num / 2];
-  return (assignments >> ((trg_num & 1) * 4)) & 0xf;
+  return SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, trg_num);
 }
 
 
@@ -209,56 +208,56 @@ s32 SEQ_TRG_Get16(u8 track, u8 step16, u8 trg_layer, u8 trg_instrument)
 /////////////////////////////////////////////////////////////////////////////
 s32 SEQ_TRG_GateGet(u8 track, u16 step, u8 trg_instrument)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.gate;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_GATE);
   // gate always set if not assigned
   return trg_assignment ? SEQ_TRG_Get(track, step, trg_assignment-1, trg_instrument) : 1;
 }
 
 s32 SEQ_TRG_AccentGet(u8 track, u16 step, u8 trg_instrument)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.accent;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_ACCENT);
   return trg_assignment ? SEQ_TRG_Get(track, step, trg_assignment-1, trg_instrument) : 0;
 }
 
 s32 SEQ_TRG_RollGet(u8 track, u16 step, u8 trg_instrument)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.roll;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_ROLL);
   return trg_assignment ? SEQ_TRG_Get(track, step, trg_assignment-1, trg_instrument) : 0;
 }
 
 s32 SEQ_TRG_GlideGet(u8 track, u16 step, u8 trg_instrument)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.glide;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_GLIDE);
   return trg_assignment ? SEQ_TRG_Get(track, step, trg_assignment-1, trg_instrument) : 0;
 }
 
 s32 SEQ_TRG_SkipGet(u8 track, u16 step, u8 trg_instrument)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.skip;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_SKIP);
   return trg_assignment ? SEQ_TRG_Get(track, step, trg_assignment-1, trg_instrument) : 0;
 }
 
 s32 SEQ_TRG_RandomGateGet(u8 track, u16 step, u8 trg_instrument)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.random_gate;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_RANDOM_GATE);
   return trg_assignment ? SEQ_TRG_Get(track, step, trg_assignment-1, trg_instrument) : 0;
 }
 
 s32 SEQ_TRG_RandomValueGet(u8 track, u16 step, u8 trg_instrument)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.random_value;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_RANDOM_VALUE);
   return trg_assignment ? SEQ_TRG_Get(track, step, trg_assignment-1, trg_instrument) : 0;
 }
 
 s32 SEQ_TRG_NoFxGet(u8 track, u16 step, u8 trg_instrument)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.no_fx;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_NO_FX);
   return trg_assignment ? SEQ_TRG_Get(track, step, trg_assignment-1, trg_instrument) : 0;
 }
 
 s32 SEQ_TRG_RollGateGet(u8 track, u16 step, u8 trg_instrument)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.roll_gate;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_ROLL_GATE);
   return trg_assignment ? SEQ_TRG_Get(track, step, trg_assignment-1, trg_instrument) : 1;
 }
 
@@ -323,55 +322,55 @@ s32 SEQ_TRG_Set8(u8 track, u8 step8, u8 trg_layer, u8 trg_instrument, u8 value)
 /////////////////////////////////////////////////////////////////////////////
 s32 SEQ_TRG_GateSet(u8 track, u16 step, u8 trg_instrument, u8 value)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.gate;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_GATE);
   return trg_assignment ? SEQ_TRG_Set(track, step, trg_assignment-1, trg_instrument, value) : -1;
 }
 
 s32 SEQ_TRG_AccentSet(u8 track, u16 step, u8 trg_instrument, u8 value)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.accent;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_ACCENT);
   return trg_assignment ? SEQ_TRG_Set(track, step, trg_assignment-1, trg_instrument, value) : -1;
 }
 
 s32 SEQ_TRG_RollSet(u8 track, u16 step, u8 trg_instrument, u8 value)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.roll;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_ROLL);
   return trg_assignment ? SEQ_TRG_Set(track, step, trg_assignment-1, trg_instrument, value) : -1;
 }
 
 s32 SEQ_TRG_GlideSet(u8 track, u16 step, u8 trg_instrument, u8 value)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.glide;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_GLIDE);
   return trg_assignment ? SEQ_TRG_Set(track, step, trg_assignment-1, trg_instrument, value) : -1;
 }
 
 s32 SEQ_TRG_SkipSet(u8 track, u16 step, u8 trg_instrument, u8 value)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.skip;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_SKIP);
   return trg_assignment ? SEQ_TRG_Set(track, step, trg_assignment-1, trg_instrument, value) : -1;
 }
 
 s32 SEQ_TRG_RandomGateSet(u8 track, u16 step, u8 trg_instrument, u8 value)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.random_gate;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_RANDOM_GATE);
   return trg_assignment ? SEQ_TRG_Set(track, step, trg_assignment-1, trg_instrument, value) : -1;
 }
 
 s32 SEQ_TRG_RandomValueSet(u8 track, u16 step, u8 trg_instrument, u8 value)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.random_value;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_RANDOM_VALUE);
   return trg_assignment ? SEQ_TRG_Set(track, step, trg_assignment-1, trg_instrument, value) : -1;
 }
 
 s32 SEQ_TRG_NoFxSet(u8 track, u16 step, u8 trg_instrument, u8 value)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.no_fx;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_NO_FX);
   return trg_assignment ? SEQ_TRG_Set(track, step, trg_assignment-1, trg_instrument, value) : -1;
 }
 
 s32 SEQ_TRG_RollGateSet(u8 track, u16 step, u8 trg_instrument, u8 value)
 {
-  u8 trg_assignment = seq_cc_trk[track].trg_assignments.roll_gate;
+  u8 trg_assignment = SEQ_TRG_AssignmentValueGet(&seq_cc_trk[track].trg_assignments, SEQ_TRG_ASG_ROLL_GATE);
   return trg_assignment ? SEQ_TRG_Set(track, step, trg_assignment-1, trg_instrument, value) : -1;
 }
 
