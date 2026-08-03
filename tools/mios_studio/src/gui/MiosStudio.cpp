@@ -899,7 +899,10 @@ void MiosStudio::resized()
 
     auto terminalInner = layout.terminal.reduced(8);
     auto terminalRow = terminalInner.removeFromBottom(34);
-    const int sendWidth = terminalRow.getWidth() < 420 ? 76 : 92;
+    const int sendWidth = terminalRow.getWidth() < 420 ? 64 : 82;
+    const int doneWidth = terminalRow.getWidth() < 420 ? 64 : 82;
+    dismissKeyboardButton.setBounds(terminalRow.removeFromRight(doneWidth));
+    terminalRow.removeFromRight(8);
     sendTerminalButton.setBounds(terminalRow.removeFromRight(sendWidth));
     terminalRow.removeFromRight(8);
     terminalInput.setBounds(terminalRow);
@@ -1243,7 +1246,8 @@ void MiosStudio::initialiseIosUi()
     uploadStartButton.setButtonText(T("Start"));
     uploadStopButton.setButtonText(T("Stop"));
     sendTerminalButton.setButtonText(T("Send"));
-    for( TextButton* button : { &refreshButton, &queryButton, &uploadFileButton, &uploadStartButton, &uploadStopButton, &sendTerminalButton } ) {
+    dismissKeyboardButton.setButtonText(T("Done"));
+    for( TextButton* button : { &refreshButton, &queryButton, &uploadFileButton, &uploadStartButton, &uploadStopButton, &sendTerminalButton, &dismissKeyboardButton } ) {
         button->addListener(this);
         addAndMakeVisible(*button);
     }
@@ -1368,6 +1372,8 @@ void MiosStudio::buttonClicked(Button* buttonThatWasClicked)
         stopIosUpload(true);
     } else if( buttonThatWasClicked == &sendTerminalButton ) {
         sendIosTerminalCommand(terminalInput.getText());
+    } else if( buttonThatWasClicked == &dismissKeyboardButton ) {
+        terminalInput.giveAwayKeyboardFocus();
     }
 }
 
@@ -1376,6 +1382,12 @@ void MiosStudio::mouseDown(const MouseEvent& e)
     const MouseEvent localEvent = e.getEventRelativeTo(this);
     iosDrawerDragStart = localEvent.getPosition();
     iosDrawerEdgeDragActive = !iosDrawerOpen && iosDrawerDragStart.x <= 24;
+
+    if( terminalInput.hasKeyboardFocus(true) &&
+        !terminalInput.getBounds().contains(iosDrawerDragStart) &&
+        !sendTerminalButton.getBounds().contains(iosDrawerDragStart) &&
+        !dismissKeyboardButton.getBounds().contains(iosDrawerDragStart) )
+        terminalInput.giveAwayKeyboardFocus();
 
     const IosStudioLayout layout = getIosStudioLayout(getLocalBounds());
     if( iosDrawerOpen && !getIosDrawerBounds(*this, layout, 1.0f).contains(iosDrawerDragStart) )
